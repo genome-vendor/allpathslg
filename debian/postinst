@@ -16,10 +16,10 @@
 # the debian-policy package
 
 
-EXECUTABLES="PrepareAllPathsInputs.pl"
+EXECUTABLES="PrepareAllPathsInputs"
 MANPAGES=""
 PRIORITY=1
-EXE_VERSION_SUFFIX=40480
+EXE_VERSION_SUFFIX=-40480
 
 set -e
 
