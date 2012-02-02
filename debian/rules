@@ -8,7 +8,7 @@ VERSION=40480
 
 override_dh_auto_install:
 	dh_auto_install
-	mkdir ./debian/$(PKG)/usr/lib/$(PKG)-$(VERSION)
+	mkdir -p ./debian/$(PKG)/usr/lib/$(PKG)-$(VERSION)
 	for FILE in ./debian/$(PKG)/usr/bin/*; do \
 	  mv $$FILE ./debian/$(PKG)/usr/lib/$(PKG)-$(VERSION)/`basename $$FILE`; \
 	done
