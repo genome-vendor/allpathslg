@@ -15,7 +15,7 @@
 # the debian-policy package
 
 
-EXECUTABLES="PrepareAllPathsInputs.pl"
+EXECUTABLES="PrepareAllPathsInputs.pl RunAllPathsLG"
 MANPAGES=""
 EXE_VERSION_SUFFIX=40480
 
