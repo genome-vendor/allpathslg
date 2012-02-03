@@ -8,11 +8,9 @@ VERSION=40480
 
 override_dh_auto_install:
 	dh_auto_install
-	mkdir -p ./debian/$(PKG)/usr/lib/$(PKG)-$(VERSION)
-	for FILE in ./debian/$(PKG)/usr/bin/*; do \
-	  mv $$FILE ./debian/$(PKG)/usr/lib/$(PKG)-$(VERSION)/`basename $$FILE`; \
-	done
+	mkdir -p ./debian/$(PKG)/usr/lib
+	mv ./debian/$(PKG)/usr/bin ./debian/$(PKG)/usr/lib/$(PKG)
+	mkdir -p ./debian/$(PKG)/usr/bin/
 	for FILE in genome-wrappers/*; do \
-	  cp $$FILE ./debian/$(PKG)/usr/bin/`basename $$FILE`-$(VERSION); \
-	  sed -i 's/VERSION/$(VERSION)/g' ./debian/$(PKG)/usr/bin/`basename $$FILE`-$(VERSION); \
+	  cat $$FILE | sed 's/VERSION/$(VERSION)/g' >  ./debian/$(PKG)/usr/bin/`basename $$FILE`-$(VERSION); \
 	done
