@@ -3,7 +3,7 @@
 version=VERSION
 pkg=allpathslg-$version
 path=/usr/lib/$pkg
-prog=PrepareAllPathsInputs
+prog=PrepareAllPathsInputs.pl
 
 # see how we were called
 #prog=`basename $0`
@@ -13,9 +13,9 @@ prog=PrepareAllPathsInputs
 #fi
 
 # see if we are on a 64-bit machine
-if [ "`uname -m`" = x86_64 ]; then
-    path="$path-64"
-fi
+#if [ "`uname -m`" = x86_64 ]; then
+#    path="$path-64"
+#fi
 
 # make sure executable exists under path
 if [ ! -x "$path/$prog" ]; then
