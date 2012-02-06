@@ -2,6 +2,7 @@
 
 PKG=$(shell dh_listpackages)
 VERSION=40480
+EXECUTABLES="PrepareAllPathsInputs.pl RunAllPathsLG"
 
 %:
 	dh $@
@@ -11,6 +12,6 @@ override_dh_auto_install:
 	mkdir -p ./debian/$(PKG)/usr/lib
 	mv ./debian/$(PKG)/usr/bin ./debian/$(PKG)/usr/lib/$(PKG)
 	mkdir -p ./debian/$(PKG)/usr/bin/
-	for FILE in genome-wrappers/*; do \
-	  cat $$FILE | sed 's/VERSION/$(VERSION)/g' >  ./debian/$(PKG)/usr/bin/`basename $$FILE`-$(VERSION); \
+	for e in $(EXECUTABLES); do \
+	  cat ./genome_wrappers/wrapper | sed 's/VERSION/$(VERSION)/g' | sed 's/PROGRAM_NAME/$(e)/g' >  ./debian/$(PKG)/usr/bin/$(e)-$(VERSION); \
 	done

@@ -3,7 +3,7 @@
 version=VERSION
 pkg=allpathslg-$version
 path=/usr/lib/$pkg
-prog=PrepareAllPathsInputs.pl
+prog=PROGRAM_NAME
 
 # see how we were called
 #prog=`basename $0`
