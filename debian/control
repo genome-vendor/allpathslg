@@ -7,5 +7,5 @@ Homepage: http://www.broadinstitute.org/software/allpaths-lg/blog/
 
 Package: allpathslg-40480
 Architecture: amd64
-Depends: 
+Depends: picard-tools, graphviz
 Description: ALLPATHS-LG is a de bruijn graph assembler for large genomes. 
