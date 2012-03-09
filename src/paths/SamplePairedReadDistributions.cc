@@ -123,6 +123,28 @@ void print_cov_line2(const IntFunction<double> & cov)
   cout << " "  << setw(8) << cov_blank_str(cov.sum_above(10000));
   cout << " "  << setw(8) << cov_blank_str(cov.sum_above(30000));
 }
+
+
+void print_cov_line3(const IntFunction<double> & cov)
+{
+  cout << " "  << setw(8) << ToString(cov.sum_above(    0), 1);
+  cout << " "  << setw(8) << ToString(cov.sum_above( 1000), 1);
+  cout << " "  << setw(8) << ToString(cov.sum_above( 2000), 1);
+  cout << " "  << setw(8) << ToString(cov.sum_above( 3000), 1);
+  cout << " "  << setw(8) << ToString(cov.sum_above( 4000), 1);
+  cout << " "  << setw(8) << ToString(cov.sum_above( 5000), 1);
+}
+
+void print_n_gap_links_line(const IntFunction<double> & cov,
+                            const IntFunction<double> & n_links,
+                            const vec<size_t> & gaps)
+{
+  for (size_t i = 0; i < gaps.size(); i++) {
+    const size_t gap = gaps[i];
+    const size_t n = cov.sum_above(gap) - gap * n_links.sum_above(gap) + 0.5;
+    cout << " "  << setw(5) << (n > 0 ? ToString(n) : "     ");
+  }
+}
     
 
 
@@ -219,12 +241,12 @@ IntDistribution distribution_compute(const IntFrequencies & inv_sz_freq,
                                      const int x_min,
                                      const int x_max)
 {
-  IntFunction<double> dist;
+  IntFunction<double> counts;
   for (int x = x_min; x <= x_max; x++)
-    dist[x] = double(inv_sz_freq[x]) / double(n_inserts[x]); 
+    counts[x] = double(inv_sz_freq[x]) / double(n_inserts[x]); 
 
-  // the constructor of IntDistribution will convert the IntFunction<double>
-  return dist;
+  // the constructor of IntDistribution will convert and NORMALIZE the IntFunction<double>
+  return counts;
 }
 
 
@@ -239,6 +261,20 @@ IntFunction<double> physical_coverage_compute(const IntFrequencies & inv_sz_freq
     cov[x] = double(inv_sz_freq[x]) * double(x) / (double(n_inserts[x]) * frac_sampled);
   
   return cov;
+}
+
+
+IntFunction<double> number_links_compute(const IntFrequencies & inv_sz_freq, 
+                                         const IntFrequencies & n_inserts,
+                                         const double frac_sampled,
+                                         const int x_min,
+                                         const int x_max)
+{
+  IntFunction<double> n_links;
+  for (int x = x_min; x <= x_max; x++) 
+    n_links[x] = double(inv_sz_freq[x]) / (double(n_inserts[x]) * frac_sampled);
+  
+  return n_links;  // just the raw counts scaled up from the sampled counts
 }
 
 
@@ -842,6 +878,7 @@ int main(int argc, char *argv[])
 
   vec<IntDistribution> inv_sz_smooth_dist(n_libs);
   vec<IntFunction<double> > cov_phys(n_libs);
+  vec<IntFunction<double> > n_links(n_libs);
 
   // ---- Computing invariant sizes for libraries
   cout << Tag() << "Computing invariant size distributions for " << n_libs << " libraries." << endl;
@@ -932,6 +969,9 @@ int main(int argc, char *argv[])
         cov_phys[i_lib] = physical_coverage_compute(inv_sz_freq, n_inserts, frac_sampled,
                                                     x_min, x_max);
 
+        n_links[i_lib] = number_links_compute(inv_sz_freq, n_inserts, frac_sampled,
+                                              x_min, x_max);
+        
         // ---- output invariant size frequencies and 'raw' distributions
 
         inv_sz_freq.to_text_file(head);
@@ -1018,20 +1058,32 @@ int main(int argc, char *argv[])
   // ---- PERFSTAT BLOCK for coverage
 
   IntFunction<double> cov_phys_total;
+  IntFunction<double> n_links_total;
   size_t n_pairs_lib_total = 0;
   for (size_t i_lib = 0; i_lib < n_libs; i_lib++) {
-    cov_phys_total += cov_phys[i_lib];
+    cov_phys_total    += cov_phys[i_lib];
+    n_links_total     += n_links[i_lib];
     n_pairs_lib_total += i_pairs_lib[i_lib].size();
   }
 
+
+
+
   PerfStat::log() << PerfStatBlockStart("Libraries statistics tables");
+
+
+
+
+
+
+
 
   cout << endl;
   cout << "Table 1: library names, number of pairs (N), original (L0) and new sizes (L)" << endl;
   cout << endl;
   
   //      "........10........20........30........40........50........60........70........80"
-  cout << "--- --------------------- ------------ ----------------- -----------------" << endl;
+  cout << "--------------------------------------------------------------------------" << endl;
   cout << " id          library name  num pairs N    orig size L0       new size L" << endl;
   cout << "--- --------------------- ------------ ----------------- -----------------" << endl;
   for (size_t i_lib = 0; i_lib < n_libs; i_lib++) {
@@ -1040,7 +1092,7 @@ int main(int argc, char *argv[])
     const size_t id1 = pairs.ID1(i0_pair);
     const size_t id2 = pairs.ID2(i0_pair);
     const int inv_sz_mean = (FLIP) ? 
-      -pairs.getLibrarySep(i_lib) : 
+      pairs.getLibrarySep(i_lib) : 
       pairs.getLibrarySep(i_lib) + reads[id1].size() + reads[id2].size();
     const int inv_sz_sd   = pairs.getLibrarySD(i_lib);
 
@@ -1058,27 +1110,36 @@ int main(int argc, char *argv[])
     cout << " +/- " << setw(5)  << int(sqrt(distrib.variance()));
     cout << endl;
   }
-  cout << endl;
-  cout << "tot                 total";
-  cout << " "     << setw(12) << n_pairs_lib_total << endl;
-  cout << "--- --------------------- ------------ ----------------- -----------------" << endl;
-
+  if (n_libs > 1) {
+    cout << endl;
+    cout << "tot                 total";
+    cout << " "     << setw(12) << n_pairs_lib_total << endl;
+  }
+  cout << "--------------------------------------------------------------------------" << endl;
   cout << endl << endl;
+
+
+
+
+
+
+
+
 
   cout << "Table 2: fraction of reads in each length interval" << endl;
   cout << endl;
 
   //      "........10........20........30........40........50........60........70........80"
-  cout << "--- -----  -------  ------- ------- ------- ------- -------" << endl;
-  cout << " id  <L>    L < 0    0-500   500-2k  2k-8k   8k-32k  > 32k" << endl;
-  cout << "--- -----  -------  ------- ------- ------- ------- -------" << endl;
+  cout << "---------------------------------------------------------------------------" << endl;
+  cout << " id   <L>    L < 0    0-500  500-1k   1k-2k   2k-4k   4k-8k  8k-16k    >16k" << endl;
+  cout << "--- -----  -------  ------- ------- ------- ------- ------- ------- -------" << endl;
   for (size_t i_lib = 0; i_lib < n_libs; i_lib++) {
     const size_t n_pairs_lib = i_pairs_lib[i_lib].size();
     const size_t i0_pair = i_pairs_lib[i_lib][0];
     const size_t id1 = pairs.ID1(i0_pair);
     const size_t id2 = pairs.ID2(i0_pair);
     const int inv_sz_mean = (FLIP) ? 
-      -pairs.getLibrarySep(i_lib) : 
+      pairs.getLibrarySep(i_lib) : 
       pairs.getLibrarySep(i_lib) + reads[id1].size() + reads[id2].size();
     const int inv_sz_sd   = pairs.getLibrarySD(i_lib);
 
@@ -1089,95 +1150,113 @@ int main(int argc, char *argv[])
 
     cout << "  " << setw(7) << pct_blank_str(distrib.prob_lt(0));
     cout << "  " << setw(7) << pct_blank_str(distrib.prob_in(    0,   499));
-    cout << " "  << setw(7) << pct_blank_str(distrib.prob_in(  500,  1999));
-    cout << " "  << setw(7) << pct_blank_str(distrib.prob_in( 2000,  7999));
-    cout << " "  << setw(7) << pct_blank_str(distrib.prob_in( 8000, 31999));
-    cout << " "  << setw(7) << pct_blank_str(distrib.prob_ge(32000));
+    cout << " "  << setw(7) << pct_blank_str(distrib.prob_in(  500,   999));
+    cout << " "  << setw(7) << pct_blank_str(distrib.prob_in( 1000,  1999));
+    cout << " "  << setw(7) << pct_blank_str(distrib.prob_in( 2000,  3999));
+    cout << " "  << setw(7) << pct_blank_str(distrib.prob_in( 4000,  7999));
+    cout << " "  << setw(7) << pct_blank_str(distrib.prob_in( 8000, 15999));
+    cout << " "  << setw(7) << pct_blank_str(distrib.prob_ge(16000));
     
     cout << endl;
   }
-  cout << "--- -----  -------  ------- ------- ------- ------- -------" << endl;
+  cout << "---------------------------------------------------------------------------" << endl;
+
+
+
+
+
+
+
+  if (false) { 
+    cout << endl << endl;
+    
+    cout << "Table 3: physical coverage (C) in each length interval" << endl;
+    cout << endl;
+
+    //      "........10........20........30........40........50........60........70........80"
+    cout << "-----------------------------------------------------------------------------" << endl;
+    cout << " id  <L>    L < 0    0-500   500-2k  2k-8k   8k-32k  > 32k    total    G=NL/C" << endl;
+    cout << "--- -----  -------  ------- ------- ------- ------- -------  -------  -------" << endl;
+    for (size_t i_lib = 0; i_lib < n_libs; i_lib++) {
+      const size_t n_pairs_lib = i_pairs_lib[i_lib].size();
+      const size_t i0_pair = i_pairs_lib[i_lib][0];
+      const size_t id1 = pairs.ID1(i0_pair);
+      const size_t id2 = pairs.ID2(i0_pair);
+      const int inv_sz_mean = (FLIP) ? 
+        pairs.getLibrarySep(i_lib) : 
+        pairs.getLibrarySep(i_lib) + reads[id1].size() + reads[id2].size();
+      const int inv_sz_sd   = pairs.getLibrarySD(i_lib);
+
+      const IntFunction<double> & cov = cov_phys[i_lib];
+      const IntDistribution & distrib = inv_sz_smooth_dist[i_lib];
+    
+      const double cov_total = cov.sum();
+      const size_t G = (cov_total > 0 ? float(n_pairs_lib * distrib.mean()) / cov_total : 0);
+
+
+      cout << setw(3)  << i_lib;
+      cout << " "  << setw(5) << int(distrib.mean());
+      print_cov_line(cov);
+      cout << "  " << setw(7) << (G > 0 ? genome_size_str(G) : "n/a  ");
+      cout << endl;
+    }
+    if (n_libs > 1) {
+      cout << endl;
+      cout << "tot      ";
+      print_cov_line(cov_phys_total);    
+      cout << endl;
+    }
+    cout << "-----------------------------------------------------------------------------" << endl;
+
+
+    cout << endl;
+
+  }
+  
+
+
 
   cout << endl << endl;
-
-  cout << "Table 3: physical coverage (C) in each length interval" << endl;
+  
+  cout << "Table 3: number of bridging links over a specific gap size" << endl;
   cout << endl;
 
   //      "........10........20........30........40........50........60........70........80"
-  cout << "--- -----  -------  ------- ------- ------- ------- -------  -------  -------" << endl;
-  cout << " id  <L>    L < 0    0-500   500-2k  2k-8k   8k-32k  > 32k    total    G=NL/C" << endl;
-  cout << "--- -----  -------  ------- ------- ------- ------- -------  -------  -------" << endl;
+
+  cout << "--------------------------------------------------------------------" << endl;
+  cout << " id   <L> <= 0     0    1k    2k    3k    4k    6k    8k   12k   16k" << endl;
+  cout << "--- ----- ---- ----- ----- ----- ----- ----- ----- ----- ----- -----" << endl;
+
+  vec<size_t> gaps(9);
+  gaps[0] =     0;  gaps[1] =  1000;  gaps[2] =  2000;
+  gaps[3] =  3000;  gaps[4] =  4000;  gaps[5] =  6000;  
+  gaps[6] =  8000;  gaps[7] = 12000;  gaps[8] = 16000;
   for (size_t i_lib = 0; i_lib < n_libs; i_lib++) {
     const size_t n_pairs_lib = i_pairs_lib[i_lib].size();
     const size_t i0_pair = i_pairs_lib[i_lib][0];
     const size_t id1 = pairs.ID1(i0_pair);
     const size_t id2 = pairs.ID2(i0_pair);
     const int inv_sz_mean = (FLIP) ? 
-      -pairs.getLibrarySep(i_lib) : 
+      pairs.getLibrarySep(i_lib) : 
       pairs.getLibrarySep(i_lib) + reads[id1].size() + reads[id2].size();
     const int inv_sz_sd   = pairs.getLibrarySD(i_lib);
 
-    const IntFunction<double> & cov = cov_phys[i_lib];
     const IntDistribution & distrib = inv_sz_smooth_dist[i_lib];
-    
-    const double cov_total = cov.sum();
-    const size_t G = (cov_total > 0 ? float(n_pairs_lib * distrib.mean()) / cov.sum() : 0);
-
-
-    cout << setw(3)  << i_lib;
-    cout << " "  << setw(5) << int(distrib.mean());
-    print_cov_line(cov);
-    cout << "  " << setw(7) << (G > 0 ? genome_size_str(G) : "n/a  ");
-    cout << endl;
-  }
-  cout << endl;
-  cout << "tot      ";
-  print_cov_line(cov_phys_total);    
-  cout << endl;
-  cout << "--- -----  -------  ------- ------- ------- ------- -------  -------  -------" << endl;
-
-
-  cout << endl;
-
-  PerfStat::log() << PerfStatBlockStop();
-
-
-
-
-
-  // ---- PERFSTAT BLOCK for coverage (80 columns)
-
-
-  PerfStat::log() << PerfStatBlockStart("Libraries physical coverage (cummulative) table");
-  
-  //      "........10........20........30........40........50........60........70........80"
-  cout << "       lib name  size <= 0      > 0    > 300     > 1k     > 3k    > 10k    > 30k" << endl;
-  cout << "--------------- ----- ---- -------- -------- -------- -------- -------- --------" << endl;
-  for (size_t i_lib = 0; i_lib < n_libs; i_lib++) {
-    const size_t n_pairs_lib = i_pairs_lib[i_lib].size();
-    const size_t i0_pair = i_pairs_lib[i_lib][0];
-    const size_t id1 = pairs.ID1(i0_pair);
-    const size_t id2 = pairs.ID2(i0_pair);
-    const int inv_sz_mean = (FLIP) ? 
-      -pairs.getLibrarySep(i_lib) : 
-      pairs.getLibrarySep(i_lib) + reads[id1].size() + reads[id2].size();
-    const int inv_sz_sd   = pairs.getLibrarySD(i_lib);
-
-    const IntDistribution & dist = inv_sz_smooth_dist[i_lib];
     const IntFunction<double> & cov = cov_phys[i_lib];
+    const IntFunction<double> & nlinks = n_links[i_lib];
     
-    cout <<         setw(15) << pairs.getLibraryName(i_lib);
-    cout << " "  << setw( 5) << inv_sz_mean;
-    cout << " "  << setw( 4) << pct_blank_str(dist.prob_lt(0), 0);
+    //cout <<         setw(15) << pairs.getLibraryName(i_lib);
+    cout << setw(3) << i_lib;
+    cout << " "  << setw( 5) << int(distrib.mean());
+    cout << " "  << setw( 4) << pct_blank_str(distrib.prob_lt(0), 0);
   
-    print_cov_line2(cov);
+    print_n_gap_links_line(cov, nlinks, gaps);
     cout << endl;
   }
-
-  cout << setw(15) << "==== Total ====           ";
-  print_cov_line2(cov_phys_total);
-    
+  cout << "tot           ";
+  print_n_gap_links_line(cov_phys_total, n_links_total, gaps);
   cout << endl;
+  cout << "--------------------------------------------------------------------" << endl;
 
   PerfStat::log() << PerfStatBlockStop();
 

@@ -198,10 +198,8 @@ int main( int argc, char *argv[] )
      join_data_offsets.reserve(ngaps);
 
      String JOINDATA_file = ch_head + "JOINDATA", JDLEN_file = ch_head + "JDLEN";
-     BinaryWriter jdWriter(JOINDATA_file.c_str(),
-                           PCottageJoinData::HEADER,
-                           sizeof(PCottageJoinData::HEADER));
-     size_t offset = sizeof(PCottageJoinData::HEADER);
+     BinaryWriter jdWriter(JOINDATA_file.c_str(),false);
+     jdWriter.write(PCottageJoinData::HEADER);
 
      PCottageJoinData joinData;
      for ( uint64_t i = 0; i < ngaps; i++ )
@@ -235,8 +233,8 @@ int main( int argc, char *argv[] )
            joinData.pairs.push_back(make_pair<int,int>(p.sep,p.dev));
        }
 
-       join_data_offsets.push_back(offset);
-       offset += jdWriter.write(joinData);
+       join_data_offsets.push_back(jdWriter.tell());
+       jdWriter.write(joinData);
      }
      jdWriter.close();
      BinaryWriter::writeFile(JDLEN_file.c_str(),join_data_offsets);

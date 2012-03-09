@@ -148,7 +148,9 @@ int main( int argc, char *argv[] )
   assembly.remove_small_contigs( MIN_CONTIG_SIZE_SOLO, MIN_CONTIG_SIZE_IN );
   assembly.remove_small_scaffolds( MIN_SCAFFOLD_SIZE );
 
-  if (DEDUP) assembly.dedup( );
+  // reverting to dedup_exact method to avoid resource exhaustion.
+  // --bruce, with blessing from Iain
+  if (DEDUP) assembly.dedup_exact( );
 
   if (REORDER) assembly.reorder( );
 

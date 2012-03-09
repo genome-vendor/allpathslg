@@ -12,6 +12,7 @@
 #define ALIGNLET_H
 
 #include "lookup/LookAlign.h"
+#include "feudal/BinaryStreamTraits.h"
 
 // An alignlet is a compact version of a look_align.
 
@@ -67,5 +68,6 @@ private:
   int target_length_;    // signed: encapsulates orientation (fw1)
 
 };
+TRIVIALLY_SERIALIZABLE(alignlet);
 
 #endif

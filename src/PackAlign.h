@@ -131,6 +131,7 @@
 #include "feudal/SerfVec.h"
 #include "math/HoInterval.h"
 #include "pairwise_aligners/Mutmer.h"
+#include "feudal/BinaryStream.h"
 
 const int Bits2  = 3, Bits3  = 7, Bits4 = 15, Bits10 = 1023, Bits12 = 4095, 
   Bits16 = 65535;
@@ -354,25 +355,9 @@ class align {
   align( const packalign& p )
   {    p.Unpack( pos1_, pos2_, gaps_, lengths_, nblocks_ );    }
 
-  int BinaryWrite(int fd) const {
-    int written = SafeWrite(fd, & pos1_, sizeof(pos1_));
-    written += SafeWrite(fd, &pos2_, sizeof(pos2_));
-    written += SafeWrite(fd, &nblocks_, sizeof(nblocks_));
-    written += SafeWrite(fd, gaps_.x, sizeof(gaps_.x[0])*nblocks_);
-    written += SafeWrite(fd, lengths_.x, sizeof(lengths_.x[0]) *nblocks_);
-    return written;
-  }
-
-  int BinaryRead(int fd) {
-    int bytes_read = read(fd, &pos1_, sizeof(pos1_));
-    bytes_read += read(fd, &pos2_, sizeof(pos2_));
-    bytes_read += read(fd, &nblocks_, sizeof(nblocks_));
-    gaps_.resize(nblocks_);
-    lengths_.resize(nblocks_);
-    bytes_read += read(fd, gaps_.x, sizeof(gaps_.x[0])*nblocks_);
-    bytes_read += read(fd, lengths_.x, sizeof(lengths_.x[0]) *nblocks_);
-    return bytes_read;
-  }
+  void writeBinary( BinaryWriter& writer ) const;
+  void readBinary( BinaryReader& reader );
+  static size_t externalSizeof() { return 0; }
 
   /// Set start position of the alignment on the query sequence; cryptic legacy interface
   void Setpos1( int p1 ) { pos1_ = p1; }
@@ -572,6 +557,7 @@ class align {
 
   int Mutations( const basevector& rd1, const basevector& rd2,
                  const qualvector& q1, int min_score ) const;
+  void PrintMutations( const basevector& rd1, const basevector& rd2, ostream& log) const;
   int Indels( const basevector& rd1, const basevector& rd2,
               const qualvector& q1, int min_score ) const;
   int MatchingBases( const basevector& rd1, const basevector& rd2 );
@@ -606,6 +592,7 @@ class align {
   avector<int> gaps_, lengths_;
 
 };  // class align
+SELF_SERIALIZABLE(align);
 
 ostream & operator<<(ostream & os, const align & a);
 

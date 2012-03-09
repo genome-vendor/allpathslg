@@ -11,7 +11,6 @@
 // We specifically do not include MemTracker.h here.
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <new>
 

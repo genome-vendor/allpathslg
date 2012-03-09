@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                   SOFTWARE COPYRIGHT NOTICE AGREEMENT                     //
-//       This software and its documentation are copyright (2011) by the     //
+//       This software and its documentation are copyright (2012) by the     //
 //   Broad Institute.  All rights are reserved.  This software is supplied   //
 //   without any warranty or guaranteed support whatsoever. The Broad        //
 //   Institute is not responsible for its use, misuse, or functionality.     //
@@ -100,37 +100,6 @@ template<class E> digraphE<E>::digraphE( const digraphE& g, int n )
      ForceAssertLt( n, reps.isize( ) );
      e.Orbit( reps[n], o );
      Initialize( g, o );    }
-
-template<class E> 
-void BinaryWrite( int fd, const digraphE<E>& g )
-{    
-    BinaryWrite(fd, (const digraph&) g);
-    int n = g.N();
-    for ( int v = 0; v < n; v++ )
-    {
-        BinaryWrite( fd, g.from_edge_obj_[v] );
-        BinaryWrite( fd, g.to_edge_obj_[v] );
-    }
-    int e = g.edges_.size();
-    WriteBytes(fd, &e, sizeof(int));
-    for ( int i = 0; i < e; i++ )
-    {
-        BinaryWrite( fd, g.EdgeObject(i) );
-    }
-}
-
-template<class E> void BinaryRead( int fd, digraphE<E>& g )
-{    BinaryRead( fd, (digraph&) g );
-     int n = g.N( );
-     g.from_edge_obj_.resize(n), g.to_edge_obj_.resize(n);
-     for ( int v = 0; v < n; v++ )
-     {    BinaryRead( fd, g.from_edge_obj_[v] );
-          BinaryRead( fd, g.to_edge_obj_[v] );    }
-     int e;
-     ReadBytes( fd, &e, sizeof(int) );
-     g.edges_.resize(e);
-     for ( int i = 0; i < e; i++ )
-          BinaryRead( fd, g.EdgeObjectMutable(i) );    }
 
 template<class E> void digraphE<E>::EdgeEquivConstructor( 
      const vec<E>& edges, const equiv_rel& e )
@@ -635,8 +604,43 @@ void digraphE<E>::Initialize( const vec< vec<int> >& from, const vec< vec<int> >
 template<class E>
 digraphE<E>::digraphE( const vec< vec<int> >& from, const vec< vec<int> >& to,
           const vec<E>& edges, const vec< vec<int> >& to_edge_obj,
-          const vec< vec<int> >& from_edge_obj ) : digraph(from, to)
+          const vec< vec<int> >& from_edge_obj ) 
+      : digraph(from, to) // redundant with initialize?
 {    Initialize( from, to, edges, to_edge_obj, from_edge_obj );    }
+
+template<class V>
+void digraphV<V>::Initialize( const vec< vec<int> >& from, const vec< vec<int> >& to,
+          const vec<V>& verts )
+{    digraph::Initialize( from, to );
+     verts_ = verts;
+     ForceAssertEq( N( ), verts.isize( ) );    }
+
+template<class V>
+digraphV<V>::digraphV( const vec< vec<int> >& from, const vec< vec<int> >& to,
+          const vec<V>& verts ) 
+     : digraph(from, to) // redundant with initialize?
+{    Initialize( from, to, verts );    }
+
+template<class V, class E>
+void digraphVE<V,E>::Initialize( const vec< vec<int> >& from, 
+     const vec< vec<int> >& to, const vec<V>& verts, const vec<E>& edges, 
+     const vec< vec<int> >& to_edge_obj, const vec< vec<int> >& from_edge_obj )
+{    digraphE<E>::Initialize( from, to, edges, to_edge_obj, from_edge_obj );
+     verts_ = verts;
+     ForceAssertEq( from.size( ), verts.size( ) );    }
+
+template<class V, class E>
+digraphVE<V,E>::digraphVE( const vec< vec<int> >& from, 
+     const vec< vec<int> >& to, const vec<V>& verts, const vec<E>& edges, 
+     const vec< vec<int> >& to_edge_obj, const vec< vec<int> >& from_edge_obj )
+     : digraphE<E>( from, to, edges, to_edge_obj, from_edge_obj ) // redundant??
+{    Initialize( from, to, verts, edges, to_edge_obj, from_edge_obj );    }
+
+template<class V, class E>
+digraphVE<V,E>::digraphVE( const digraphE<E>& G, const vec<V>& verts )
+     : digraphE<E>(G)
+{    verts_ = verts;
+     ForceAssertEq( G.N( ), verts.isize( ) );    }
 
 template<class E> Bool digraphE<E>::IsComplete( 
      const vec<int>& vertices, const vec<int>& edges ) const
@@ -1602,6 +1606,56 @@ template<class E> E& digraphE<E>::EdgeObjectMutable( int i )
      AssertLt( i, edges_.isize( ) );
      return edges_[i];    }
 
+template<class V> const V& digraphV<V>::Vert( int v ) const
+{    AssertGe( v, 0 );
+     AssertLt( v, N( ) );
+     return verts_[v];    }
+
+template<class V> V& digraphV<V>::VertMutable( int v )
+{    AssertGe( v, 0 );
+     AssertLt( v, N( ) );
+     return verts_[v];    }
+
+template<class V, class E> const V& digraphVE<V,E>::Vert( int v ) const
+{    AssertGe( v, 0 );
+     AssertLt( v, N( ) );
+     return verts_[v];    }
+
+template<class V, class E> V& digraphVE<V,E>::VertMutable( int v )
+{    AssertGe( v, 0 );
+     AssertLt( v, N( ) );
+     return verts_[v];    }
+
+template<class V> void digraphV<V>::DeleteVertex( const int v )
+{    int n = N( );
+     AssertGe( v, 0 );
+     AssertLt( v, n );
+     DeleteEdgesAtVertex(v);
+     verts_.erase( verts_.begin( ) + v );
+     from_.erase( from_.begin( ) + v );
+     to_.erase( to_.begin( ) + v );
+     for ( int x = 0; x < n - 1; x++ )
+     {    for ( int j = 0; j < From(x).isize( ); j++ )
+               if ( From(x)[j] >= v ) FromMutable(x)[j]--;
+          for ( int j = 0; j < To(x).isize( ); j++ )
+               if ( To(x)[j] >= v ) ToMutable(x)[j]--;    }    }
+
+template<class V> void digraphV<V>::DeleteVertices( const vec<int>& v )
+{    for ( int m = v.isize( ) - 1; m >= 0; m-- )
+          DeleteVertex( v[m] );    }
+
+template<class V> void digraphV<V>::AddVertex( const V& v )
+{    verts_.push_back(v);
+     from_.resize( from_.size( ) + 1 );
+     to_.resize( to_.size( ) + 1 );    }
+
+template<class V, class E> void digraphVE<V,E>::AddVertex( const V& v )
+{    verts_.push_back(v);
+     this->FromMutable( ).resize( this->From( ).size( ) + 1 );
+     this->ToMutable( ).resize( this->To( ).size( ) + 1 );
+     this->FromEdgeObjMutable( ).resize( this->FromEdgeObj( ).size( ) + 1 );
+     this->ToEdgeObjMutable( ).resize( this->ToEdgeObj( ).size( ) + 1 );    }
+
 template<class E> 
 vec<int> digraphE<E>::EdgesSomewhereBetween( const int v, const int w ) const
 {    vec<int> answer, after_v, before_w, both;
@@ -1617,9 +1671,9 @@ vec<int> digraphE<E>::EdgesSomewhereBetween( const int v, const int w ) const
      return answer;    }
 
 template<class E>
-size_t digraphE<E>::writeBinary( BinaryWriter& writer ) const
+void digraphE<E>::writeBinary( BinaryWriter& writer ) const
 {
-    size_t len = digraph::writeBinary(writer);
+    digraph::writeBinary(writer);
 
     typedef vec< vec<int> >::const_iterator OItr;
     typedef vec<int>::const_iterator Itr;
@@ -1627,15 +1681,13 @@ size_t digraphE<E>::writeBinary( BinaryWriter& writer ) const
     typename vec<E>::size_type totSize = 0;
     for ( OItr oitr(from_edge_obj_.begin()); oitr != oend; ++oitr )
         totSize += oitr->size();
-    len += writer.write(totSize);
+    writer.write(totSize);
     for ( OItr oitr(from_edge_obj_.begin()); oitr != oend; ++oitr )
     {
         vec<int> const& fff = *oitr;
         for ( Itr itr(fff.begin()), end(fff.end()); itr != end; ++itr )
-            len += writer.write(edges_[*itr]);
+            writer.write(edges_[*itr]);
     }
-
-    return len;
 }
 
 template<class E>
@@ -1665,5 +1717,31 @@ void digraphE<E>::readBinary( BinaryReader& reader )
             to_edge_obj_[fff[jjj]].push_back(fe[jjj]);
     }
 }
+
+template<class V, class E>
+void digraphVE<V,E>::writeBinary( BinaryWriter& writer ) const
+{    digraphE<E>::writeBinary(writer);
+     writer.write(verts_);  }
+
+template<class V, class E>
+void digraphVE<V,E>::readBinary( BinaryReader& reader )
+{    digraphE<E>::readBinary(reader);
+     reader.read( &verts_ );    }
+
+template<class E> void EmbeddedSubPath<E>::TestValid( ) const
+{    ForceAssertEq( e_.isize( ), a_.isize( ) - 1 );
+     for ( int u = 0; u < a_.isize( ) - 1; u++ )
+     {    const vec<int>& fr = D_->From( a_[u] );
+          ForceAssertGe( e_[u], 0 );
+          ForceAssertLt( e_[u], fr.isize( ) );
+          ForceAssertEq( fr[ e_[u] ], a_[u+1] );
+          ForceAssertEq( D_->EdgeObjectIndexByIndexFrom( a_[u], e_[u] ),
+               esafe_[u] );    }    }
+
+template<class E> void EmbeddedSubPath<E>::Repair( )
+{    for ( int u = 0; u < e_.isize( ); u++ )
+     {    if ( D_->EdgeObjectIndexByIndexFrom( a_[u], e_[u] ) != esafe_[u] )
+               e_[u] = D_->EdgeObjectIndexToFromIndex(
+                    a_[u], esafe_[u] );    }    }
 
 #endif

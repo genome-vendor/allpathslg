@@ -20,7 +20,7 @@
 #include "PairsManager.h"
 #include "ParseSet.h"
 #include "Superb.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "lookup/LookAlign.h"
 #include "math/HoInterval.h"
 #include "math/NStatsTools.h"

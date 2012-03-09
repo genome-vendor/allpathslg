@@ -77,6 +77,13 @@ public:
     typedef Itr const_iterator;
 
     VirtualMasterVec( char const* path ) : mFFR(path) {}
+
+    /// Construct from something with a c_str() member (like string or String)
+    template <class C>
+    explicit VirtualMasterVec( C const& path,
+                                    char const*(C::*)() const=&C::c_str )
+    : mFFR(path.c_str()) {}
+
     VirtualMasterVec( VirtualMasterVec<T> const& that ) : mFFR(that.mFFR) {}
     // compiler-supplied destructor is OK
     VirtualMasterVec& operator=( VirtualMasterVec<T> const& that )

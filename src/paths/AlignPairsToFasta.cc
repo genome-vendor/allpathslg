@@ -15,7 +15,8 @@
 #include "FetchReads.h"
 #include "FetchReadsAmb.h"
 #include "PairsManager.h"
-#include "VecTemplate.h"
+#include "Vec.h"
+#include "feudal/BinaryStream.h"
 #include "lookup/FirstLookupFinder.h"
 #include "lookup/LookAlign.h"
 #include "lookup/LookupTabBuilder.h"
@@ -166,8 +167,8 @@ int main( int argc, char *argv[] )
   // Save aligns.
 
   cout << Date( ) << ": saving " << aligns0.size( ) << " aligns" << endl;
-  BinaryWrite3( out_qltlet_file, aligns0 );
-  BinaryWrite3( out_qltlet_index_file, aligns0_index );
+  BinaryWriter::writeFile( out_qltlet_file, aligns0 );
+  BinaryWriter::writeFile( out_qltlet_index_file, aligns0_index );
 
   // Done.
   cout << Date( ) << ": done" << endl;

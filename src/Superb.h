@@ -23,6 +23,7 @@
 
 #include "Charvector.h"
 #include "CoreTools.h"
+#include "feudal/BinaryStreamTraits.h"
 
 // TODO: potentially dangerous truncation of index throughout class
 class superb {
@@ -298,13 +299,9 @@ class superb_by_tig {
      int super_len_;
 
 };
-
-// Test to see if mergedcontigs.superb_index seems to be up to date.
-
-void TestSuperbIndex( const String& dir );
+TRIVIALLY_SERIALIZABLE(superb_by_tig);
 
 // Fetch superb index entries from disk.
-
 void FetchSuperbIndexEntries( const String& dir, const vec<int>& tigs,
      vec<superb_by_tig>& indices );
 

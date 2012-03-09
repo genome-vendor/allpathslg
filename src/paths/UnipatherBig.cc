@@ -33,6 +33,7 @@
 // been tested with VALIDATE=True.
 
 #include "MainTools.h"
+#include "feudal/BinaryStream.h"
 #include "graph/Digraph.h"
 #include "paths/KmerBaseBroker.h"
 #include "paths/KmerPath.h"
@@ -71,7 +72,7 @@ int main( int argc, char *argv[] )
   vec<big_tagged_rpint> unipathsdb;
   String unipaths_file = head + ".unipaths.k" + KS;
   Unipath( paths, paths_rc, pathsdb, unipaths, unipathsdb, True, unipaths_file );
-  BinaryWrite3( head + ".unipathsdb_big.k" + KS, unipathsdb );
+  BinaryWriter::writeFile( head + ".unipathsdb_big.k" + KS, unipathsdb );
   size_t n_unipaths = unipaths.size();
   cout << "Found " << n_unipaths << " unipaths.\n";
   
@@ -81,7 +82,7 @@ int main( int argc, char *argv[] )
     cout << Date() << ": building unipath adjacency graph" << endl;
     digraph unigraph;
     BuildUnipathAdjacencyGraph( paths, paths_rc, pathsdb, unipaths, unipathsdb, unigraph );
-    BinaryWrite( run_dir + "/" + READS + ".unipath_adjgraph.k" + KS, unigraph );
+    BinaryWriter::writeFile( run_dir + "/" + READS + ".unipath_adjgraph.k" + KS, unigraph );
   }
   Destroy( unipathsdb );
   

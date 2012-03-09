@@ -274,7 +274,7 @@ public:
     { return compare(k1,k2) != 0; }
 
     friend int compare( KMer const& k1, KMer const& k2 )
-    { int result;
+    { int result = 0;
       storage_type const* end(k1.mVal + STORAGE_UNITS_PER_KMER);
       storage_type const* itr2(k2.mVal);
       for ( storage_type const* itr1 = k1.mVal; itr1 != end; ++itr1, ++itr2 )
@@ -324,6 +324,7 @@ private:
 };
 
 template <unsigned K, class S>
-struct Serializability< KMer<K,S> > : public TriviallySerializable {};
+struct Serializability< KMer<K,S> >
+{ typedef TriviallySerializable type; };
 
 #endif /* KMER_H_ */

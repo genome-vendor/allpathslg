@@ -410,52 +410,6 @@ void CopyBases(const BaseVec& src, BaseVec::size_type src_start,
     }
 }
 
-void BinaryWrite(int fd, const BaseVec& b)
-{
-    BaseVec::size_type len = b.size();
-    if ( write(fd,&len,sizeof(len)) != sizeof(len) )
-    {
-        ErrNo err;
-        cout << "BinaryWrite of Basevector length failed" << err << endl;
-        CRD::exit(1);
-    }
-    BinaryWriteContent(fd,b);
-}
-
-void BinaryWriteContent( int fd, BaseVec const& b )
-{
-    BaseVec::size_type physLen = b.physicalSize(b.size());
-    if ( write(fd,b.data(),physLen) != physLen )
-    {
-        ErrNo err;
-        cout << "BinaryWrite of Basevector data failed. " << err << endl;
-        CRD::exit(1);
-    }
-}
-void BinaryRead(int fd, BaseVec& b)
-{
-    BaseVec::size_type len;
-    if ( read(fd,&len,sizeof(len)) != sizeof(len) )
-    {
-        ErrNo err;
-        cout << "BinaryRead of Basevector length failed. " << err << endl;
-        CRD::exit(1);
-    }
-    b.resize(len);
-    BinaryReadContent(fd,b);
-}
-
-void BinaryReadContent( int fd, BaseVec& b )
-{
-    BaseVec::size_type physLen = b.physicalSize(b.size());
-    if ( read(fd,b.data(),physLen) != physLen )
-    {
-        ErrNo err;
-        cout << "BinaryRead of Basevector data failed. " << err << endl;
-        CRD::exit(1);
-    }
-}
-
 bool BaseVec::IsGoodFeudalFile(const String& filename, bool verbose) {
     unsigned long fileSize;
     FeudalControlBlock fcb(filename.c_str(),false,&fileSize);

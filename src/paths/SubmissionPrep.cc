@@ -27,6 +27,7 @@ const char *DOC =
  *
  */
 
+
 size_t scaffoldsTotLen( const vec<superb>& scaffolds ){
   size_t len = 0;
   for ( size_t is = 0; is < scaffolds.size(); is++ )
@@ -82,7 +83,19 @@ void set_min_gaps(vec<superb>& scaffolds, const int min_gap)
 }
 
 
-int load_contamination_list( String in_contam_file, vec<vec<triple<int,int,int> > >& v_contam, const vec<efasta>& efastas ){
+// structure to hold contamination removal list (specified in optional tab-delimited input file)
+struct contam_spec {
+  int contig_id;		// contig id (0-based)
+  int contig_length;		// contig length (sanity check to make sure we have right one)
+  int contig_begin;		// first base to remove, 0-based coordinates
+  int contig_end;		// last base to remove + 1; interval is [begin,end)
+  int cut;			// whether to cut the scaffold at this point (non-zero to cut)
+};
+
+typedef struct contam_spec contam_spec;
+typedef vec<contam_spec> contam_vec;
+
+int load_contamination_list( String in_contam_file, contam_vec& v_contam, const vec<efasta>& efastas ){
   if ( ! IsRegularFile( in_contam_file ) )
       FatalErr("contamination file " + in_contam_file + " not found");
   ifstream in( in_contam_file.c_str() );
@@ -92,41 +105,55 @@ int load_contamination_list( String in_contam_file, vec<vec<triple<int,int,int> 
   cout << Date() << " reading in contamination file" << flush;
   while ( getline(in,line) ){
     vec<String> tokens;
+    contam_spec c;
     Tokenize( line, tokens );
     // Ignore anything beyond 4th column
     ForceAssert( tokens.size() >= 4);
-    int tid    = tokens[0].Int();
-    int tlen   = tokens[1].Int();
-    int cbegin = tokens[2].Int();
-    int cend   = tokens[3].Int();
-    ForceAssertGe( tid, 0 );
-    ForceAssertLt( tid, efastas.isize() );
-    ForceAssertEq( tlen, efastas[tid].Length1() );
-    ForceAssertGe( cbegin, 0 );
-    ForceAssertLe( cend, efastas[tid].Length1() );
-    contamTotLen += cend - cbegin;
-    v_contam.at(tid).push_back( triple<int,int,int>(tlen,cbegin, cend) );
+    c.contig_id = tokens[0].Int();
+    c.contig_length = tokens[1].Int();
+    c.contig_begin = tokens[2].Int();
+    c.contig_end   = tokens[3].Int();
+    c.cut = 0;
+
+    if (tokens.size() > 4 && tokens[4] == "1") {
+      c.cut = tokens[4].Int();
+    }
+    
+    ForceAssertGe( c.contig_id, 0 );
+    ForceAssertLt( c.contig_id, efastas.isize() );
+    ForceAssertEq( c.contig_length, efastas[c.contig_id].Length1() );
+    ForceAssertGe( c.contig_begin, 0 );
+    ForceAssertLe( c.contig_end, efastas[c.contig_id].Length1() );
+    contamTotLen += c.contig_end - c.contig_begin;
+    v_contam.push_back(c);
   }
   in.close();
   cout << " (length = " << contamTotLen << ")" << endl;
   return contamTotLen;
 }
 
-int remove_contamination_list( const vec< vec<triple<int,int,int> > >& v_contam,
+int remove_contamination_list( const contam_vec& v_contam,
 			       vec<efasta>& efastas, vec<superb>& scaffolds,
 			       vec<String>& tigMap, const String save_contam_file ){
 
 
   vec<superb> new_tscaffolds( efastas.size() ); 
+  vec<size_t> cuts;
   vec<Bool> modif_contigs( efastas.size(), False );
   vec< pair<int,int> > beg_gaps( efastas.size() );
   vec< pair<int,int> > end_gaps( efastas.size() );
   vec<fastavector> contamination;
   vec<String> contamination_ids;
 
+  vec<contam_vec> tig_contam(efastas.size());
+  for ( size_t i = 0; i < v_contam.size(); i++ ) {
+    tig_contam[v_contam[i].contig_id].push_back(v_contam[i]);
+    PRINT4(v_contam[i].contig_id, v_contam[i].cut, v_contam[i].contig_begin, v_contam[i].contig_end);
+  }
+  
   int contamCheckLen = 0;
-  for ( size_t tid = 0; tid < v_contam.size(); tid++ ){  
-    if ( v_contam.at(tid).size() == 0 ) 
+  for ( size_t tid = 0; tid < tig_contam.size(); tid++ ){  
+    if ( tig_contam.at(tid).size() == 0 ) 
       continue;
     else
       modif_contigs[tid] = True;
@@ -136,15 +163,20 @@ int remove_contamination_list( const vec< vec<triple<int,int,int> > >& v_contam,
     efastas[tid].FlattenTo( tbases );
 
     int specContamLen = 0, resContamLen = 0;
+    // map of bases to keep
     vec<Bool> treg( efastas[tid].Length1() +2, True );
-    for ( size_t i = 0; i < v_contam[tid].size(); i++ ){
-      int clen = v_contam[tid][i].first;
-      int cbeg = v_contam[tid][i].second;
-      int cend = v_contam[tid][i].third;
+    // map of cut points
+    vec<Bool> creg( efastas[tid].Length1() +2, False );
+    for ( size_t i = 0; i < tig_contam[tid].size(); i++ ){
+      int clen = tig_contam[tid][i].contig_length;
+      int cbeg = tig_contam[tid][i].contig_begin;
+      int cend = tig_contam[tid][i].contig_end;
       ForceAssertEq( (int)efastas[tid].Length1(), clen );
       specContamLen +=  cend - cbeg;
       for ( int j = cbeg; j < cend; j++ )
 	treg[j+1] = False;
+      if (tig_contam[tid][i].cut)
+	creg[cend] = True;
 
       basevector contam_bv(tbases, cbeg, specContamLen);
       fastavector contam_fv(contam_bv);
@@ -162,11 +194,16 @@ int remove_contamination_list( const vec< vec<triple<int,int,int> > >& v_contam,
     
     vec<int> begs, ends;
     
-    for ( size_t p = 1; p < treg.size(); p++ )
+    for ( size_t p = 1; p < treg.size(); p++ ) {
       if ( ! treg[p -1]  && treg[p] )
 	begs.push_back( p - 1 );
       else if ( treg[p -1] && ! treg[p] )
 	ends.push_back( p - 1 );
+      else if (creg[p-1]) {
+	ends.push_back(p-1);
+	begs.push_back(p-1);
+      }
+    }
     
     ForceAssert( begs.size() == ends.size() );
     if ( begs.size() > 0 ){
@@ -195,7 +232,7 @@ int remove_contamination_list( const vec< vec<triple<int,int,int> > >& v_contam,
       new_tscaffolds[tid].SetNtigs( 1 );
       new_tscaffolds[tid].SetTig(0, tid);
       new_tscaffolds[tid].SetLen(0, 0);
-    }else {
+    } else {
       for ( size_t i = 0; i < begs.size(); i++ ){
 	basevector lbases( tbases, begs[i], ends[i] - begs[i] );
 	efasta lefasta = tefasta;
@@ -205,19 +242,30 @@ int remove_contamination_list( const vec< vec<triple<int,int,int> > >& v_contam,
 	lefasta.FlattenTo(tmpbases);
 	ForceAssert( lbases == tmpbases );
 	new_tscaffolds[tid].SetLen(i, lbases.size());
+	PRINT4(i, begs[i], ends[i], ends[i]-begs[i]);
+
+	// If cut is set, then we want to cut the scaffold *before* this contig.
+	// We'll push the contig we want to cut before in a list of cuts.
+	bool cut = creg[begs[i]];
+	if (cut) cout << "CUT AT " << begs[i] << endl;
+
 	//cout << "updating efasta and base vecs" << endl;
 	if ( i == 0 ){
 	  new_tscaffolds[tid].SetTig(i, tid);
 	  efastas[tid] = lefasta;
-	}else{
-	  new_tscaffolds[tid].SetTig(i, efastas.size() );
+	  if (cut) cuts.push_back(tid);
+	} else {
+	  int new_tid = efastas.size();
+	  new_tscaffolds[tid].SetTig(i, new_tid );
 	  efastas.push_back( lefasta );
 	  tigMap.push_back( ToString(tid) );
+	  if (cut) cuts.push_back(new_tid);
 	}
 	if ( i != begs.size() -1 ){
 	  new_tscaffolds[tid].SetGap(i, begs[i+1] - ends[i]);
 	  new_tscaffolds[tid].SetDev(i, 1);
 	}
+	if (cut) cout << "CUT BEFORE TIG " << cuts.back() << endl;
       }
     }
   }
@@ -226,8 +274,9 @@ int remove_contamination_list( const vec< vec<triple<int,int,int> > >& v_contam,
   size_t endGapSum = 0;
   for ( size_t si = 0; si < scaffolds.size(); si++ ){
     superb & s = scaffolds[si];
-    for ( int tpos = 0; tpos < s.Ntigs(); tpos++ ){
+    for ( int tpos = 0; tpos < s.Ntigs(); tpos++ ) {
       size_t tid = s.Tig(tpos);
+
       if ( tid < modif_contigs.size() && modif_contigs[tid] ){
 	//cout << "\n ------------\n";
 	//new_tscaffolds[tid].PrintRange(cout, "insert:", 0, new_tscaffolds[tid].Ntigs() );
@@ -263,6 +312,37 @@ int remove_contamination_list( const vec< vec<triple<int,int,int> > >& v_contam,
       }
     }
   }  
+  if (cuts.size() > 0) {
+    for (size_t c = 0; c < cuts.size(); ++c) {
+      for ( size_t si = 0; si < scaffolds.size(); si++ ) {
+	superb & s = scaffolds[si];
+	for ( int tpos = 0; tpos < s.Ntigs(); tpos++ ) {
+	  size_t tid = s.Tig(tpos);
+	  bool cut = false;
+	  if (cuts[c] == tid) cut = true;
+	  if (cut) {
+	    // Break scaffold before this contig
+	    cout << "FOUND CUT TIG " << tid << " IN SCAF " << si << endl;
+	    superb new_s;
+	    new_s.SetNtigs(s.Ntigs() - tpos);
+	    for (int t = tpos; t < s.Ntigs(); ++t) {
+	      int i = t - tpos;
+	      new_s.SetTig(i, s.Tig(t));
+	      new_s.SetLen(i, s.Len(t));
+	      if (t < s.Ntigs() - 1) {
+		new_s.SetGap(i, s.Gap(t));
+		new_s.SetDev(i, s.Dev(t));
+	      }
+	    }
+	    s.SetNtigs(tpos);
+	    scaffolds.push_back(new_s);
+	    cuts[c] = -1;
+	  }
+	}
+      }
+    }
+  }
+      
   if (save_contam_file != "") {
     cout << Date() << " saving contamination segments to " << save_contam_file << endl;
     Ofstream(contam_stream, save_contam_file);
@@ -314,9 +394,9 @@ remove_contamination(String in_contam_file,
   vec<efasta>& efastas = assembly.efastas;
 
   cout << Date() << " loading contaminant information" << endl;
-  vec< vec<triple<int,int,int> > > v_contam( efastas.size() );
+  contam_vec v_contam;
   int contamTotLen = 
-    load_contamination_list( in_contam_file, v_contam, efastas );
+    load_contamination_list(in_contam_file, v_contam, efastas);
   int contamCheckLen = 
     remove_contamination_list( v_contam, efastas, scaffolds, tigMap, out_save_contam_file);
   if ( contamTotLen != contamCheckLen ){
@@ -373,6 +453,7 @@ int main( int argc, char *argv[] )
 
   String out_efasta_file        = HEAD_OUT + ".contigs.efasta";
   String out_fasta_file         = HEAD_OUT + ".contigs.fasta";
+  String out_tbl_file           = HEAD_OUT + ".contigs.tbl";
   String out_superb_file        = HEAD_OUT + ".superb";
   String out_fastb_file         = HEAD_OUT + ".fastb";
   String out_contig_map_file    = HEAD_OUT + ".contigs.mapping";
@@ -469,7 +550,7 @@ int main( int argc, char *argv[] )
   assembly.check_integrity();
 
 
-  if (DEDUP) assembly.dedup();
+  if (DEDUP) assembly.dedup_exact();
   if (REORDER) assembly.reorder();
 
   // check integrity
@@ -492,6 +573,7 @@ int main( int argc, char *argv[] )
   cout << Date() << " writing assembly efasta" << endl;
   Ofstream( efout, out_efasta_file );
   Ofstream( fout, out_fasta_file );
+  Ofstream( tblout, out_tbl_file );
 
   cout << Date() << " writing fsa & tbl files" << endl;
   int batch = 0;
@@ -529,12 +611,17 @@ int main( int argc, char *argv[] )
     v.Print(fsa, name);
     v.Print(fout, name);
 
-    if (va.size()) 
-      tbl << ">Feature " << name << "\n";
+    if (va.size()) {
+      ostringstream feature;
 
-    // add annotation of alternate paths to tbl file
-    for (size_t i = 0; i < va.size(); i++)
-      tbl << va[i].to_annotation();
+      feature << ">Feature " << name << "\n";
+
+      // add annotation of alternate paths to tbl file
+      for (size_t i = 0; i < va.size(); i++)
+	feature << va[i].to_annotation();
+      tbl << feature.str();
+      tblout << feature.str();
+    }
 
     int snps = 0, indels = 0;
     int amb =  assembly.efastas[id].AmbCount(snps, indels);
@@ -544,6 +631,7 @@ int main( int argc, char *argv[] )
   }
   efout.close();
   tbl.close();
+  tblout.close();
   fsa.close();
   fout.close();
 

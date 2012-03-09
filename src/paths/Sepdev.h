@@ -41,6 +41,9 @@ class Tsepdev {
      T dev_;
 
 };
+template <class T>
+struct Serializability<Tsepdev<T> >
+{ typedef TriviallySerializable type; };
 
 typedef Tsepdev<int> sepdev;
 typedef Tsepdev<double> fsepdev;
@@ -52,11 +55,6 @@ inline Tsepdev<int>::Tsepdev( float sep, float dev )
 template<> template<> 
 inline Tsepdev<int>::Tsepdev( double sep, double dev )
   : sep_(int(round(sep))), dev_(int(ceil(dev))) { }
-
-void BinaryWrite( int fd, const sepdev& sd );
-void BinaryRead( int fd, sepdev& sd );
-void BinaryWrite( int fd, const fsepdev& fsd );
-void BinaryRead( int fd, fsepdev& fsd );
 
 #endif
 

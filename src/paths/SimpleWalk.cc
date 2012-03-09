@@ -11,7 +11,6 @@
 
 #include "CoreTools.h"
 #include "math/Functions.h"
-#include "graph/Digraph.h"
 #include "graph/DigraphTemplate.h"
 #include "paths/PairedPair.h"
 #include "paths/SimpleWalk.h"
@@ -305,5 +304,3 @@ void SimpleWalkRight( const pp_pair& p, const vec<pp_read>& reads,
           cout << "\n";    }
      if ( verbosity >= 1 )
           cout << "SimpleWalk time used = " << TimeSince(clock) << "\n";    }
-
-template void digraphE<walkleaf>::AddEdge(int, int, walkleaf const&);

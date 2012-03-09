@@ -16,8 +16,9 @@
 
 #include "PairsManager.h"
 #include "Superb.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "math/Functions.h"
 #include "pairwise_aligners/AlignConsecutiveContigs.h"
 #include "paths/Alignlet.h"
@@ -151,18 +152,18 @@ int main( int argc, char *argv[] )
   
   cout << Date( ) << ": loading index" << endl;
   vec<int> index;
-  BinaryRead3( index_file, index );
+  BinaryReader::readFile( index_file, &index );
   
   vec<int> unfilt_index;
   if ( USE_HIGH_CN_ALIGNS ) {
     cout << Date( ) << ": loading unfiltered index" << endl;
-    BinaryRead3( unfilt_index_file, unfilt_index );
+    BinaryReader::readFile( unfilt_index_file, &unfilt_index );
     ForceAssertEq(unfilt_index.size(), index.size());
   }
 
   cout << Date( ) << ": loading aligns" << endl;
   vec<alignlet> aligns;
-  BinaryRead3( aligns_file, aligns );
+  BinaryReader::readFile( aligns_file, &aligns );
   
   cout << Date( ) << ": loading pairs" << endl;
   PairsManager pairs( pairs_file );
@@ -441,15 +442,15 @@ int main( int argc, char *argv[] )
   String out_file = final_head + ".is_circular";
   IdentifyCircularScaffolds( pairs, contigs, supers, aligns, index,
       is_circular, ( VERBOSE ? &cout : 0 ), 1 );
-  BinaryWrite3( out_file, is_circular );
+  BinaryWriter::writeFile( out_file, is_circular );
 
   // Save aligns and index.
   if ( ALIGNS_OUT != "" ) {
     cout << Date( ) << ": saving aligns and index" << endl;
     String out_aligns_file = sub_dir + "/" + ALIGNS_OUT + ".qltoutlet";
     String out_index_file =  sub_dir + "/" + ALIGNS_OUT + ".qltoutlet.index";
-    BinaryWrite3( out_aligns_file, aligns );
-    BinaryWrite3( out_index_file, index );
+    BinaryWriter::writeFile( out_aligns_file, aligns );
+    BinaryWriter::writeFile( out_index_file, index );
   }
 
   // Save and leave.

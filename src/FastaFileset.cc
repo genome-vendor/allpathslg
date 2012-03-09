@@ -358,7 +358,7 @@ void FastFetchReads(vecbasevector & b, vecString * n, const String &file) {
   const int S = filestream.GetSize();
   for (int i=0; i != S; ++i) {
     filestream.GetAtIndex(i,name,compseq);
-    compseq.asBasevector(tempb);
+    compseq.asBasevector(tempb, true); // allow 'X' in fasta string
     b.push_back(tempb);
     if (n) n->push_back_reserve(name);
   }

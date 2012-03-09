@@ -28,7 +28,8 @@ typedef KmerFreqAffixes<Kmer_t>    KmerRec_t;
 
 
 
-
+// --------------------- class PolymorphismStats ------------------
+// stores various statistics 
 
 
 class PolymorphismStats
@@ -58,7 +59,7 @@ public:
   {
     ofstream os;
     os.open(fn.c_str());
-    os << "#   sz_min     sz_max       freq" << endl; 
+    os << "#    sz_min     sz_max       freq" << endl; 
     for (unsigned sz_min = sz_min_lo; sz_min < sz_min_hi; sz_min++) {
       for (unsigned sz_max = sz_max_lo; sz_max < sz_max_hi; sz_max++) {
 
@@ -74,7 +75,6 @@ public:
 	}
       }
     }
-    os << endl;
     os.close();
   }
 
@@ -106,13 +106,25 @@ public:
         }
       }
     }
+    
+    const size_t n_tot = n_indels_simple + n_indels_complex + n_snps + n_mnps;
+    cout << "  n_polys_total    = " << setw(10) << n_tot << endl;
 
-    cout << "  n_indels_simple  = " << setw(10) << n_indels_simple << endl;
-    cout << "  n_indels_complex = " << setw(10) << n_indels_complex << endl;
-    cout << "  n_snps           = " << setw(10) << n_snps << endl;
-    cout << "  n_mnps           = " << setw(10) << n_mnps << endl;
-    cout << "  n_polys_total    = " << setw(10) 
-         << (n_indels_simple + n_indels_complex + n_snps + n_mnps) << endl;
+    cout << "  n_indels_simple  = " << setw(10) << n_indels_simple 
+         << " ( " << setw(4) << fixed << setprecision(1) 
+         << 100 * float(n_indels_simple)/float(n_tot) << " % )" << endl;
+
+    cout << "  n_indels_complex = " << setw(10) << n_indels_complex 
+         << " ( " << setw(4) << fixed << setprecision(1) 
+         << 100 * float(n_indels_complex)/float(n_tot) << " % )" << endl;
+
+    cout << "  n_snps           = " << setw(10) << n_snps 
+         << " ( " << setw(4) << fixed << setprecision(1) 
+         << 100 * float(n_snps)/float(n_tot) << " % )" << endl;
+
+    cout << "  n_mnps           = " << setw(10) << n_mnps 
+         << " ( " << setw(4) << fixed << setprecision(1) 
+         << 100 * float(n_mnps)/float(n_tot) << " % )" << endl;
     
   }
 
@@ -127,7 +139,7 @@ public:
 // -------------------- Class KmerIPoly -------------------
 //
 //  Associates a kmer with a polymorphism 
-//  In this context, a 'polymorphism' is just a set of sequential kmers, or a BaseVec
+//  In this context, a 'polymorphism' is just a sequence of kmers, or a BaseVec
 //  The polymorphism is identified by its index and it is stored externally 
 //
 template<class KMER_t> 
@@ -197,6 +209,119 @@ public:
 */
 
 
+// -------------- Bubble validator ------
+
+class BubbleValidator
+{
+public:
+  virtual
+  bool operator () (const BaseVec & bv_a,
+		    const BaseVec & bv_b,
+		    const float  & kf_a,
+		    const float  & kf_b,
+		    bool * a_wins_p) const = 0;
+};
+
+
+class PolyBubbleValidator : public BubbleValidator
+{
+  size_t _K;
+  float _kf_min;
+  float _kf_max;
+
+public:
+  PolyBubbleValidator(const size_t K,
+		      const float kf_min,
+		      const float kf_max) :
+    _K(K),
+    _kf_min(kf_min),
+    _kf_max(kf_max)
+  {}
+
+
+  bool operator () (const BaseVec & bv_a,
+		    const BaseVec & bv_b,
+		    const float  & kf_a,
+		    const float  & kf_b,
+		    bool * a_wins_p) const
+  {
+    const unsigned nb_a = bv_a.size();
+    const unsigned nb_b = bv_b.size();
+  
+    // ---- exclude very small bubbles
+
+    if (nb_a < _K + 2 || 
+	nb_b < _K + 2)
+      return false;
+
+    // ---- exclude bubbles where one of the branches is much larger than the other
+
+    const float ratio_max = 1.3;
+    if (float(nb_a) > ratio_max * float(nb_b) ||
+        float(nb_b) > ratio_max * float(nb_a))
+      return false;        
+  
+    // ---- verify that final K-1 bases are identical
+
+    for (unsigned i = 1; i < _K; i++)
+      if (bv_a[nb_a - i] != bv_b[nb_b - i]) 
+        return false;
+
+    // ---- validate mean kmer frequencies
+
+    float kf = kf_a + kf_b;
+    if  ((_kf_min != 0 && kf < _kf_min) ||
+         (_kf_max != 0 && kf > _kf_max))
+      return false;
+
+
+    // ---- chose the highest frequency branch as the winner
+
+    *a_wins_p = (kf_a > kf_b);
+
+
+    // ---- passed all tests
+    return true;
+
+  }
+};
+
+
+
+
+class InDelBubbleValidator : public BubbleValidator
+{
+  float _kf_min;
+
+public:
+  InDelBubbleValidator(const float kf_min) :
+    _kf_min(kf_min)
+  {}
+
+  bool operator () (const BaseVec & bv_a,
+		    const BaseVec & bv_b,
+		    const float  & kf_a,
+		    const float  & kf_b,
+		    bool * a_wins_p) const 
+  {
+    if (kf_a > _kf_min && 
+	kf_b < _kf_min) {
+      *a_wins_p = true;
+      return true;
+    }
+    if (kf_a < _kf_min && 
+	kf_b > _kf_min) {
+      *a_wins_p = false;
+      return true;
+    }
+    return false;
+  }
+};
+
+
+
+
+
 
 
 // ------------------- class Polymorphisms --------------------
@@ -210,8 +335,8 @@ public:
 class Polymorphisms
 {
   unsigned                    _K;
-  BaseVecVec                  _bvv_a;  // A polymorphisms in BaseVec format
-  BaseVecVec                  _bvv_b;  // B polymorphisms in BaseVec format
+  BaseVecVec                  _bvv_a;  // A alleles in BaseVec format
+  BaseVecVec                  _bvv_b;  // B alleles in BaseVec format
   vec<float>                  _kfv_a;  // mean kmer freq in A polys
   vec<float>                  _kfv_b;  // mean kmer freq in B polys
   KmerMap<KmerIPoly<Kmer_t> > _poly_a; // map of A poly kmers to the poly index in _bvv_a 
@@ -235,6 +360,7 @@ private:
                  const BaseVec & bv_b,
 		 const float kf_a,
 		 const float kf_b,
+		 const BubbleValidator & validator,
                  vec<KmerIPoly<Kmer_t> > * poly_a_vec_p,
                  vec<KmerIPoly<Kmer_t> > * poly_b_vec_p);
 
@@ -302,8 +428,7 @@ public:
 
   // ---- kmap not a const because follow_kmers() needs to tag the visited.
   void build(KmerMap<KmerRec_t> & kmap,
-             const size_t kf_min = 0,
-             const size_t kf_max = 0);
+             const BubbleValidator & validator);
 
 
   void write_fastas(const String & HEAD_STRONG, 

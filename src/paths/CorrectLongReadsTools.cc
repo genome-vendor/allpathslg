@@ -22,6 +22,7 @@
 #include "pairwise_aligners/SmithWatBandedA.h"
 #include "paths/CorrectLongReadsTools.h"
 #include "paths/CorrectPatch.h"
+#include "paths/CorrectPatch3.h"
 #include "paths/KmerAlignSet.h"
 #include "paths/LongReadPatchOptimizer.h"
 #include "paths/LongReadTools.h"
@@ -453,29 +454,6 @@ void AlignReadToPath(
      out << setprecision(5) << ERRS << ", Lmatches = " << LMATCHES 
           << ", lastpos = " << LASTPOS << ", last = " << LAST << "\n";    
 
-     /*
-     // This is interesting.  Actual errors is sometimes (often?) 
-     // less than computed errors.
-     if ( id == 214660 && matches.nonempty( ) ) // QQQQQQQQQQQQQQQQQQ
-     {    int rpos1 = matches[0].first, rpos2 = LASTPOS; // QQQQQQ
-          basevector rx; // QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
-          rx.SetToSubOf( r, rpos1, rpos2 - rpos1 ); // QQQQQQQQQQQQQQ
-          align a; // QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
-          out << "(actual errors = " << // QQQQQQQQQQQQQQQQQQQQQQQQQQ
-               SmithWatFreeSym( rx, t, a, False, False, 1, 2 ) // QQQ
-               << ")\n\n"; // QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ 
-          // vec<ho_interval> perfs1, perfs2; // QQQQQQQQQQQQQQQQQQQQ
-          // a.PerfectIntervals1( rx, t, perfs1 ); // QQQQQQQQQQQQQQQ
-          // a.PerfectIntervals2( rx, t, perfs2 ); // QQQQQQQQQQQQQQQ
-          // for ( int l = 0; l < perfs1.isize( ); l++ ) // QQQQQQQQQ
-          // {    perfs1[l].Shift(rpos1); // QQQQQQQQQQQQQQQQQQQQQQQQ
-          //      if ( perfs1[l].Length( ) >= L ) // QQQQQQQQQQQQQQQQ
-          //      {    out << perfs1[l] << " --> " << perfs2[l] // QQQ
-          //                << "\n";    }    } // QQQQQQQQQQQQQQQQQQQ
-          out << "\n"; // QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
-               } // QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
-     */
-
      EREPORTS = make_triple( LASTPOS, /* ERRS */ LMATCHES, out.str( ) );    }
 
 // Partition reads into similar orbits, discarding those that do not clearly lie
@@ -648,12 +626,6 @@ void ScoreGraph( const digraphE<int>& G, const int source,
           vec<int> epath;
           vec<int> path, upath;
           G.ShortestPath( source, sinks[i2], path );
-          /*
-          cout << "found path";
-          for ( int m = 0; m < path.isize( ); m++ )
-               cout << " " << ALIGNS[ path[m] ].first;
-          cout << "\n";
-          */
           int errs = 0;
           for ( int m = 0; m < path.isize( ) - 1; m++ )
           {    int x1 = path[m], x2 = path[m+1];
@@ -680,24 +652,8 @@ void ScoreGraph( const digraphE<int>& G, const int source,
                     for ( int m = 0; m < ALIGNS[w].second.isize( ); m++ )
                     M.push_back( ALIGNS[w].second[m].first );     }
           UniqueSort(M);
-          /*
-          cout << "match positions:\n";
-          for ( int i = 0; i < M.isize( ); i++ )
-          {    if ( i % 7 == 0 && i > 0 ) cout << "\n";
-               else cout << " ";
-               cout << M[i];    }
-          cout << "\n";
-          */
-
           for ( int j = 0; j < path.isize( ); j++ ) // XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                upath.push_back( ALIGNS[ path[j] ].first ); // XXXXXXXXXXXXXXXXXXXXXX
-          /*
-          cout << "path ="; // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          for ( int j = 0; j < path.isize( ); j++ ) // XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-               cout << " " << upath[j]; // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          cout << "\n"; // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          PRINT2( M.size( ), errs ); // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          */
           matches_errs.push( -M.isize( ), errs );
           paths.push_back(path);
           upaths.push_back(upath);    }
@@ -722,9 +678,7 @@ void Phase2( const int u, const vecbasevector& unibases,
      const int LG, const heuristics& heur, vecbasevector& new_stuff,
      vec< vec<int> >& right_exts,
      const Bool NEW_FILTER, const Bool ANNOUNCE, const int SUPER_VERBOSITY,
-     const Bool PRINT_BASES2, const Bool EXPERIMENTAL_DOT,
-     const vec< digraphE<int> >& Galt_all, const vec< vec<int> >& Galt_U_all,
-     const vec< vec< pair< int, vec< pair<int,int> > > > >& ALIGNS_ALL )
+     const Bool PRINT_BASES2, const int MIN_SPREAD2 )
 
 {
      hout << "\n=========================================================="
@@ -771,293 +725,6 @@ void Phase2( const int u, const vecbasevector& unibases,
                {    if ( j > 0 ) cout << ",";
                     cout << all_ids[j];    }
                cout << "}\"\n" << endl;    }    }
-
-     // Partition reads.  Remove reads that are not in an orbit, then ignore the
-     // partition.
-
-     /*
-     vec< vec<int> > orbits;
-     PartitionReads( u, rights, orbits, hout );
-     vec<Bool> to_remove( rights.size( ), True );
-     for ( int i = 0; i < orbits.isize( ); i++ )
-     {    for ( int j = 0; j < orbits[i].isize( ); j++ )
-               to_remove[ orbits[i][j] ] = False;    }
-     EraseIf( rights, to_remove );
-     */
-
-
-
-
-     // EXPERIMENT.
-
-     if (EXPERIMENTAL_DOT)
-     {
-
-
-
-
-     for ( int j = 0; j < rights.isize( ); j++ )
-     {    int id = rights[j].first;
-
-          uniseq uni = UNISEQ[id];
-          if ( !rights[j].second ) uni.Reverse(to_rc);
-
-          cout << "\n";
-          PRINT(id); // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-
-          // ********** NOW NEED TO HANDLE REVERSE COMPLEMENTS **********
-          // ********** OTHERWISE, JUST SKIP THEM *********
-          if ( !rights[j].second ) continue;
-
-          int BEGIN;
-          for ( BEGIN = 0; BEGIN < uni.N( ); BEGIN++ )
-               if ( uni.U(BEGIN) == u ) break;
-          if ( BEGIN == uni.N( ) ) 
-          {    cout << "\nnope\n";
-               continue;    }
-
-          // Is there an equally good shortest path that doesn't use u?
-
-          {
-          const digraphE<int>& G = Galt_all[id];
-          const vec< pair< int, vec< pair<int,int> > > >& ALIGNS = ALIGNS_ALL[id];
-          vec<int> sources, sinks, to_left, to_right;
-          G.Sources(sources), G.Sinks(sinks);
-          G.ToLeft(to_left), G.ToRight(to_right);
-          vec< vec<int> > successors( sources.size( ) );
-          for ( int i = 0; i < sources.isize( ); i++ )
-          {    G.GetSuccessors1( sources[i], successors[i] );
-               Sort( successors[i] );    }
-          vec< pair<int,int> > matches_errs;
-          vec< vec<int> > paths, upaths;
-          for ( int i1 = 0; i1 < sources.isize( ); i1++ )
-          for ( int i2 = 0; i2 < sinks.isize( ); i2++ )
-          {    if ( !BinMember( successors[i1], sinks[i2] ) ) continue;
-               vec<int> epath;
-               vec<int> path, upath;
-               G.ShortestPath( sources[i1], sinks[i2], path );
-               int errs = 0;
-               for ( int m = 0; m < path.isize( ) - 1; m++ )
-               {    int x1 = path[m], x2 = path[m+1];
-                    errs += G.EdgeObject( G.EdgesBetween( x1, x2 )[0] );    }
-               for ( int j = 0; j < path.isize( ) - 1; j++ )
-               {    int x = path[j], y = path[j+1];
-                    int min_edge = 1000000000;
-                    for ( int l = 0; l < G.From(x).isize( ); l++ )
-                    {    if ( G.From(x)[l] == y )
-                         {    min_edge = Min( min_edge, G.
-                                   EdgeObjectByIndexFrom( x, l ) );    }    }
-                    for ( int l = 0; l < G.From(x).isize( ); l++ )
-                    {    if ( G.From(x)[l] == y )
-                         {    if ( G.EdgeObjectByIndexFrom( x, l ) == min_edge )
-                              {    epath.push_back( 
-                                        G.EdgeObjectIndexByIndexFrom( x, l ) );
-                                   break;   }    }    }    }
-               for ( int j = 0; j < path.isize( ); j++ )
-                    upath.push_back( ALIGNS[ path[j] ].first );
-               vec<int> M;
-               for ( int r = 0; r < epath.isize( ); r++ )
-               {    int e = epath[r];
-                    int v = to_left[e], w = to_right[e];
-                    for ( int m = 0; m < ALIGNS[v].second.isize( ); m++ )
-                         M.push_back( ALIGNS[v].second[m].first );
-                         for ( int m = 0; m < ALIGNS[w].second.isize( ); m++ )
-                         M.push_back( ALIGNS[w].second[m].first );     }
-               UniqueSort(M);
-               matches_errs.push( -M.isize( ), errs );
-               paths.push_back(path);
-               upaths.push_back(upath);    }
-          SortSync( matches_errs, paths, upaths );
-          if ( matches_errs.empty( ) ) //  ?????????????????????????????????????????
-          {    cout << "2 matches_errs is empty; weird!\n";
-               continue;    }
-          int j = matches_errs.NextDiff(0);
-          Bool bad = False;
-          for ( int i = 0; i < j; i++ )
-               if ( !Member( upaths[i], u ) ) bad = True;
-          if (bad) 
-          {    cout << "Found alternative without u = " << u << ".\n";
-               /*
-               cout << "shortest paths:\n";
-               for ( int i = 0; i < upaths.isize( ); i++ )
-               {    cout << "[" << i << "]";
-                    for ( int m = 0; m < upaths[i].isize( ); m++ )
-                         cout << " " << upaths[i][m];
-                    cout << " (matches = " << matches_errs[i].first << ", errs = "
-                         << matches_errs[i].second << ")\n";    }
-               */
-               continue;    }
-          }
-
-          vec<int> vpath;
-          for ( int l = BEGIN; l < UNISEQ_ID[id].isize( ); l++ )
-               vpath.push_back( UNISEQ_ID[id][l] );
-
-          vec<int> path1;
-          Galt_all[id].ShortestPath( vpath.front( ), vpath.back( ), path1 );
-
-          int matches, errs;
-          vec<int> upath_orig, path_old;
-          ScoreGraph( Galt_all[id], vpath[0], ALIGNS_ALL[id], matches, errs,
-               path_old, upath_orig );
-
-          digraphE<int> GX( Galt_all[id] );
-          if ( vpath.size( ) >= 3 )
-          {    int v1 = vpath[1], v2 = vpath[2];
-               for ( int m = 0; m < GX.From(v1).isize( ); m++ )
-                    if ( GX.From(v1)[m] == v2 ) GX.DeleteEdgeFrom( v1, m );
-               int matches_alt, errs_alt;
-               vec<int> upath_alt;
-               vec<int> path_new;
-               ScoreGraph( GX, vpath[0], ALIGNS_ALL[id], matches_alt, errs_alt,
-                    path_new, upath_alt );
-               int matches_penalty = matches - matches_alt;
-               int errs_penalty = errs_alt - errs;
-               if ( matches_penalty == 0 && errs_penalty == 0 ) continue;
-               int ux = Galt_U_all[id][v2];
-               PRINT4( id, ux, matches_penalty, errs_penalty );    
-               // PRINT4( matches, matches_alt, errs, errs_alt );
-
-               /*
-               vec< triple<int,int,int> > matches;
-               int pos = 0, rpos_left = -1, upos_left = -1;
-               for ( int m = 0; m < path_old.isize( ); m++ )
-               {    int v = path_old[m];
-                    int uv = ALIGNS_ALL[id][v].first;
-                    for ( int j = 0; j < ALIGNS_ALL[id][v].second.isize( ); j++ )
-                    {    int rpos = ALIGNS_ALL[id][v].second[j].first;
-                         int upos = ALIGNS_ALL[id][v].second[j].second;
-                         matches.push( rpos, pos + upos, 0 );
-                         if ( m == 1 && j == ALIGNS_ALL[id][v].second.isize( ) - 1 )
-                         {    rpos_left = rpos;
-                              upos_left = pos + upos;    }    }
-                    pos += unibases[uv].isize( ) - (K-1);    }
-               // PRINT(rpos_left);
-               pos = 0;
-               for ( int m = 0; m < path_new.isize( ); m++ )
-               {    int v = path_new[m];
-                    int uv = ALIGNS_ALL[id][v].first;
-                    for ( int j = 0; j < ALIGNS_ALL[id][v].second.isize( ); j++ )
-                    {    int rpos = ALIGNS_ALL[id][v].second[j].first;
-                         int upos = ALIGNS_ALL[id][v].second[j].second;
-                         matches.push( rpos, pos + upos, 1 );    }
-                    pos += unibases[uv].isize( ) - (K-1);    }
-               UniqueSort(matches);
-               int rpos_right = -1, upos1_right = -1, upos2_right = -1;
-               Bool match_found = False;
-               int L = 11;
-               for ( int l = 0; l < matches.isize( ); l++ )
-               {    if ( matches[l].first <= rpos_left + L + 1 ) continue;
-                    int l2;
-                    for ( l2 = l + 1; l2 < matches.isize( ); l2++ )
-                         if ( matches[l2].first != matches[l].first ) break;
-                    // ForceAssertLe( l2 - l, 2 ); // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-                    if ( l2 - l == 2 )
-                    {    rpos_right = matches[l].first;
-                         // PRINT(rpos_right);
-                         upos1_right = matches[l].second;
-                         upos2_right = matches[l+1].second;
-                         match_found = True;
-                         break;    }
-                    l = l2 - 1;    }
-               basevector b1 = unibases[ upath_orig[0] ]; 
-               basevector b2 = unibases[ upath_alt[0] ];
-               for ( int l = 1; l < upath_orig.isize( ); l++ )
-               {    b1.resize( b1.isize( ) - (K-1) );
-                    b1 = Cat( b1, unibases[ upath_orig[l] ] );    }
-               for ( int l = 1; l < upath_alt.isize( ); l++ )
-               {    b2.resize( b2.isize( ) - (K-1) );
-                    b2 = Cat( b2, unibases[ upath_alt[l] ] );    }
-               if ( !match_found ) cout << "couldn't bracket difference\n\n";
-               else
-               {
-               basevector rx( longreads[id], 
-                    rpos_left + L, rpos_right - ( rpos_left + L ) );
-               basevector ux1( b1, 
-                    upos_left + L, upos1_right - ( upos_left + L ) );
-               basevector ux2( b2, 
-                    upos_left + L, upos2_right - ( upos_left + L ) );
-
-               cout << "upath_orig =";
-               for ( int l = 0; l < upath_orig.isize( ); l++ )
-                    cout << " " << upath_orig[l];
-               cout << "\nupath_alt =";
-               for ( int l = 0; l < upath_alt.isize( ); l++ )
-                    cout << " " << upath_alt[l];
-               cout << "\n";
-
-               align za1, za2;
-               int zerrs1 = SmithWatFreeSym( rx, ux1, za1, True, True, 1, 1 );    
-               int zerrs2 = SmithWatFreeSym( rx, ux2, za2, True, True, 1, 1 );    
-               PRINT2( zerrs1, zerrs2 );
-               cout << "\nalignment of orig:\n";
-               PrintVisualAlignment( False, cout, rx, ux1, za1 );
-               cout << "alignment of alt:\n";
-               PrintVisualAlignment( False, cout, rx, ux2, za2 );
-               }    
-               */
-               }    }
-
-
-
-
-     vec< pair<int,int> > verts;  // (position, unipath id)
-     for ( int j = 0; j < rights.isize( ); j++ )
-     {    const uniseq& q = rights[j].third;
-          int pos = 0, x = 0;
-          while( q.U(x) != u ) x++;
-          for ( int i = x; i < q.N( ); i++ )
-          {    verts.push( pos, q.U(i) );
-               if ( i == q.N( ) - 1 ) break;
-               pos += unibases[ q.U(i) ].size( ) - q.Over(i);    }    }
-     UniqueSort(verts);
-     vec< vec<int> > brights( rights.size( ) );
-     for ( int j = 0; j < rights.isize( ); j++ )
-     {    const uniseq& q = rights[j].third;
-          int pos = 0, x = 0;
-          while( q.U(x) != u ) x++;
-          for ( int i = x; i < q.N( ); i++ )
-          {    brights[j].push_back( 
-                    BinPosition( verts, make_pair( pos, q.U(i) ) ) );
-               if ( i == q.N( ) - 1 ) break;
-               pos += unibases[ q.U(i) ].size( ) - q.Over(i);    }    }
-     vec< vec<int> > from( verts.size( ) ), to( verts.size( ) );
-     vec< vec<int> > from_edge_obj( verts.size( ) ), to_edge_obj( verts.size( ) );
-     vec<int> edges;
-     for ( int j = 0; j < brights.isize( ); j++ )
-     {    for ( int i = 0; i < brights[j].isize( ) - 1; i++ )
-          {    int x = brights[j][i], y = brights[j][i+1];
-               if ( !Member( from[x], y ) )
-               {    from[x].push_back(y), to[y].push_back(x);    
-                    from_edge_obj[x].push_back( edges.size( ) );
-                    to_edge_obj[y].push_back( edges.size( ) );
-                    edges.push_back(0);    }    }    }
-     for ( int x = 0; x < verts.isize( ); x++ )
-     {    SortSync( from[x], from_edge_obj[x] ); 
-          SortSync( to[x], to_edge_obj[x] );    }
-
-     digraphE<int> H( from, to, edges, to_edge_obj, from_edge_obj );
-     for ( int l = 0; l < brights.isize( ); l++ )
-     {    const vec<int>& b = brights[l];
-          int v = 0;
-          for ( int i = 1; i < b.isize( ); i++ )
-          {    int w = b[i];
-               for ( int j = 0; j < H.From(v).isize( ); j++ )
-               {    if ( H.From(v)[j] == w )
-                    {   H.EdgeObjectByIndexFromMutable( v, j )++;
-                         break;    }    }
-               v = w;    }    }
-     vec<String> vert_labels( verts.size( ) );
-     for ( int i = 0; i < verts.isize( ); i++ )
-     {    vert_labels[i] = ToString( verts[i].second ) + "-"
-               + ToString( verts[i].first );    }
-     H.DOT_vel( cout, vert_labels );
-     exit(0);
-
-     }
-
-
-
 
      // Build a graph G.  The vertices are pairs (p, v), corresponding to unipaths v
      // (to the right of u) and their position p, relative to u, so that a given
@@ -1165,6 +832,73 @@ void Phase2( const int u, const vecbasevector& unibases,
      {    Ofstream( out, "xxx.dot" );
           digraph(G).PrettyDOT( out, False, True );    }
 
+     // Compute frequency of short partial paths.
+
+     const int depth = 3;
+     const int min_count = 3;
+     vec< vec< vec<int> > > dpaths(depth+1);
+     Bool depth_verbose = False;
+     if (depth_verbose) hout << "\npartial paths of depth <= " << depth << "\n";
+     vec< vec<int> > hpaths;
+     for ( int v = 0; v < G.N( ); v++ )
+     {    vec<int> p;
+          p.push_back(v);
+          hpaths.push_back(p);    }
+     while( hpaths.nonempty( ) )
+     {    vec<int> p = hpaths.back( );
+          hpaths.pop_back( );
+          dpaths[ p.size( ) ].push_back(p);
+          if ( p.isize( ) < depth )
+          {    int v = p.back( );
+               for ( int j = 0; j < G.From(v).isize( ); j++ )
+               {    vec<int> q(p);
+                    q.push_back( G.From(v)[j] );
+                    hpaths.push_back(q);    }    }    }
+     for ( int d = 0; d <= depth; d++ )
+          Sort( dpaths[d] );
+     vec< vec<int> > dcount(depth+1);
+     for ( int d = 1; d <= depth; d++ )
+          dcount[d].resize( dpaths[d].size( ) );
+     for ( int j = 0; j < rights.isize( ); j++ )
+     {    const uniseq& q = rights[j].third;
+          int pos = -unibases[u].isize( ), x = 0;
+          while( q.U(x) != u ) x++;
+          vec<int> v;
+          for ( int i = x; i < q.N( ); i++ )
+          {    v.push_back( BinPosition( verts, make_pair( pos, q.U(i) ) ) );
+               if ( i == q.N( ) - 1 ) break;
+               pos += unibases[ q.U(i) ].size( ) - q.Over(i);    }
+          for ( int d = 1; d <= depth; d++ )
+          {    for ( int l = 0; l <= v.isize( ) - d; l++ )
+               {    vec<int> w;
+                    w.SetToSubOf( v, l, d );
+                    int p = BinPosition( dpaths[d], w );
+                    // HOW COULD THIS BE NEGATIVE??
+                    // PRINT4( j, d, l, p ); // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+                    if ( p >= 0 ) dcount[d][p]++;    }    }    }
+     if (depth_verbose)
+     {    for ( int m = 0; m < dpaths[depth].isize( ); m++ )
+          {    const vec<int>& p = dpaths[depth][m];
+               hout << "[" << m << "]";
+               for ( int j = 0; j < p.isize( ); j++ )
+                    hout << " " << p[j];
+               int start = verts[ p.front( ) ].first;
+               int nbases = verts[ p.back( ) ].first 
+                    + unibases[ verts[ p.back( ) ].second ].isize( ) - start;
+               hout << " (bases=" << nbases << ",start=" 
+                    << start << ",count=" << dcount[depth][m] << ")\n";    }    }
+     vec< vec<Bool> > acceptable( depth + 1 );
+     for ( int d = 1; d <= depth; d++ )
+     {    acceptable[d].resize( dcount[d].size( ) );
+          for ( int j = 0; j < dcount[d].isize( ); j++ )
+          {    acceptable[d][j] = ( dcount[d][j] >= min_count );
+               if (depth_verbose)
+               {    if ( acceptable[d][j] )
+                    {    hout << "accepting";
+                         for ( int l = 0; l < dpaths[d][j].isize( ); l++ )
+                              hout << " " << dpaths[d][j][l];
+                         hout << "\n";    }    }    }    }
+
      // New filtering.
 
      vec<int> xsuggested_kills;
@@ -1186,7 +920,7 @@ void Phase2( const int u, const vecbasevector& unibases,
           if ( !fw ) r.ReverseComplement( );
           KmerAlignSet alx( r, L, Ulocs ), aly;
           const Bool CLUSTER_ALIGNS_NEW_CLEAN = False;
-          ClusterAlignsNew( alx, aly, CLUSTER_ALIGNS_NEW_CLEAN );
+          ClusterAlignsNew( alx, aly, CLUSTER_ALIGNS_NEW_CLEAN, MIN_SPREAD2 );
           KillInferiorClustersNew( aly, unibases );
           if ( SUPER_VERBOSITY >= 1 )
           {    ostringstream rout;
@@ -1287,7 +1021,11 @@ void Phase2( const int u, const vecbasevector& unibases,
      // Build successive partial paths.
 
      hout << Date( ) << ": building partial paths" << endl;
+     const int iterations_to_use_depth = 100000;
+     Bool depth_on = False;
+     restart_partial:
      vec< vec<int> > vpaths;
+     vpaths_final.clear( );
      for ( int x = 0; x < G.N( ); x++ )
      {    if ( G.Source(x) ) 
           {    vec<int> v;
@@ -1297,8 +1035,16 @@ void Phase2( const int u, const vecbasevector& unibases,
      while( vpaths.nonempty( ) )
      {    if ( SUPER_VERBOSITY >= 1 )
           {    if ( iterations % 10000 == 0 )
-                    PRINT2_TO( hout, iterations, vpaths.size( ) );
-               iterations++;    }
+               {    DPRINT3_TO( hout, iterations, 
+                         vpaths.size( ), vpaths_final.size( ) );    }    }
+          if ( ++iterations == iterations_to_use_depth )
+          {    if ( !depth_on )
+               {    depth_on = True;
+                    hout << "\nrestarting with depth filter on\n" << endl;
+                    goto restart_partial;    }
+               else
+               {    hout << "too many iterations, giving up" << endl;
+                    return;    }    }
           vec<int> p = vpaths.back( );
           if ( SUPER_VERBOSITY >= 2 )
           {    hout << "exploring path";
@@ -1327,11 +1073,23 @@ void Phase2( const int u, const vecbasevector& unibases,
           {    int y = G.From(x)[j];
                vec<int> q(p);
                q.push_back(y);
+               rpos_ppos_all[j].resize( rights.size( ) );
+
+               // See if q is acceptable.
+
+               if (depth_on)
+               {    Bool unacceptable = False;
+                    for ( int d = 1; d <= Min( depth, q.isize( ) ); d++ )
+                    {    vec<int> z;
+                         z.SetToSubOf( q, q.isize( ) - d, d );
+                         int bp = BinPosition( dpaths[d], z );
+                         if ( bp < 0 || !acceptable[d][bp] ) 
+                              unacceptable = True;    }
+                    if (unacceptable) continue;    }
 
                // The path q is the extension of p.  Now we go through all the 
                // reads.
 
-               rpos_ppos_all[j].resize( rights.size( ) );
                #pragma omp parallel for
                for ( int r = 0; r < rights.isize( ); r++ )
                {    vec< vec<int> > walks, walks_final;
@@ -1557,58 +1315,6 @@ void Phase2( const int u, const vecbasevector& unibases,
      {    for ( int j = 0; j < rights.isize( ); j++ )
                hout << ureport[j];    }
 
-     // Assay binary branches.
-
-     /*
-     vec<int> suggested_kills;
-     for ( int x = 0; x < G.N( ); x++ )
-     {    if ( G.From(x).size( ) != 2 ) continue;
-          int y1 = G.From(x)[0], y2 = G.From(x)[1];
-          hout << "\nassaying branch from " << x << " to " << y1 << " and " << y2
-               << ":\n";
-          int support1 = 0, support2 = 0; 
-          for ( int xxx = 0; xxx < rights.isize( ); xxx++ )
-          {    const vec<int>& unis = unis_all[xxx];
-               const vec< vec< pair<int,int> > >& umatches = umatches_all[xxx];
-               int u1 = verts[y1].second, u2 = verts[y2].second;
-               int p1 = BinPosition( unis, u1 ), p2 = BinPosition( unis, u2 );
-               vec<int> z1, z2;
-               for ( int j = 0; j < umatches[p1].isize( ); j++ )
-                    z1.push_back( umatches[p1][j].first );
-               for ( int j = 0; j < umatches[p2].isize( ); j++ )
-                    z2.push_back( umatches[p2][j].first );
-               UniqueSort(z1), UniqueSort(z2);
-               if ( z1.size( ) < umatches[p1].size( ) ) continue;
-               if ( z2.size( ) < umatches[p2].size( ) ) continue;
-               int m = Min( unibases[u1].size( ), unibases[u2].size( ) ) - heur.L;
-               int count1 = 0, count2 = 0;
-               for ( int j = 0; j < umatches[p1].isize( ); j++ )
-                    if ( umatches[p1][j].second <= m ) count1++;
-               for ( int j = 0; j < umatches[p2].isize( ); j++ )
-                    if ( umatches[p2][j].second <= m ) count2++;
-               if ( count1 > count2 ) 
-               {    support1++;
-                    hout << "read (right) " << xxx << " supports " << y1
-                         << " over " << y2 << "\n";    }
-               if ( count2 > count1 ) 
-               {    support2++;    
-                    hout << "read (right) " << xxx << " supports " << y2
-                         << " over " << y1 << "\n";    }    }
-          PRINT2_TO( hout, support1, support2 );
-          const int min_support = 5;
-          if ( support1 >= min_support && support2 <= 1 && G.To(y2).solo( ) )
-          {    hout << "suggest killing " << y2 << "\n";
-               suggested_kills.push_back(y2); 
-               // G.DeleteEdgeFrom( x, 1 );    
-                    }
-          if ( support2 >= min_support && support1 <= 1 && G.To(y1).solo( ) )
-          {    hout << "suggest killing " << y1 << "\n";
-               suggested_kills.push_back(y1);    
-               // G.DeleteEdgeFrom( x, 0 );    
-                    }    }
-     Sort(suggested_kills);
-     */
-
      // Find all paths, then discard ones yielding duplicate sequence.
 
      hout << Date( ) << ": finding all paths" << endl;
@@ -1699,28 +1405,6 @@ void Phase2( const int u, const vecbasevector& unibases,
                     last[i], skipped[i], A );    }
 
           vec<Bool> discard( ereports.size( ), False );
-
-          /*
-          // VERSION 1
-          for ( int i1 = 0; i1 < ereports.isize( ); i1++ )
-          {    for ( int i2 = 0; i2 < ereports.isize( ); i2++ )
-               {    if ( lastpos[i1] == lastpos[i2] && errs[i1] < errs[i2] )
-                         discard[i2] = True;
-                    if ( lastpos[i1] != lastpos[i2] 
-                         && Lmatches[i1] > Lmatches[i2] )
-                    {    discard[i2] = True;    }    }    }
-          */
-
-          /*
-          // VERSION 2
-          for ( int i1 = 0; i1 < ereports.isize( ); i1++ )
-          {    for ( int i2 = 0; i2 < ereports.isize( ); i2++ )
-               {    if ( Lmatches[i1] > Lmatches[i2] )
-                    {    discard[i2] = True;    }    
-                    if ( Lmatches[i1] == Lmatches[i2]
-                         && errs[i1] < errs[i2] )
-                    {    discard[i2] = True;    }    }    }
-          */
 
           // VERSION 3
           for ( int i1 = 0; i1 < ereports.isize( ); i1++ )
@@ -1815,6 +1499,16 @@ void Phase2( const int u, const vecbasevector& unibases,
                     bppaths[bpos], LG, genome2, Glocs );
                if ( places.nonempty( ) ) 
                {    hout << " [TRUE]";
+
+               Bool unacceptable = False;
+               for ( int d = 1; d <= Min( depth, p.isize( ) ); d++ )
+               {    vec<int> z;
+                    z.SetToSubOf( p, p.isize( ) - d, d );
+                    int bp = BinPosition( dpaths[d], z );
+                    if ( bp < 0 || !acceptable[d][bp] ) unacceptable = True;    }
+               if (unacceptable)
+               {    hout << " [UNACCEPTABLE]";    }
+
                     genomic[j] = True;    }    }
           hout << "\n=";
           for ( int l = 0; l < us.isize( ); l++ )
@@ -1904,22 +1598,18 @@ void Validate( vecbasevector all, const vecbasevector& unibases,
      cout << "bads = " << ToStringAddCommas(bads) << " = " 
           << PERCENT_RATIO( 3, bads, total ) << endl;    }
 
-
-
-
-
-
-
 template<int K> 
 void BuildPatches(
         const vecbasevector& unibases, 
         const vec< vec<int> >& nexts,
+        const vec<Bool>& cn_plus,
         const int L, 
         const vec< vec< pair<int,int> > >& Ulocs, 
         vec<GapPatcher> & patchers_all, 
         const Bool CORRECT_PATCHES, 
         const Bool CORRECT_PATCHES_NEW, 
         const Bool CORRECT_PATCH_VERBOSE,
+        const Bool ANNOUNCE_PATCH_CORRECTION,
         const vecbasevector& genome2, 
         const int PATCH_VERBOSITY, 
         const Bool VALIDATE_PATCHES, 
@@ -1930,17 +1620,18 @@ void BuildPatches(
         const String & run_dir, 
         vec<basevector> & bpatches, 
         const uint n_patchers_min, 
-        const int patch_mode, // 0:shortest size  1:median size  2:median gap
         const vecbasevector& fbases,
         const vecqualvector& fquals,
         const PairsManager& fpairs,
         const vec< kmer<20> >& fheads,
-        const vec<int64_t>& fids
+        const vec<int64_t>& fids,
+        const Bool NEW_PLUS_RULE
                     )
 {
   const unsigned nb_rad_SW = 10;  // the radius of the local Smith-Waterman
   const unsigned sz_patcher_min = 2 * L;
   const unsigned sz_padding_min = 2 * nb_rad_SW + L;
+  const int patch_mode = 2; // 0:shortest size  1:median size  2:median gap
 
   // Hash unibases.
   
@@ -2003,6 +1694,18 @@ void BuildPatches(
     const vec<GapPatcher> & patchers = patchers_gap[i_gap];
     const unsigned n_patchers = patchers.size();
 
+    const size_t    ibv1 = patchers[0].t1;
+    const size_t    ibv2 = patchers[0].t2;
+
+    if (NEW_PLUS_RULE)
+    {
+    if ( cn_plus.nonempty( ) && ( cn_plus[ibv1] && cn_plus[ibv2] ) ) continue;
+    }
+    else
+    {
+    if ( cn_plus.nonempty( ) && ( cn_plus[ibv1] || cn_plus[ibv2] ) ) continue;
+    }
+
     const unsigned ip_best = ips_best[i_gap];
     if (ip_best >= n_patchers) {  // invalid best
       if (PATCH_VERBOSITY >= 1) 
@@ -2010,8 +1713,6 @@ void BuildPatches(
         cout << Date() << ": i_gap= " << i_gap << ": invalid best patch." << endl; 
     }
     else {
-      const size_t    ibv1 = patchers[0].t1;
-      const size_t    ibv2 = patchers[0].t2;
 
       GapPatcher0 & p_opt = all_paths[ibv1];
       vec<double> timers(3, 0);
@@ -2035,53 +1736,51 @@ void BuildPatches(
       Bool DIRECT = False;
       basevector bv_corr;
       ostringstream out_tmp;
-      if (CORRECT_PATCHES_NEW) {
-        CorrectPatch( unibases[ibv1], unibases[ibv2], fbases, fquals, fpairs, fheads,
-             fids, edit, out_tmp, CORRECT_PATCH_VERBOSE );
+        if (ANNOUNCE_PATCH_CORRECTION)
+        {
+             #pragma omp critical
+             cout << Date( ) << ": begin correction for gap " << i_gap << endl;    }
+        Bool patch_corrected = 
+             CorrectPatch3( unibases[ibv1], unibases[ibv2], fbases, fquals, fpairs, 
+             fheads, fids, edit, out_tmp, CORRECT_PATCH_VERBOSE, 
+             genome2, LG, Glocs );
+        if (ANNOUNCE_PATCH_CORRECTION)
+        {
+             #pragma omp critical
+             cout << Date( ) << ": end correction for gap " << i_gap << endl;    }
+        if ( !patch_corrected ) 
+        {    if ( PATCH_CORRECT_VERBOSITY >= 1 )
+                  out_tmp << "patch not corrected, ignoring patch\n";
+             yreports[i_gap] = out_tmp.str();
+             continue;    }
         bv_corr = Cat(basevector(unibases[ibv1], 0, edit.Start1()), 
                       edit.Rep(0),
                       basevector(unibases[ibv2], edit.Stop2(),
                                  unibases[ibv2].isize() - edit.Stop2())); 
-
-      }
-      else if (CORRECT_PATCHES) {
-        CleanPatch(L, unibases, Ulocs, kmers_plus, 
-                    fastavector(unibases[ibv1]), fastavector(unibases[ibv2]), edit, 
-                    out_tmp, DIRECT, PATCH_CORRECT_VERBOSITY, data_dir, run_dir);
-        bv_corr = Cat(basevector(unibases[ibv1], 0, edit.Start1()), 
-                      edit.Rep(0),
-                      basevector(unibases[ibv2], edit.Stop2(),
-                                 unibases[ibv2].isize() - edit.Stop2())); 
-      }
-      else {
-        bv_corr = Cat(basevector(bv1, 0, p_opt.upos1), 
-                      p_opt.r,
-                      basevector(bv2, p_opt.upos2, bv2.isize() - p_opt.upos2));
-      }
-
 
         // Determine if patch is buildable from existing unibases.
 
         Bool buildable = False;
-        vec< pair<int,int> > upos;
-        upos.push( ibv1, 0 );
-        while( upos.nonempty( ) )
-        {    int u = upos.back( ).first, pos = upos.back( ).second;
-             upos.pop_back( );
-             Bool match = True;
-             for ( int j = 0; j < unibases[u].isize( ); j++ )
-             {    if ( pos >= bv_corr.isize( ) ) break;
-                  if ( unibases[u][j] != bv_corr[pos] )
-                  {    match = False;
-                       break;    }
-                  pos++;    }
-             if ( !match ) break;
-             if ( pos == bv_corr.isize( ) )
-             {    buildable = True;
-                  break;    }    
-             for ( int j = 0; j < nexts[u].isize( ); j++ )
-                  upos.push( nexts[u][j], pos - (K-1) );    } 
-         if (buildable) out_tmp << "buildable!\n";
+        if (VALIDATE_PATCHES)
+        {    vec< pair<int,int> > upos;
+             upos.push( ibv1, 0 );
+             while( upos.nonempty( ) )
+             {    int u = upos.back( ).first, pos = upos.back( ).second;
+                  upos.pop_back( );
+                  Bool match = True;
+                  for ( int j = 0; j < unibases[u].isize( ); j++ )
+                  {    if ( pos >= bv_corr.isize( ) ) break;
+                       if ( unibases[u][j] != bv_corr[pos] )
+                       {    match = False;
+                            break;    }
+                       pos++;    }
+                  if ( !match ) break;
+                  if ( pos == bv_corr.isize( ) )
+                  {    buildable = True;
+                       break;    }    
+                  for ( int j = 0; j < nexts[u].isize( ); j++ )
+                       upos.push( nexts[u][j], pos - (K-1) );    } 
+              if (buildable) out_tmp << "buildable!\n";    }
 
 #pragma omp critical
       {
@@ -2094,7 +1793,8 @@ void BuildPatches(
         vec<placementx> totals = FindGenomicPlacements(bv_corr, LG, genome2, Glocs);
 #pragma omp critical
         {
-          out_tmp << "matches for patch to gap " << i_gap << "\n";
+          out_tmp << "matches for patch to gap " << i_gap 
+               << " from " << ibv1 << " to " << ibv2 << "\n";
           for (int l = 0; l < totals.isize(); l++) {
             out_tmp << "perfectly matches " << totals[l].g << "."
                     << totals[l].pos << "-" << totals[l].pos + bv_corr.isize() 
@@ -2127,18 +1827,16 @@ void BuildPatches(
        << " gap patches prepared" << endl;
 }
 
-
-
-
-
 template void BuildPatches<96>(const vecbasevector& unibases, 
                                const vec< vec<int> >& nexts,
+                               const vec<Bool>& cn_plus,
                                const int L, 
                                const vec< vec< pair<int,int> > >& Ulocs, 
                                vec<GapPatcher>& patchers, 
                                const Bool CORRECT_PATCHES, 
                                const Bool CORRECT_PATCHES_NEW, 
                                const Bool CORRECT_PATCH_VERBOSE,
+                               const Bool ANNOUNCE_PATCH_CORRECTION,
                                const vecbasevector& genome2, 
                                const int PATCH_VERBOSITY, 
                                const Bool VALIDATE_PATCHES, 
@@ -2149,21 +1847,23 @@ template void BuildPatches<96>(const vecbasevector& unibases,
                                const String& run_dir, 
                                vec<basevector>& bpatches, 
                                const uint n_patchers_min,
-                               const int patch_mode,
                                const vecbasevector& fbases,
                                const vecqualvector& fquals,
                                const PairsManager& fpairs,
                                const vec< kmer<20> >& fheads,
-                               const vec<int64_t>& fids );
+                               const vec<int64_t>& fids,
+                               const Bool NEW_PLUS_RULE );
 
 template void BuildPatches<640>(const vecbasevector& unibases, 
                                 const vec< vec<int> >& nexts,
+                                const vec<Bool>& cn_plus,
                                 const int L, 
                                 const vec< vec< pair<int,int> > >& Ulocs, 
                                 vec<GapPatcher>& patchers, 
                                 const Bool CORRECT_PATCHES, 
                                 const Bool CORRECT_PATCHES_NEW, 
                                 const Bool CORRECT_PATCH_VERBOSE,
+                               const Bool ANNOUNCE_PATCH_CORRECTION,
                                 const vecbasevector& genome2, 
                                 const int PATCH_VERBOSITY, 
                                 const Bool VALIDATE_PATCHES, 
@@ -2174,9 +1874,9 @@ template void BuildPatches<640>(const vecbasevector& unibases,
                                 const String& run_dir, 
                                 vec<basevector>& bpatches, 
                                 const uint n_patchers_min,
-                                const int patch_mode,
                                 const vecbasevector& fbases,
                                 const vecqualvector& fquals,
                                 const PairsManager& fpairs,
                                 const vec< kmer<20> >& fheads,
-                                const vec<int64_t>& fids );
+                                const vec<int64_t>& fids,
+                               const Bool NEW_PLUS_RULE );

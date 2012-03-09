@@ -20,7 +20,6 @@
 #include "system/Types.h"
 #include "system/UseGDB.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string>
@@ -312,7 +311,6 @@ void PrintStack( const vector<void*>& sp_addresses, String command,
                else out << SimplifyFunctionName(function) << ", in " << where
                     << endl ;    }
           if ( function == "main" ) break;    }
-     remove( tempfile.c_str( ) );
      if ( !minimal ) out << endl;
      if (exit_when_done)
      {    if (interrupt_detected) _exit(1);
@@ -718,15 +716,11 @@ void print_signal_handler_message( int signal_number, siginfo_t* info )
     case SIGABRT: cout << SIGABRT_msg << endl; break;
     case SIGTERM: cout << SIGTERM_msg << endl; break;
     case SIGCHLD:
-        if (info->si_code == CLD_EXITED)
-        {
-            cout << "Child process " << info->si_pid << " exited with value "
-                << info->si_status << ". Stopping." << endl;
-        }
-        else if (info->si_code == CLD_KILLED)
+        if (info->si_code == CLD_KILLED)
         {
             cout << "Child process " << info->si_pid
-                << " was killed. Stopping." << endl;
+                << " was killed with signal " << info->si_status
+                << ". Stopping." << endl;
         }
         else if (info->si_code == CLD_DUMPED)
         {
@@ -746,16 +740,13 @@ void print_signal_handler_message( int signal_number, siginfo_t* info )
 extern Bool interrupt_detected;
 
 void arachne_signal_handler( int signal_number, siginfo_t* info, void* context,
-    Bool no_ctrlc, Bool nonzero_child )
+    Bool no_ctrlc )
 {
   interrupt_detected = True;
 
   // ignore SIGCHLDs unless they indicate a "bad" child process termination
-  if (signal_number == SIGCHLD &&
-      ((info->si_code == CLD_EXITED &&
-        (!nonzero_child || info->si_status == 0)) ||
-      (info->si_code != CLD_EXITED && info->si_code != CLD_KILLED 
-        && info->si_code != CLD_DUMPED)) )
+  if (signal_number == SIGCHLD && info->si_code != CLD_KILLED &&
+    info->si_code != CLD_DUMPED)
   {
     return;
   }
@@ -797,17 +788,11 @@ void arachne_signal_handler( int signal_number, siginfo_t* info, void* context,
 
 void arachne_signal_handler_standard( int signal_number, siginfo_t* info,
     void* context )
-{    arachne_signal_handler( signal_number, info, context, False, False  );    }
+{    arachne_signal_handler( signal_number, info, context, False );    }
 
 void arachne_signal_handler_no_ctrlc_traceback( int signal_number,
     siginfo_t* info, void* context )
-{    arachne_signal_handler( signal_number, info, context, True, False );    }
-
-void arachne_signal_handler_nonzero_child(int signal_number, siginfo_t* info,
-    void* context)
-{
-    arachne_signal_handler(signal_number, info, context, False, True);
-}
+{    arachne_signal_handler( signal_number, info, context, True );    }
 
 // ===============================================================================
 //

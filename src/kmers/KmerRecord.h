@@ -16,6 +16,7 @@
 #include "CommonSemanticTypes.h"
 #include "math/Functions.h"
 #include "math/HoInterval.h"
+#include "feudal/BinaryStreamTraits.h"
 
 /**
    File: KmerRecord.h
@@ -626,6 +627,10 @@ public:
 
 };  // class kmer_record
 
+template<int K, int I>
+struct Serializability<kmer_record<K,I> >
+{ typedef TriviallySerializable type; };
+
 //For sorting by id and pos, keeping negative positions negative.
 template<class KmerRecord>
 struct LessByIdAndPos:
@@ -757,7 +762,8 @@ template<int K> class kmer {
 };  // class kmer
 
 template <int K>
-struct Serializability< kmer<K> > : public TriviallySerializable {};
+struct Serializability< kmer<K> >
+{ typedef TriviallySerializable type; };
 
 template < nbases_t K > inline
 ostream& operator<< ( ostream& s, const kmer< K >& k ) {
@@ -846,7 +852,8 @@ template<int K> class kmer_with_count : public kmer_with_count_base {
 };  // class kmer_with_count
 
 template <int K>
-struct Serializability< kmer_with_count<K> > : public TriviallySerializable {};
+struct Serializability< kmer_with_count<K> >
+{ typedef TriviallySerializable type; };
 
 template < nbases_t K > inline
 ostream& operator<< ( ostream& s, const kmer_with_count< K >& k ) {
@@ -862,10 +869,5 @@ ostream& operator<< ( ostream& s, const kmer_with_count< K >& k ) {
     typedef kmer_record<KSHAPE::KSIZE,2> KmerRecordType(KSHAPE,2)
 
 FOR_ALL_KSHAPES(CreateKmerRecordType,unused);
-
-#define INSTANTIATE_KMER_RECORD_FOR_K(K, dummy) \
-  BINARY2_DEF( kmer_with_count<K> ); \
-  BINARY3_DEF( kmer_with_count<K> )
-
 
 #endif

@@ -35,6 +35,11 @@ class SymLink;
 class File
 {
 public:
+    // make it look container-ish
+    typedef std::string::value_type value_type;
+    typedef std::string::const_iterator const_iterator;
+    typedef std::string::const_reverse_iterator const_reverse_iterator;
+
     /// Default constructor creates an empty path.
     File() : mType(UNKNOWN), mpStat(0) {}
 
@@ -42,8 +47,10 @@ public:
     File( char const* path ) : mPath(path), mType(UNKNOWN), mpStat(0)
     { patchPath(); }
 
-    /// Construct from a path specified as a c++-style string.
-    File( std::string const& path ) : mPath(path), mType(UNKNOWN), mpStat(0)
+    /// Construct from something with a c_str() member (like string or String)
+    template <class C>
+    explicit File( C const& path, char const*(C::*)() const = &C::c_str )
+    : mPath(path.c_str()), mType(UNKNOWN), mpStat(0)
     { patchPath(); }
 
     /// copy constructor
@@ -61,6 +68,21 @@ public:
         else if ( !mpStat ) mpStat = new struct stat(*that.mpStat);
         else *mpStat = *that.mpStat; }
       return *this; }
+
+    /**
+     ** Standard container iterators
+     **/
+    const_iterator begin() const { return mPath.begin(); }
+    const_iterator cbegin() const { return mPath.begin(); }
+    const_iterator end() const { return mPath.end(); }
+    const_iterator cend() const { return mPath.end(); }
+    const_reverse_iterator rbegin() const { return mPath.rbegin(); }
+    const_reverse_iterator crbegin() const { return mPath.rbegin(); }
+    const_reverse_iterator rend() const { return mPath.rend(); }
+    const_reverse_iterator crend() const { return mPath.rend(); }
+
+    /// complete path as a C-string
+    char const* c_str() const { return mPath.c_str(); }
 
     /**
      ** Operations that have to do with the File's status
@@ -102,8 +124,15 @@ public:
     { if ( mType == UNKNOWN ) setStat();
       return mType; }
 
+    /// Get the type of the file, resolving symbolic links.
+    FILETYPE resolvedType() const
+    { if ( mType == UNKNOWN ) setStat();
+      return mpStat ?
+              static_cast<FILETYPE>(mpStat->st_mode & S_IFMT) :
+              NOT_A_FILE; }
+
     /// Is it a directory?
-    bool isDir() const { return type() == DIRECTORY; }
+    bool isDir() const { return resolvedType() == DIRECTORY; }
 
     /// Get a directory object with the same path.
     Directory asDir() const;
@@ -114,9 +143,12 @@ public:
     /// Get a symbolic link object with the same path.
     SymLink asLink() const;
 
+    /// Is it a regular file?
+    bool isRegular() const { return resolvedType() == REGULAR; }
+
     /// Return the size of the file.
     /// Returns -1 if stat fails.
-    off_t size( bool freshen=false ) const
+    off_t filesize( bool freshen=false ) const
     { if ( mType==UNKNOWN || freshen ) setStat();
       return mpStat ? mpStat->st_size : -1L; }
 

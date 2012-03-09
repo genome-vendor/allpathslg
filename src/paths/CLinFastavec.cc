@@ -449,8 +449,7 @@ void CLinFastavec::SaveIntermediate( ) const
   
   String out_file = base_inter_save_ + "." + ToString( iter_ );
   if ( log_ ) *log_ << "Saving " << out_file << endl;
-  int fd = OpenForWrite( out_file );
-  BinaryWrite( fd, hyper_ );
+  BinaryWriter::writeFile( out_file, hyper_ );
 }
 
 /**

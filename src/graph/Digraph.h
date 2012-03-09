@@ -10,12 +10,13 @@
 // PLEASE READ: THERE ARE OTHER FILES YOU MAY WANT TO LOOK AT:
 // - DigraphPaths.h
 // - FindCells.h
-// Please add to this list if you add new files having digraph/digraphE functions.
+// Please add to this list if you add new files having digraph functions.
 // =================================================================================
 
-// This file contains the definition of class digraph, which represents a 
-// finite directed graph, and digraphE<E>, which represents a finite directed
-// graph whose edges are objects from class E.
+// This file contains the definition of class digraph, which represents a finite
+// directed graph, digraphV<V>, which has vertex objects from class V, and
+// digraphE<E>, which has edge objects from class E.  Ultimately we may also
+// want a class digraphVE<V,E>.
 //
 // The file Digraph.cc contains some of the definitions for digraph functions.
 //
@@ -54,6 +55,7 @@ typedef int edge_t;
    from[v] is the *sorted* list of vertices which have an edge from v.
 */
 // TODO: potentially dangerous truncation of index by this class's use of ints
+
 class digraph
 {
      public:
@@ -234,9 +236,6 @@ class digraph
      Bool AllPaths( int v, int w, vec< vec<int> >& paths, int maxpaths = -1,
           const Bool allow_self_loop = False, const int maxpushes = -1 ) const;
 
-     friend void BinaryWrite( int fd, const digraph& g );
-     friend void BinaryRead( int fd, digraph& g );
-
      // Create a representation of a given graph in DOT:
      // http://www.graphviz.org/doc/info/lang.html
      // The edge_colors and edge_labels arguments should be in bijective 
@@ -291,8 +290,8 @@ class digraph
 
      void ReplaceWithTransitiveClosure();
 
-     size_t writeBinary( BinaryWriter& writer ) const
-     { return writer.write(from_); }
+     void writeBinary( BinaryWriter& writer ) const
+     { writer.write(from_); }
 
      void readBinary( BinaryReader& reader );
 
@@ -312,15 +311,52 @@ class digraph
 
 SELF_SERIALIZABLE(digraph);
 
-void BinaryWrite( int fd, const digraph& g );
-void BinaryRead( int fd, digraph& g );
+// =================================================================================
+
+// Initial minimal implementation of digraphV.
+
+template<class V> class digraphV : public digraph {
+
+     public:
+
+     void TestValid( ) const; // incomplete test
+
+     digraphV( ) { }
+
+     digraphV( const vec< vec<int> >& from, const vec< vec<int> >& to,
+          const vec<V>& verts );
+     void Initialize( const vec< vec<int> >& from, const vec< vec<int> >& to,
+          const vec<V>& verts );
+
+     const V& Vert( int v ) const;
+     V& VertMutable( int v );
+
+     void AddVertex( const V& v );
+
+     // DeleteVertex: delete a vertex and all edges incident upon it.
+     // Deleting a vertex renumbers everything.
+
+     void DeleteVertex( const int v );
+
+     // DeleteVertices take a unique-sorted vector as input.
+
+     void DeleteVertices( const vec<int>& v );
+
+     private:
+
+     vec<V> verts_;
+
+};
+
+template <class V>
+struct Serializability< digraphV<V> >
+{ typedef SelfSerializable type; };
+
+// =================================================================================
 
 template<class E> class EmbeddedSubPath; // forward declaration
 
 template<class E> class digraphE;
-
-template<class E> void BinaryWrite( int fd, const digraphE<E>& g );
-template<class E> void BinaryRead( int fd, digraphE<E>& g );
 
 /**
    Class Template: digraphE
@@ -830,42 +866,38 @@ template<class E> class digraphE : public digraph {
      void Glue( const EmbeddedSubPath<E>& a, const EmbeddedSubPath<E>& b,
           const vec<int>& EE, const vec<int>& FF, const digraphE<E>& c );
 
-     friend void BinaryWrite<E>( int fd, const digraphE<E>& g );
-     friend void BinaryRead<E>( int fd, digraphE<E>& g );
-
      // DOT_vel. This is for a digraphE<int>.  Print in DOT with given vertex 
      // labels in circles and edges labeled with the integers they carry.
 
      void DOT_vel( ostream& out, const vec<String> & vertex_labels );
 
-  // PrettyDOT: Like digraph::DOT, but prettier...
-  // -- Components are labeled (as "contigs", since this is a holdover from
-  //    HyperKmerPath and HyperBasevector)
-  // -- Longer edges (as indicated by the lengths vector) are drawn longer
-  // -- Edges are colored according to their length:
-  //    < 100: gray
-  //    100-1000: black
-  //    1000-10000: red
-  //    > 10000: magenta
-
-  void PrettyDOT( ostream& out, const vec<double>& lengths,
-		  Bool label_contigs = True, Bool label_vertices = False,
-		  Bool label_edges = False,
-		  const vec<int>* componentsToPrint = NULL,
-                  const Bool edge_labels_base_alpha = True,
-		  const vec<String> *label_edges_extra = 0,
-		  const vec<String> *label_contigs_extra = 0,
-		  const vec<int>* verticesToPrint = NULL ) const;
+     // PrettyDOT: Like digraph::DOT, but prettier...
+     // -- Components are labeled (as "contigs", since this is a holdover from
+     //    HyperKmerPath and HyperBasevector)
+     // -- Longer edges (as indicated by the lengths vector) are drawn longer
+     // -- Edges are colored according to their length:
+     //    < 100: gray
+     //    100-1000: black
+     //    1000-10000: red
+     //    > 10000: magenta
+   
+     void PrettyDOT( ostream& out, const vec<double>& lengths,
+          Bool label_contigs = True, Bool label_vertices = False,
+	  Bool label_edges = False, const vec<int>* componentsToPrint = NULL,
+          const Bool edge_labels_base_alpha = True,
+	  const vec<String> *label_edges_extra = 0,
+	  const vec<String> *label_contigs_extra = 0,
+	  const vec<int>* verticesToPrint = NULL ) const;
   
-  // Method: DumpGraphML
-  // Output the digraph structure in a textual format that can be easily
-  // read without reference to our code base.
-  void DumpGraphML( const String& graphMLFileName ) const;
+     // Method: DumpGraphML
+     // Output the digraph structure in a textual format that can be easily
+     // read without reference to our code base.
 
-  size_t writeBinary( BinaryWriter& writer ) const;
-  void readBinary( BinaryReader& reader );
+     void DumpGraphML( const String& graphMLFileName ) const;
 
-  static size_t externalSizeof() { return 0; }
+     void writeBinary( BinaryWriter& writer ) const;
+     void readBinary( BinaryReader& reader );
+     static size_t externalSizeof() { return 0; }
 
      private:
 
@@ -875,7 +907,8 @@ template<class E> class digraphE : public digraph {
 };
 
 template <class E>
-struct Serializability< digraphE<E> > : public SelfSerializable {};
+struct Serializability< digraphE<E> >
+{ typedef SelfSerializable type; };
 
 // Routines to compare two digraphs.
 
@@ -928,6 +961,50 @@ template<class E> void RemoveHangingEnds( digraphE<E>& G,
 
 template<class T> void RemoveHangingEnds2( T& h );
 
+// =================================================================================
+
+// Initial minimal implementation of digraphVE.
+
+template<class V, class E> class digraphVE : public digraphE<E> {
+
+     public:
+
+     digraphVE( ) { }
+
+     digraphVE( const vec< vec<int> >& from, const vec< vec<int> >& to,
+          const vec<V>& verts, const vec<E>& edges, 
+          const vec< vec<int> >& to_edge_obj,
+          const vec< vec<int> >& from_edge_obj );
+
+     void Initialize( const vec< vec<int> >& from, const vec< vec<int> >& to,
+          const vec<V>& verts, const vec<E>& edges, 
+          const vec< vec<int> >& to_edge_obj,
+          const vec< vec<int> >& from_edge_obj );
+
+     digraphVE( const digraphE<E>& G, const vec<V>& verts );
+
+     int N( ) const { return verts_.size( ); }
+
+     const V& Vert( int v ) const;
+     V& VertMutable( int v );
+
+     void AddVertex( const V& v );
+
+     void writeBinary( BinaryWriter& writer ) const;
+     void readBinary( BinaryReader& reader );
+
+     private:
+
+     vec<V> verts_;
+
+};
+
+template <class V, class E>
+struct Serializability< digraphVE<V,E> >
+{ typedef SelfSerializable type; };
+
+// =================================================================================
+
 // Class Template: EmbeddedSubPath
 //
 // An EmbeddedSubPath is a directed path within a given <digraphE>.  It keeps the
@@ -945,23 +1022,11 @@ template<class E> class EmbeddedSubPath {
 
      public:
 
-     void TestValid( ) const
-     {    ForceAssertEq( e_.isize( ), a_.isize( ) - 1 );
-          for ( int u = 0; u < a_.isize( ) - 1; u++ )
-          {    const vec<int>& fr = D_->From( a_[u] );
-               ForceAssertGe( e_[u], 0 );
-               ForceAssertLt( e_[u], fr.isize( ) );
-               ForceAssertEq( fr[ e_[u] ], a_[u+1] );    
-               ForceAssertEq( D_->EdgeObjectIndexByIndexFrom( a_[u], e_[u] ),
-                    esafe_[u] );    }    }
+     void TestValid( ) const;
 
      // Repair e_ entries which are wrong because digraph has been edited.
 
-     void Repair( )
-     {    for ( int u = 0; u < e_.isize( ); u++ )
-          {    if ( D_->EdgeObjectIndexByIndexFrom( a_[u], e_[u] ) != esafe_[u] )
-                    e_[u] = D_->EdgeObjectIndexToFromIndex( 
-                         a_[u], esafe_[u] );    }    }
+     void Repair( );
 
      EmbeddedSubPath( ) { D_ = 0; }
 
@@ -1036,37 +1101,35 @@ template<class E> class EmbeddedSubPath {
           a_.push_back(a);
           e_.push_back(e);    }
   
-  // Return true if this edge already exists in this EmbeddedSubPath.
-  // If true, calling Prepend( a, e ) or Append( a, e ) would produce a loop
-  // and/or a duplicated edge.
-  bool Contains( int edge_id ) {
-    for ( int i = 0; i < e_.isize( ); i++ )
-      if ( edge_id == esafe_[i] )
-	return true;
-    return false;
-  }
+     // Return true if this edge already exists in this EmbeddedSubPath.
+     // If true, calling Prepend( a, e ) or Append( a, e ) would produce a loop
+     // and/or a duplicated edge.
+ 
+     bool Contains( int edge_id ) 
+     {    for ( int i = 0; i < e_.isize( ); i++ )
+               if ( edge_id == esafe_[i] ) return true;
+          return false;     }
 
-  // Return true if there are any edges in common between p1 and p2.
-     friend Bool HasSharedEdge( const EmbeddedSubPath& p1, const EmbeddedSubPath& p2 )
-     {
-       vec<int> edges1, edges2;
-       edges1.reserve( p1.NEdges( ) );
-       edges2.reserve( p2.NEdges( ) );
-       for ( int i = 0; i < p1.NEdges( ); i++ )     
-	 edges1.push_back( p1.D_-> EdgeObjectIndexByIndexFrom( p1.a_[i], p1.e_[i] ) );
-       for ( int i = 0; i < p2.NEdges( ); i++ )     
-	 edges2.push_back( p2.D_-> EdgeObjectIndexByIndexFrom( p2.a_[i], p2.e_[i] ) );
-       Sort(edges1), Sort(edges2);
-       return Meet( edges1, edges2 );
-     }
+     // Return true if there are any edges in common between p1 and p2.
+
+     friend Bool HasSharedEdge( const EmbeddedSubPath& p1, 
+          const EmbeddedSubPath& p2 )
+     {    vec<int> edges1, edges2;
+          edges1.reserve( p1.NEdges( ) );
+          edges2.reserve( p2.NEdges( ) );
+          for ( int i = 0; i < p1.NEdges( ); i++ )
+          {    edges1.push_back( p1.D_-> 
+                    EdgeObjectIndexByIndexFrom( p1.a_[i], p1.e_[i] ) );    }
+          for ( int i = 0; i < p2.NEdges( ); i++ )
+          {    edges2.push_back( p2.D_-> 
+                    EdgeObjectIndexByIndexFrom( p2.a_[i], p2.e_[i] ) );    }
+          Sort(edges1), Sort(edges2);
+          return Meet( edges1, edges2 );    }
 
      friend bool operator== ( const EmbeddedSubPath& lhs, 
-          const EmbeddedSubPath& rhs ) {
-       return ( lhs.D_ == rhs.D_ &&
-                lhs.a_ == rhs.a_ &&
-                lhs.e_ == rhs.e_ &&
-                lhs.esafe_ == rhs.esafe_ );
-     }
+          const EmbeddedSubPath& rhs ) 
+     {    return ( lhs.D_ == rhs.D_ && lhs.a_ == rhs.a_ && lhs.e_ == rhs.e_ &&
+                lhs.esafe_ == rhs.esafe_ );    }
 
      private:
 

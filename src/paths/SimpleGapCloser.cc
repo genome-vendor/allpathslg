@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                   SOFTWARE COPYRIGHT NOTICE AGREEMENT                     //
-//       This software and its documentation are copyright (2011) by the     //
+//       This software and its documentation are copyright (2012) by the     //
 //   Broad Institute.  All rights are reserved.  This software is supplied   //
 //   without any warranty or guaranteed support whatsoever. The Broad        //
 //   Institute is not responsible for its use, misuse, or functionality.     //
@@ -33,11 +33,13 @@
 #include "MainTools.h"
 #include "ParallelVecUtilities.h"
 #include "Qualvector.h"
+#include "feudal/BinaryStream.h"
 #include "kmers/KmerRecord.h"
 #include "lookup/LookAlign.h"
 #include "paths/GetNexts.h"
 #include "paths/KmerBaseBroker.h"
 #include "paths/ReadsToPathsCoreX.h"
+#include "paths/RemodelGapTools.h"
 #include "paths/UnibaseUtils.h"
 #include "paths/Unipath.h"
 
@@ -65,26 +67,6 @@ class bridge {
      basevector bases;
 
 };
-
-template<int K> void MakeKmerLookup( const vecbasevector& unibases,
-     vec< triple<kmer<K>,int,int> >& kmers_plus )
-{    vec<int64_t> starts;
-     starts.push_back(0);
-     for ( size_t i = 0; i < unibases.size( ); i++ )
-     {    const basevector& u = unibases[i];
-          starts.push_back( starts.back( ) + u.isize( ) - K + 1 );    }
-     kmers_plus.resize( starts.back( ) );
-     #pragma omp parallel for
-     for ( size_t i = 0; i < unibases.size( ); i++ )
-     {    const basevector& u = unibases[i];
-          kmer<K> x;
-          for ( int j = 0; j <= u.isize( ) - K; j++ )
-          {    int64_t r = starts[i] + j;
-               x.SetToSubOf( u, j ); 
-               kmers_plus[r].first = x;
-               kmers_plus[r].second = i; 
-               kmers_plus[r].third = j;    }    }
-     ParallelSort(kmers_plus);    }
 
 void QLT( const basevector& b1, const basevector& b2, const basevector& b3,
      const String& data_dir, const String& run_dir )
@@ -173,7 +155,7 @@ int main(int argc, char *argv[])
      // Create lookup table for kmers.
 
      vec< triple<kmer<L>,int,int> > kmers_plus;
-     MakeKmerLookup( unibases, kmers_plus );
+     MakeKmerLookup0( unibases, kmers_plus );
      vec< kmer<L> > kmers( kmers_plus.size( ) );
      for ( size_t i = 0; i < kmers.size( ); i++ )
           kmers[i] = kmers_plus[i].first;
@@ -511,7 +493,7 @@ int main(int argc, char *argv[])
           newpaths.WriteAll( outhead + ".paths.k" + KS );
           newpathsrc.WriteAll( outhead + ".paths_rc.k" + KS );
           newunipaths.WriteAll( outhead + ".unipaths.k" + KS );
-          BinaryWrite3( outhead + ".pathsdb.k" + KS, newpathsdb );
-          BinaryWrite3( outhead + ".unipathsdb.k" + KS, newunipathsdb );
+          BinaryWriter::writeFile( outhead + ".pathsdb.k" + KS, newpathsdb );
+          BinaryWriter::writeFile( outhead + ".unipathsdb.k" + KS, newunipathsdb );
           newunibases.WriteAll( outhead + ".unibases.k" + KS );    }
      cout << Date( ) << ": done" << endl;    }

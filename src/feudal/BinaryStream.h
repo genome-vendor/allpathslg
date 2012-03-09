@@ -21,27 +21,14 @@
 #include "feudal/BinaryStreamTraits.h"
 #include "system/Assert.h"
 #include "system/file/FileReader.h"
-#include <cerrno>
+#include "system/file/FileWriter.h"
 #include <cstddef>
 #include <cstring>
 #include <iterator>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
-#include <fcntl.h>
-
-TRIVIALLY_SERIALIZABLE(bool);
-TRIVIALLY_SERIALIZABLE(char);
-TRIVIALLY_SERIALIZABLE(signed char);
-TRIVIALLY_SERIALIZABLE(unsigned char);
-TRIVIALLY_SERIALIZABLE(short);
-TRIVIALLY_SERIALIZABLE(unsigned short);
-TRIVIALLY_SERIALIZABLE(int);
-TRIVIALLY_SERIALIZABLE(unsigned int);
-TRIVIALLY_SERIALIZABLE(long);
-TRIVIALLY_SERIALIZABLE(unsigned long);
-TRIVIALLY_SERIALIZABLE(float);
-TRIVIALLY_SERIALIZABLE(double);
 
 class MagicToken
 {
@@ -57,61 +44,60 @@ public:
 private:
     char mToken[8];
 };
-
 TRIVIALLY_SERIALIZABLE(MagicToken);
 
 /// Writer of binary streams.
 class BinaryWriter
 {
 public:
-    BinaryWriter( char const* filename )
-    : mFilename(filename), mMyFD(true), mpBuf(mBuf)
-    { mFD = ::creat(filename,0666);
-      if ( mFD == -1 ) fail("open");
-      write(MagicToken()); }
+    BinaryWriter( char const* filename, bool writeHeader=true )
+    : mFW(filename), mpBuf(mBuf)
+    { if ( writeHeader ) write(MagicToken()); }
 
-    BinaryWriter( char const* pseudoFilename, int fd )
-    : mFilename(pseudoFilename), mFD(fd), mMyFD(false), mpBuf(mBuf)
+    /// Construct from something with a c_str() member (like string or String)
+    template <class C>
+    explicit BinaryWriter( C const& filename, bool writeHeader=true,
+                                char const*(C::*)() const=&C::c_str )
+    : mFW(filename.c_str()), mpBuf(mBuf)
+    { if ( writeHeader ) write(MagicToken()); }
+
+    /// NB: This is for situations where the fd isn't in the filesystem (e.g.,
+    /// pipes, sockets, etc.).  You still own the fd, and it will NOT be
+    /// automatically closed for you.
+    BinaryWriter( int fd, char const* pseudoFilename )
+    : mFW(fd,pseudoFilename), mpBuf(mBuf)
     {}
-
-    BinaryWriter( char const* filename, void const* header, size_t len )
-    : mFilename(filename), mMyFD(true), mpBuf(mBuf)
-    { mFD = ::creat(filename,0666);
-      if ( mFD == -1 ) fail("open");
-      writeBuf(header,len); }
 
     ~BinaryWriter()
     { close(); }
 
-    char const* getFilename() const { return mFilename.c_str(); }
+    std::string const& getFilename() const { return mFW.getFilename(); }
 
     /// Write something.
     template <class T>
-    size_t write( T const& val )
-    { return writeVal(val,Serializability<T>()); }
+    void write( T const& val )
+    { writeVal(val,typename Serializability<T>::type()); }
 
     /// Write an array of somethings.
     template <class T>
-    size_t write( T const* begin, T const* end )
-    { return writeArray(begin,end,Serializability<T>()); }
+    void write( T const* begin, T const* end )
+    { writeArray(begin,end,typename Serializability<T>::type()); }
 
     /// Write a sequence from an iterator pair.
     template <class Itr>
-    size_t writeItr( Itr begin, Itr const& end )
-    { size_t len = 0;
-      while ( begin != end ) { len += write(*begin); ++begin; }
-      return len; }
+    void writeItr( Itr begin, Itr const& end )
+    { while ( begin != end ) { write(*begin); ++begin; } }
 
     void close()
-    { flush();
-      if ( mMyFD && mFD != -1 )
-      { if ( ::close(mFD) == -1 ) fail("close"); mFD = -1; } }
+    { flush(); mFW.close(); }
 
-    bool isOpen() const { return mFD != -1; }
+    bool isOpen() const { return mFW.isOpen(); }
+
+    size_t tell()
+    { return mFW.tell() + (mpBuf-mBuf); }
 
     void seek( size_t pos )
-    { flush();
-      if ( ::lseek(mFD,pos,SEEK_SET) == (off_t)-1 ) fail("lseek"); }
+    { flush(); mFW.seek(pos); }
 
     void flush()
     { if ( mpBuf != mBuf ) { write(mBuf,mpBuf-mBuf); mpBuf = mBuf; } }
@@ -121,43 +107,40 @@ public:
     static void writeFile( char const* filename, T const& obj )
     { BinaryWriter writer(filename); writer.write(obj); writer.close(); }
 
-protected:
-
-    template <class SIZ_T>
-    void patchSize( SIZ_T val )
-    { flush(); seek(sizeof(MagicToken)); writeBuf(&val,sizeof(val)); }
+    /// Write a single object to a file in a single, simple function call.
+    /// The file is described by something with a c_str() member.
+    template <class C, class T>
+    static void writeFile( C const& filename, T const& obj,
+                                char const*(C::*)() const=&C::c_str )
+    { writeFile(filename.c_str(),obj); }
 
 private:
     BinaryWriter( BinaryWriter const& ); // unimplemented -- no copying
     BinaryWriter& operator=( BinaryWriter const& ); // unimplemented -- no copying
 
     template <class T>
-    size_t writeVal( T const& val, TriviallySerializable )
-    { writeBuf(&val,sizeof(T)); return sizeof(T); }
+    void writeVal( T const& val, TriviallySerializable )
+    { writeBuf(&val,sizeof(T)); }
 
     template <class T>
-    size_t writeVal( T const& val, SelfSerializable )
-    { return val.writeBinary(*this); }
+    void writeVal( T const& val, SelfSerializable )
+    { val.writeBinary(*this); }
 
     template <class T>
-    size_t writeVal( T const& val, ExternallySerializable )
-    { return writeBinary(*this,val); }
+    void writeVal( T const& val, ExternallySerializable )
+    { writeBinary(*this,val); }
 
     template <class T>
-    size_t writeArray( T const* begin, T const* end, TriviallySerializable )
-    { size_t len = sizeof(T)*(end-begin); writeBuf(begin,len); return len; }
+    void writeArray( T const* begin, T const* end, TriviallySerializable )
+    { writeBuf(begin,sizeof(T)*(end-begin)); }
 
     template <class T>
-    size_t writeArray( T const* begin, T const* end, SelfSerializable )
-    { size_t len = 0;
-      while ( begin != end ) len += write(*begin++);
-      return len; }
+    void writeArray( T const* begin, T const* end, SelfSerializable )
+    { while ( begin != end ) write(*begin++); }
 
     template <class T>
-    size_t writeArray( T const* begin, T const* end, ExternallySerializable )
-    { size_t len = 0;
-      while ( begin != end ) len += write(*begin++);
-      return len; }
+    void writeArray( T const* begin, T const* end, ExternallySerializable )
+    { while ( begin != end ) write(*begin++); }
 
     void writeBuf( void const* data, size_t len )
     { size_t remain = mBuf+sizeof(mBuf)-mpBuf;
@@ -172,15 +155,11 @@ private:
           if ( len >= sizeof(mBuf) ) write(data,len);
           else { memcpy(mBuf,data,len); mpBuf += len; } } } }
 
-    void fail( char const* operation );
-
-    void write( void const* buf, size_t len );
+    void write( void const* buf, size_t len ) { mFW.write(buf,len); }
 
     static const size_t BUF_SIZ = 16384;
 
-    std::string mFilename;
-    int mFD;
-    bool mMyFD;
+    FileWriter mFW;
     char mBuf[BUF_SIZ];
     char* mpBuf;
 };
@@ -189,17 +168,28 @@ private:
 class BinaryReader
 {
 public:
-    BinaryReader( int fd, char const* pseudoFilename )
-    : mFR(fd,pseudoFilename), mpBuf(mBuf), mpEnd(mBuf)
-    {}
-
     BinaryReader( char const* filename, bool checkHeader = true )
     : mFR(filename), mpBuf(mBuf), mpEnd(mBuf)
     { if ( checkHeader ) testToken(); }
 
+    /// Construct from something with a c_str() member (like string or String)
+    template <class C>
+    explicit BinaryReader( C const& filename, bool checkHeader=true,
+                                char const*(C::*)() const=&C::c_str )
+    : mFR(filename.c_str()), mpBuf(mBuf), mpEnd(mBuf)
+    { if ( checkHeader ) testToken(); }
+
+    /// NB: This is for situations where the fd isn't in the filesystem (e.g.,
+    /// pipes, sockets, etc.).  You still own the fd, and it will NOT be
+    /// automatically closed for you.
+    BinaryReader( int fd, char const* pseudoFilename )
+    : mFR(fd,pseudoFilename), mpBuf(mBuf), mpEnd(mBuf)
+    {}
+
     // default destructor is OK
 
-    char const* getFilename() const { return mFR.getFilename().c_str(); }
+    std::string const& getFilename() const { return mFR.getFilename(); }
+    size_t getFilesize() const { return mFR.getSize(); }
 
     /// Are we at the end of the stream?
     bool atEOF() { return mpBuf == mpEnd && !fillBuf(); }
@@ -207,12 +197,12 @@ public:
     /// Read something.
     template <class T>
     T& read( T* pT )
-    { readVal(pT,Serializability<T>()); return *pT; }
+    { readVal(pT,typename Serializability<T>::type()); return *pT; }
 
     /// Read an array.
     template <class T>
     void read( T* begin, T* end )
-    { readArray(begin,end,Serializability<T>()); }
+    { readArray(begin,end,typename Serializability<T>::type()); }
 
     /// Read a sequence delimited by an iterator pair.
     template <class Itr>
@@ -227,12 +217,25 @@ public:
       ForceAssert(rdr.atEOF());
       return *pObj; }
 
+    /// Read a single object from a binary file in one step.
+    /// The file is described by something with a c_str() member.
+    template <class C, class T>
+    static void readFile( C const& filename, T* obj,
+                                char const*(C::*)() const=&C::c_str )
+    { readFile(filename.c_str(),obj); }
+
+    size_t tell()
+    { return mFR.tell() - (mpEnd - mpBuf); }
+
     void seek( size_t pos )
     { mFR.seek(pos); mpBuf = mpEnd = mBuf; }
 
+    void seekAndFill( size_t pos, size_t nBytes )
+    { seek(pos); fillBuf(nBytes); }
+
     template <class T>
     static size_t externalSizeof( T* arg )
-    { return externalSizeof(arg,Serializability<T>()); }
+    { return externalSizeof(arg,typename Serializability<T>::type()); }
 
 private:
     BinaryReader( BinaryReader const& ); // unimplemented -- no copying
@@ -280,8 +283,8 @@ private:
 
     void readLoop( char* buf, size_t len );
 
-    size_t fillBuf()
-    { size_t result = mFR.readOnce(mBuf,sizeof(mBuf));
+    size_t fillBuf( size_t nnn = sizeof(mBuf) )
+    { size_t result = mFR.readOnce(mBuf,nnn);
       mpBuf = mBuf; mpEnd = mBuf + result;
       return result; }
 
@@ -321,8 +324,15 @@ public:
     typedef typename V::size_type size_type;
     typedef typename V::value_type value_type;
 
-    BinaryIteratingReader( char const* filename )
+    explicit BinaryIteratingReader( char const* filename )
     : mRdr(filename)
+    { mRdr.read(&mCount); }
+
+    /// Construct from something with a c_str() member (like string or String)
+    template <class C>
+    explicit BinaryIteratingReader( C const& filename,
+                                        char const*(C::*)() const=&C::c_str )
+    : mRdr(filename.c_str())
     { mRdr.read(&mCount); }
 
     BinaryIteratingReader( std::istream& is )
@@ -335,11 +345,9 @@ public:
     size_type remaining() const { return mCount; }
 
     /// get the next element
-    value_type next()
-    { AssertGt(mCount,0u);
-      --mCount;
-      value_type result;
-      mRdr.read(&result);
+    bool next( value_type* pVal )
+    { bool result = false;
+      if ( mCount ) { mRdr.read(pVal); mCount -= 1; result = true; }
       return result; }
 
     class iterator
@@ -347,7 +355,7 @@ public:
     {
     public:
         iterator( BinaryIteratingReader* pIRdr = 0 )
-        : mpIRdr(pIRdr)
+        : mpIRdr(pIRdr), mOK(pIRdr)
         { operator++(); }
 
         // compiler-supplied destructor and copying are OK
@@ -356,16 +364,16 @@ public:
         value_type const* operator->() const { Assert(mOK); return &mVal; }
 
         iterator& operator++()
-        { if ( (mOK = mpIRdr && mpIRdr->remaining()) ) mVal = mpIRdr->next();
+        { if ( mOK ) mOK = mpIRdr->next(&mVal);
           return *this; }
 
         iterator operator++( int )
         { iterator tmp(*this); operator++(); return tmp; }
 
-        friend bool operator==( iterator const& itr1, iterator const& itr2 )
+        friend bool operator==(iterator const& itr1, iterator const& itr2)
         { return itr1.mOK == itr2.mOK; }
 
-        friend bool operator!=( iterator const& itr1, iterator const& itr2 )
+        friend bool operator!=(iterator const& itr1, iterator const& itr2)
         { return itr1.mOK != itr2.mOK; }
 
     private:
@@ -389,57 +397,79 @@ private:
 /// incrementally.  Closing patches the vector size, which is initially
 /// recorded as 0.
 template <class V>
-class BinaryIterativeWriter : private BinaryWriter
+class BinaryIteratingWriter
 {
 public:
-    BinaryIterativeWriter( char const* filename )
-    : BinaryWriter(filename), mCount(0)
-    { BinaryWriter::write(mCount); }
+    explicit BinaryIteratingWriter( char const* filename )
+    : mBW(filename), mCount(0)
+    { mBW.write(mCount); }
 
-    BinaryIterativeWriter& write( typename V::value_type const& val )
-    { BinaryWriter::write(val); mCount += 1; return *this; }
+    template <class C>
+    explicit BinaryIteratingWriter( C const& filename,
+                                        char const*(C::*)() const=&C::c_str )
+    : mBW(filename.c_str()), mCount(0)
+    { mBW.write(mCount); }
+
+    ~BinaryIteratingWriter() { close(); }
+
+    BinaryIteratingWriter& write( typename V::value_type const& val )
+    { mBW.write(val); mCount += 1; return *this; }
 
     void close()
-    { BinaryWriter::patchSize(mCount); BinaryWriter::close(); }
+    { if ( mBW.isOpen() ) { patchSize(); mBW.close(); } }
 
 private:
+    void patchSize()
+    { mBW.seek(sizeof(MagicToken)); mBW.write(mCount); }
+
+    BinaryWriter mBW;
     typename V::size_type mCount;
 };
 
 /*
  * specializations for some commonly-used STL classes
  */
+template <class ST1, class ST2>
+struct PairSerializability
+{ typedef ExternallySerializable type; };
+
+template <>
+struct PairSerializability<TriviallySerializable,TriviallySerializable>
+{ typedef TriviallySerializable type; };
+
 template <class T1, class T2>
-struct Serializability<std::pair<T1,T2> > : public ExternallySerializable {};
+struct Serializability<std::pair<T1,T2> >
+{ typedef typename Serializability<T1>::type T1Type;
+  typedef typename Serializability<T2>::type T2Type;
+  typedef typename PairSerializability<T1Type,T2Type>::type type; };
+
 
 /// Write a std::pair.
-template <typename T1, typename T2>
-inline size_t writeBinary( BinaryWriter& writer, std::pair<T1,T2> const& val )
-{ size_t len = writer.write(val.first);
-  return len+writer.write(val.second); }
+template <class T1, class T2>
+inline void writeBinary(BinaryWriter& writer, std::pair<T1,T2> const& val)
+{ writer.write(val.first);
+  writer.write(val.second); }
 
 /// Read a std::pair.
-template <typename T1, typename T2>
+template <class T1, class T2>
 inline void readBinary( std::pair<T1,T2>* pVal, BinaryReader& reader )
 { reader.read(&pVal->first); reader.read(&pVal->second); }
 
-template <typename T1, typename T2>
+template <class T1, class T2>
 inline size_t serializedSizeof( std::pair<T1,T2>* )
 { size_t sz1 = BinaryReader::externalSizeof(static_cast<T1*>(0));
   size_t sz2 = BinaryReader::externalSizeof(static_cast<T2*>(0));
   return sz1 && sz2 ? sz1+sz2 : 0UL; }
 
-template <>
-struct Serializability<std::string> : public ExternallySerializable {};
+EXTERNALLY_SERIALIZABLE(std::string);
 
 /// Write a std::string.
-inline size_t writeBinary( BinaryWriter& writer, std::string const& str )
+inline void writeBinary( BinaryWriter& writer, std::string const& str )
 { std::string::size_type nnn = str.size();
-  size_t len = writer.write(nnn);
-  if ( len )
+  writer.write(nnn);
+  if ( nnn )
   { char const* buf = &str[0];
-    len += writer.write(buf,buf+nnn); }
-  return len; }
+    writer.write(buf,buf+nnn); } }
 
 /// Read a std::string.
 inline void readBinary( std::string* pStr, BinaryReader& reader )
@@ -450,24 +480,60 @@ inline size_t serializedSizeof( std::string* )
 { return 0UL; }
 
 template <class T, class A>
-struct Serializability<std::vector<T,A> > : public ExternallySerializable {};
+struct Serializability<std::vector<T,A> >
+{ typedef ExternallySerializable type; };
 
 /// Write a std::vector
-template <class T>
-inline size_t writeBinary( BinaryWriter& writer, std::vector<T> const& vec )
-{ typename std::vector<T>::size_type nnn = vec.size();
-  size_t len = writer.write(nnn);
-  T const* buf = &vec[0];
-  return len+writer.write(buf,buf+nnn); }
+template <class T, class A>
+inline void writeBinary(BinaryWriter& writer, std::vector<T,A> const& vec)
+{ typename std::vector<T,A>::size_type nnn = vec.size();
+  writer.write(nnn);
+  if ( nnn )
+  { T const* buf = &vec[0];
+    writer.write(buf,buf+nnn); } }
 
 /// Read a std::vector
-template <class T>
-inline void readBinary( std::vector<T>* pVec, BinaryReader& reader )
-{ typename std::vector<T>::size_type sz; reader.read(&sz); pVec->resize(sz);
+template <class T, class A>
+inline void readBinary( std::vector<T,A>* pVec, BinaryReader& reader )
+{ typename std::vector<T,A>::size_type sz; reader.read(&sz); pVec->resize(sz);
   T* buf = &(*pVec)[0]; reader.read(buf,buf+sz); }
 
-template <class T>
-inline size_t serializedSizeof( std::vector<T>* )
+template <class T, class A>
+inline size_t serializedSizeof( std::vector<T,A>* )
+{ return 0UL; }
+
+template <class K, class T, class C, class A>
+struct Serializability<std::map<K,T,C,A> >
+{ typedef ExternallySerializable type; };
+
+/// Write a std::map
+template <class K, class T, class C, class A>
+inline void writeBinary(BinaryWriter& writer, std::map<K,T,C,A> const& map)
+{ typename std::map<K,T,C,A>::size_type nnn = map.size();
+  writer.write(nnn);
+  if ( nnn )
+  { typedef std::pair<K,T> ValT;
+    typedef typename std::map<K,T,C,A>::const_iterator Itr;
+    for ( Itr itr(map.begin()), end(map.end()); itr != end; ++itr )
+        writer.write(reinterpret_cast<ValT const&>(*itr)); } }
+
+/// Read a std::vector
+template <class K, class T, class C, class A>
+inline void readBinary( std::map<K,T,C,A>* pMap, BinaryReader& reader )
+{ typename std::map<K,T,C,A>::size_type sz;
+  reader.read(&sz);
+  std::pair<K,T> val;
+  if ( sz-- )
+  { typedef typename std::map<K,T,C,A>::value_type ValT;
+    typedef typename std::map<K,T,C,A>::iterator Itr;
+    reader.read(&val);
+    Itr itr = pMap->insert(reinterpret_cast<ValT&>(val)).first;
+    while ( sz-- )
+    { reader.read(&val);
+      itr = pMap->insert(itr,reinterpret_cast<ValT&>(val)); } } }
+
+template <class K, class T, class C, class A>
+inline size_t serializedSizeof( std::map<K,T,C,A>* )
 { return 0UL; }
 
 #endif /* FEUDAL_BINARYSTREAM_H_ */

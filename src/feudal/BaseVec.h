@@ -14,6 +14,8 @@
 #include "feudal/Mempool.h"
 #include "dna/Bases.h"
 #include "system/Assert.h"
+#include "system/file/FileReader.h"
+#include "system/file/FileWriter.h"
 #include <algorithm>
 #include <iterator>
 #include <limits>
@@ -195,12 +197,6 @@ public:
     { std::transform(bv.begin(),bv.end(),std::ostream_iterator<char>(os),BaseToCharMapper());
       return os; }
 
-    // XXX: Used by many modules
-    friend void BinaryWrite(int fd, const BaseVec& b);
-    friend void BinaryWriteContent(int fd, const BaseVec& b);
-    friend void BinaryRead(int fd, BaseVec &b);
-    friend void BinaryReadContent(int fd, BaseVec &b);
-
     //
     // Declarations
     //
@@ -332,14 +328,14 @@ public:
     void Print(std::ostream& out, int id) const
     { out << ">sequence_" << id << "\n"; Print(out); }
 
-    void Print(std::ostream& out, String string_id) const
+    void Print(std::ostream& out, String const& string_id) const
     { out << ">" << string_id << "\n"; Print(out); }
 
     /// Below like above prints, but with specified column breaks.
     void PrintCol(std::ostream& out, int breakCol) const
     { PrintBases(out, 0, size(), false, breakCol); }
 
-    void PrintCol(std::ostream& out, String string_id, int breakCol) const
+    void PrintCol(std::ostream& out, String const& string_id, int breakCol) const
     { out << ">" << string_id << "\n"; PrintCol(out, breakCol); }
 
     /// Select the "nbases" bases starting at "start".
@@ -353,6 +349,12 @@ public:
           PrintBasesIter(out,rcbegin(size()-end),rcbegin(size()-start),breakCol);
       else
           PrintBasesIter(out,begin(start),begin(end),breakCol); }
+
+    void readContent( FileReader const& fr )
+    { fr.read(data(),physicalSize(size())); }
+
+    void writeContent( FileWriter const& fw ) const
+    { fw.write(data(),physicalSize(size())); }
 
     /// returns true if feudal file is good
     static bool IsGoodFeudalFile(const String& filename, bool verbose=false);

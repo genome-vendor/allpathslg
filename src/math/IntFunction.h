@@ -113,7 +113,7 @@ public:
 
 public:
   // ---- SELF_SERIALIZABLE method
-  size_t writeBinary(BinaryWriter& writer) const;
+  void writeBinary(BinaryWriter& writer) const;
 
   // ---- SELF_SERIALIZABLE method
   void readBinary(BinaryReader& reader);
@@ -200,21 +200,17 @@ void IntFunction<T>::to_text_file(const String & fn) const
 
 // ---- SELF_SERIALIZABLE method
 template<class T>
-size_t IntFunction<T>::writeBinary(BinaryWriter& writer) const
+void IntFunction<T>::writeBinary(BinaryWriter& writer) const
 {
-  size_t len = 0;
-
   const int version = __INT_FUNCTION_BINARY_VERSION__;
-  len += writer.write(version);
+  writer.write(version);
 
-  len += writer.write(_neg_inf);
-  len += writer.write(_pos_inf);
-  len += writer.write(_x0);
+  writer.write(_neg_inf);
+  writer.write(_pos_inf);
+  writer.write(_x0);
   const size_t n = _v.size();
-  len += writer.write(n);
-  len += writer.writeItr(_v.begin(), _v.end());
-
-  return len;
+  writer.write(n);
+  writer.writeItr(_v.begin(), _v.end());
 }
 
 

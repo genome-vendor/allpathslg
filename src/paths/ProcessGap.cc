@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                   SOFTWARE COPYRIGHT NOTICE AGREEMENT                     //
-//       This software and its documentation are copyright (2011) by the     //
+//       This software and its documentation are copyright (2012) by the     //
 //   Broad Institute.  All rights are reserved.  This software is supplied   //
 //   without any warranty or guaranteed support whatsoever. The Broad        //
 //   Institute is not responsible for its use, misuse, or functionality.     //
@@ -27,12 +27,11 @@
 void GetWalks0( const int u1, const int u2, const int sep, const int dev,
      const vecbasevector& unibases, const int K, const vec<int>& to_rc,
      const vec< vec< pair<int,int> > >& nextsx, vec<int> use,
-     vec< vec< pair<int,int> > >& walks1, int& bad )
+     vec< vec< pair<int,int> > >& walks1, int& bad, const double max_dev_diff )
 {    
      // Heuristics.
 
      const int max_devs = 10;
-     const double max_dev_diff = 3.0;
      const int max_iterations = 10000000;
      const int max_excess_charm = K;
 
@@ -45,24 +44,7 @@ void GetWalks0( const int u1, const int u2, const int sep, const int dev,
      {    
           double max_devs_this = max_devs;
           if ( pass == 2 )
-          {    cout << "on screening pass, found " << walks1.size( )
-                    << " walks, bad = " << bad << "\n";
-               const int max_walks_to_print = 20;
-               cout << "\nscreening walks from " << u1 << " to " << u2
-                    << ", bad = " << bad
-                    << ", nwalks = " << walks1.size( ) << "\n";
-               for ( int j = 0; j < Min( max_walks_to_print, walks1.isize( ) ); j++ )
-               {    cout << "[" << j << "] ";
-                    const vec< pair<int,int> >& w = walks1[j];
-                    vec<int> u, over;
-                    for ( int m = 0; m < w.isize( ); m++ )
-                    {    u.push_back( w[m].first );
-                         if ( m > 0 ) over.push_back( w[m].second );    }
-                    uniseq s( u, over );
-                    s.Print( cout, K );
-                    cout << "\n";    }
-               if ( walks1.isize( ) > max_walks_to_print ) cout << "...\n";
-               if ( bad == 0 )
+          {    if ( bad == 0 )
                {    use.clear( );
                     for ( int i = 0; i < walks1.isize( ); i++ )
                     {    for ( int j = 0; j < walks1[i].isize( ); j++ )
@@ -136,19 +118,17 @@ void GetWalks0( const int u1, const int u2, const int sep, const int dev,
 void GetWalks( const int u1, const int u2, const int sep, const int dev,
      const vecbasevector& unibases, const int K, const vec<int>& to_rc,
      const vec< vec< pair<int,int> > >& nextsx, const vec<int>& use,
-     vec< vec< pair<int,int> > >& walks1, int& bad )
+     vec< vec< pair<int,int> > >& walks1, int& bad, const double max_dev_diff )
 {
-     GetWalks0( u1, u2, sep, dev, unibases, K, to_rc, nextsx, use, walks1, bad );
+     GetWalks0( u1, u2, sep, dev, unibases, K, to_rc, nextsx, use, walks1, bad,
+          max_dev_diff );
      if ( bad == 0 ) return;
-     // vec< vec< pair<int,int> > > walks1_save = walks1;
      vec<int> use_rc;
      for ( int j = 0; j < use.isize( ); j++ )
           use_rc.push_back( to_rc[ use[j] ] );
      Sort(use_rc);
      GetWalks0( to_rc[u2], to_rc[u1], sep, dev, unibases, K, to_rc, nextsx, use_rc,
-          walks1, bad );
-     // if ( bad > 0 ) walks1 = walks1_save;
-     // else
+          walks1, bad, max_dev_diff );
      {    for ( int j = 0; j < walks1.isize( ); j++ )
           {    walks1[j].ReverseMe( );
                for ( int l = 0; l < walks1[j].isize( ); l++ )
@@ -587,6 +567,10 @@ void ProcessGap(
      const vec< vec< pair<int,int> > >& nextsy, const int K,
      const vec<int>& use,
 
+     // heuristics
+
+     const double max_dev_diff,
+
      // jump stuff to filter
 
      const vec<basevector>& jbases_sorted, const vec<int64_t>& jbases_sorted_id,
@@ -614,7 +598,8 @@ void ProcessGap(
      vec< vec< pair<int,int> > > walks1;
      int bad;
      int walk_attempts = 1;
-     GetWalks( u1, u2, sep, dev, unibases, K, to_rc, nextsy, use, walks1, bad );
+     GetWalks( u1, u2, sep, dev, unibases, K, to_rc, nextsy, use, walks1, bad,
+          max_dev_diff );
      vec<basevector> patches;
      if ( bad == 0 ) 
      {    WalksToPatches( walks1, unibases, patches );
@@ -626,7 +611,8 @@ void ProcessGap(
 
      if ( bad == 0 && walks1.empty( ) )
      {    walk_attempts = 2;
-          GetWalks( u1, u2, sep, dev, unibases, K, to_rc, nextsx, use, walks1, bad );
+          GetWalks( u1, u2, sep, dev, unibases, K, to_rc, nextsx, use, walks1, bad,
+               max_dev_diff );
           if ( bad == 0 )
           {    WalksToPatches( walks1, unibases, patches );
                FilterWalksByIllegalCN1( s, patches, walks1 );

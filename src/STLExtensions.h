@@ -18,6 +18,7 @@ using namespace std;
 #include <iostream>
 
 #include <math.h>
+#include "feudal/BinaryStream.h"
 #include "system/StaticAssert.h"
 
 /// minimum<T> is a function object.  
@@ -598,7 +599,35 @@ struct triple {
   template <class _U1, class _U2, class _U3>
   triple(const triple<_U1, _U2, _U3>& __p) 
        : first(__p.first), second(__p.second), third(__p.third) {}
+
+  void writeBinary( BinaryWriter& bw )
+  { bw.write(first); bw.write(second); bw.write(third); }
+  void readBinary( BinaryReader& br )
+  { br.read(&first); br.read(&second); br.read(&third); }
+  static size_t externalSizeof()
+  { size_t sz1 = BinaryReader::externalSizeof(static_cast<_T1*>(0));
+    size_t sz2 = BinaryReader::externalSizeof(static_cast<_T2*>(0));
+    size_t sz3 = BinaryReader::externalSizeof(static_cast<_T3*>(0));
+    return sz1 && sz2 && sz3 ? sz1+sz2+sz3 : 0UL; }
 };
+
+template <class ST1, class ST2, class ST3>
+struct TripleSerializability
+{ typedef SelfSerializable type; };
+
+template <>
+struct TripleSerializability<TriviallySerializable,
+                                TriviallySerializable,
+                                TriviallySerializable>
+{ typedef TriviallySerializable type; };
+
+template <class T1, class T2, class T3>
+struct Serializability<triple<T1,T2,T3> >
+{ typedef typename Serializability<T1>::type T1ST;
+  typedef typename Serializability<T2>::type T2ST;
+  typedef typename Serializability<T3>::type T3ST;
+  typedef typename TripleSerializability<T1ST,T2ST,T3ST>::type type; };
+
 
 template <class _T1, class _T2, class _T3>
 inline bool operator==(const triple<_T1, _T2, _T3>& __x, 

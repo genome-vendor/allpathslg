@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                   SOFTWARE COPYRIGHT NOTICE AGREEMENT                     //
-//       This software and its documentation are copyright (2011) by the     //
+//       This software and its documentation are copyright (2012) by the     //
 //   Broad Institute.  All rights are reserved.  This software is supplied   //
 //   without any warranty or guaranteed support whatsoever. The Broad        //
 //   Institute is not responsible for its use, misuse, or functionality.     //
@@ -22,7 +22,7 @@
 void GetWalks( const int u1, const int u2, const int sep, const int dev,
      const vecbasevector& unibases, const int K, const vec<int>& to_rc, 
      const vec< vec< pair<int,int> > >& nextsx, const vec<int>& use,
-     vec< vec< pair<int,int> > >& walks1, int& bad );
+     vec< vec< pair<int,int> > >& walks1, int& bad, const double max_dev_diff );
 
 void WalksToPatches( const vec< vec< pair<int,int> > >& walks1,
      const vecbasevector& unibases, vec<basevector>& patches );
@@ -52,6 +52,10 @@ void ProcessGap(
      // definition of the gap
 
      const superb& s, const int u1, const int u2, const int sep, const int dev,
+
+     // heuristics
+     
+     const double max_dev_diff,
 
      // global structures
 

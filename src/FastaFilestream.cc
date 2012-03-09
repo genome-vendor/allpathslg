@@ -343,7 +343,7 @@ template bool FastaFilestream<aT,bT,cT,dT>::verify();
 
 INSTANTIATE( veccompseq, CompressedSequence, FastaSequenceConverter, FastaSequenceVerifier )
 
-INSTANTIATE( veccharvector, charvector, FastaNullConverter, FastaNullVerifier )
+INSTANTIATE( VecCharVec, CharVec, FastaNullConverter, FastaNullVerifier )
 
 INSTANTIATE( vecqualvector, qualvector, FastaQualityConverter, FastaQualityVerifier )
 

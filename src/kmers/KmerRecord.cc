@@ -9,11 +9,9 @@
 
 #include "feudal/BaseVec.h"
 #include "kmers/KmerRecord.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 
 int const kmer_with_count_base::max_count;
-
-FOR_ALL_K(INSTANTIATE_KMER_RECORD_FOR_K,unused);
 
 template<int K> void kmer<K>::SetToSubOf( const basevector& source, 
      const size_type start )

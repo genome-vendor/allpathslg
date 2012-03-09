@@ -94,7 +94,7 @@ real_t IntDistribution::moment(const real_t c, const unsigned order) const
   const int x1 = x_max();
   real_t m = 0.0;
   for (int x = x0; x <= x1; x++) 
-    m += pow(real_t(x) - c, order) * _prob[x]; 
+    m += pow(real_t(x) - c, static_cast<int>(order)) * _prob[x];
   return m;
 } 
 

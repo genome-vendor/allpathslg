@@ -4,6 +4,7 @@
 #define PATHS_ORIENTEDKMERPATHID_H
 
 #include "paths/KmerPath.h"
+#include "feudal/BinaryStreamTraits.h"
 
 // A tuple of path id and orientation.
 
@@ -62,6 +63,7 @@ class OrientedKmerPathId
  private:
   int m_idRc; // TODO: potentially dangerous truncation of index
 };
+TRIVIALLY_SERIALIZABLE(OrientedKmerPathId);
 
 inline
 ostream& operator<< ( ostream& out, const OrientedKmerPathId& okpd )

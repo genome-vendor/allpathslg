@@ -33,7 +33,7 @@ void RemoveWeakLinks( const vecbasevector& unibases, const vec<int>& to_rc,
 void RemoveWeakLinks2( const int K2, const vecbasevector& unibases2,
      const vec<int>& to_rc2, const vec<double>& raw2, digraphE<linklet>& G2I, 
      const vec< vec< pair<int,int> > >& nexts2x, const int max_link_ratio, 
-     const int dev_mult, const Bool DELETE_VERBOSE );
+     const int dev_mult, const Bool DELETE_VERBOSE, const double max_dev_diff );
 
 // A placementy represents an alignment of sequence u to sequence g.
 // A placementy is allowed to go around the 'end' of a circular reference sequence, 

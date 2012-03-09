@@ -11,7 +11,7 @@
 
 #include "CoreTools.h"
 #include "MainTools.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
 #include "PairsManager.h"
 

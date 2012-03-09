@@ -116,7 +116,7 @@ class fast_pipe_ifstream {
      static int const BUFFER_SIZE = 8192;
 
      String command_;
-     FILE* file_;
+     procbuf procbuf_;
      char buf_[BUFFER_SIZE + 1];
      int buf_ptr_, buf_top_;
      Bool fail_;

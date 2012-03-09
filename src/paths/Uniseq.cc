@@ -15,25 +15,6 @@
 #include "paths/Uniseq.h"
 #include "paths/AssemblyCleanupTools.h"
 
-class sepdevkind{
-
-  sepdevkind() {};
-  sepdevkind( int sep, int dev, Bool open ) {
-    sep_  = sep;
-    dev_  = dev;
-    open_ = open;
-  }
-
-  Bool Open() const { return open_; }
-  Bool Closed() const { return ! open_; }
-  int  Sep()  const { return sep_; }
-  int  Dev()  const { return dev_; }
-
-private:
-  int sep_;
-  int dev_;
-  Bool open_;
-};
 
 int uniseq::Len( ) const
 {    Assert( unibases_ != 0 );
@@ -128,7 +109,38 @@ void snark::SwallowSimpleGaps( )
                G_.ToMutable(z)[p] = x;    
                SortSync( G_.ToMutable(z), G_.ToEdgeObjMutable(z) );    }
           seq_[y].Kill( );
-          x--;    }    }
+          x--;    }
+
+     // Sometimes x --> y --> z can be reduced to x --> z.
+
+     for ( int y = 0; y < VertN( ); y++ )
+     {    if ( Vert(y).Dead( ) ) continue;
+          if ( !From(y).solo( ) || !To(y).solo( ) ) continue;
+          int x = To(y)[0], z = From(y)[0];
+          if ( x == y || y == z || x == z ) continue;
+          const gapster& g1 = G( ).EdgeObjectByIndexTo( y, 0 );
+          const gapster& g2 = G( ).EdgeObjectByIndexFrom( y, 0 );
+          if ( g1.ClosureCount( ) != 1 || g2.ClosureCount( ) != 1 ) continue;
+          uniseq u = Cat( g1.Closure(0), Vert(y), g2.Closure(0) );
+          Gmutable( ).AddEdge( x, z, u );
+          Gmutable( ).DeleteEdgeTo( y, 0 );
+          Gmutable( ).DeleteEdgeFrom( y, 0 );
+          seq_[y].Kill( );
+          x--;    }    
+
+     // Look for parallel and identical edges.
+
+     vec<int> to_delete;
+     for ( int x = 0; x < VertN( ); x++ )
+     {    for ( int j1 = 0; j1 < From(x).isize( ); j1++ )
+          for ( int j2 = j1 + 1; j2 < From(x).isize( ); j2++ )
+          {    if ( From(x)[j1] != From(x)[j2] ) continue;
+               if ( G( ).EdgeObjectByIndexFrom( x, j1 )
+                    == G( ).EdgeObjectByIndexFrom( x, j2 ) )
+               {    to_delete.push( 
+                         G( ).EdgeObjectIndexByIndexFrom( x, j2 ) );    }    }    }
+     UniqueSort(to_delete);
+     Gmutable( ).DeleteEdges(to_delete);    }
 
 const vecbasevector* snark::unibases_(0);
 const vec<int>* snark::to_rc_(0);
@@ -477,11 +489,62 @@ void snark::RemoveSubsumedStuff( )
                if ( BinMember( common, u ) || BinMember( common, ToRc(u) ) )
                {    VertMutable(x).Kill( );
                     break;    }    }    }
+     BringOutTheDead( );
+
+     // Look for edges that fold in.
+
+     for ( int x = 0; x < VertN( ); x++ )
+     {    if ( From(x).size( ) != 1 || To(x).size( ) != 0 ) continue;
+          const gapster& gx = G( ).EdgeObjectByIndexFrom( x, 0 );
+          uniseq p = Vert(x);
+          int y = From(x)[0];
+          if ( !To(y).size( ) == 2 ) continue;
+          int e = -1;
+          for ( int j = 0; j < To(y).isize( ); j++ )
+               if ( To(y)[j] != x ) e = j;
+          if ( e < 0 ) continue;
+          const gapster& gy = G( ).EdgeObjectByIndexTo( y, e );
+          if ( !gy.Closed( ) ) continue;
+          Bool contained = True;
+          for ( int j = 0; j < gy.ClosureCount( ); j++ )
+          {    const uniseq& v = gy.Closure(j);
+               if ( !v.Contains(p) ) contained = False;    }
+          if (contained)
+          {    Gmutable( ).DeleteEdgeFrom( x, 0 );
+               VertMutable(x).Kill( );    }    }
+     BringOutTheDead( );
+     for ( int x = 0; x < VertN( ); x++ )
+     {    if ( To(x).size( ) != 1 || From(x).size( ) != 0 ) continue;
+          const gapster& gx = G( ).EdgeObjectByIndexTo( x, 0 );
+          uniseq p = Vert(x);
+          int y = To(x)[0];
+          if ( !From(y).size( ) == 2 ) continue;
+          int e = -1;
+          for ( int j = 0; j < From(y).isize( ); j++ )
+               if ( From(y)[j] != x ) e = j;
+          if ( e < 0 ) continue;
+          const gapster& gy = G( ).EdgeObjectByIndexFrom( y, e );
+          if ( !gy.Closed( ) ) continue;
+          Bool contained = True;
+          for ( int j = 0; j < gy.ClosureCount( ); j++ )
+          {    const uniseq& v = gy.Closure(j);
+               if ( !v.Contains(p) ) contained = False;    }
+          if (contained)
+          {    Gmutable( ).DeleteEdgeTo( x, 0 );
+               VertMutable(x).Kill( );    }    }
      BringOutTheDead( );    }
 
+void snark::ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, 
+     digraphE<sepdev>& SG ) const{
 
-void snark::ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, digraphE<sepdev>& SG ) const {
+  superbs.clear();
+  econtigs.clear();
+  SG.Clear();
 
+  if ( G_.N() == 0 ){
+    cout << Date() << " : Nothing to scaffold. Graph is empty." << endl;
+    return;
+  }
   // convert to digraphE VG having vertices assosiated with sequence (gapster) 
   // and edges with separation of sequence objects (sepdev).
 
@@ -509,7 +572,8 @@ void snark::ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, digra
       }
     }
     PRINT(nGapsOpen);
-    int nNewVerts = Max( ei2newvert ) + 1; 
+
+    int nNewVerts = Max(ei2newvert) >= 0 ? Max( ei2newvert ) + 1 : G_.N(); 
     vec< vec<int> > from(nNewVerts), to(nNewVerts), to_edge_obj(nNewVerts), from_edge_obj(nNewVerts);
     vsters.resize( nNewVerts );
     for ( int i = 0; i < G_.N(); i++ )
@@ -591,11 +655,6 @@ void snark::ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, digra
     }
     VG.Initialize( from, to, newEdges, to_edge_obj, from_edge_obj );
   }
-  
-  cout << "gaps in VG: \n";
-  for ( int ei = 0; ei < VG.Edges().isize(); ei++ )
-    if ( VG.Edges()[ei].Dev() > 0 )
-      PRINT2( VG.Edges()[ei].Sep(), VG.Edges()[ei].Dev() );
 
   vec< pair<int,int> > vcuts( vsters.size() );
   for ( size_t vi = 0; vi < vsters.size(); vi++ ){
@@ -702,13 +761,9 @@ void snark::ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, digra
   }
   SG.Initialize( sfrom, sto, sedges, sto_edge_obj, sfrom_edge_obj );
 
-  cout << "gaps in SG: \n";
-  for ( int ei = 0; ei < SG.Edges().isize(); ei++ )
-    if ( SG.Edges()[ei].Dev() > 0 )
-      PRINT2( SG.Edges()[ei].Sep(), SG.Edges()[ei].Dev() );
-
   
   // compute vertex contigs
+
   vec<superb> supervs( vscaffolds.size() );
   vec< vec<int> > vcontigs;
   for ( int si = 0; si < vscaffolds.isize(); si++ ){
@@ -722,7 +777,6 @@ void snark::ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, digra
       int ei = VG.EdgesBetween(vp,vc)[0];
       int sep = VG.Edges()[ei].Sep();
       int dev = VG.Edges()[ei].Dev();
-      PRINT6( vi, vp, vc, ei, sep, dev );
       if ( sep < 0 && dev == 0 ){
 	vcontig.push_back( vline[vi] );
       }else{
@@ -749,27 +803,16 @@ void snark::ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, digra
 
 
   // convert vcontigs to sequence
+
   econtigs.clear();
   econtigs.resize( vcontigs.size() );
   for ( size_t eci = 0; eci < vcontigs.size(); eci++ ){
-    PRINT(eci);
     vec<int>& verts = vcontigs[eci];
     int firstcut = verts.front() < G_.N() ? 0 : vcuts[ verts.front() ].first;
     int lastcut = verts.back() < G_.N() ? 0 : vcuts[ verts.back() ].second;
-    int totcut = firstcut + lastcut;
-    PRINT4( eci, firstcut, lastcut, verts.size() );
-    // compute the minimum sequence length
-    int minLenSum = 0;
-    int maxLenSum = 0;
-    for ( size_t vi = 0; vi < verts.size(); vi++ ){
-      int lcut = vi == 0u ? firstcut : vcuts[ verts[vi] ].first;
-      minLenSum += vsters[ verts[vi] ].MinLen(1) - lcut;
-      maxLenSum += vsters[ verts[vi] ].MaxLen(1) - lcut;
-    }
-    minLenSum -= lastcut;
-    maxLenSum -= lastcut;
-    PRINT2( minLenSum, maxLenSum );
+    PRINT( lastcut );
     // compute efastas
+
     efasta econtig;
 
     for ( size_t vi = 0; vi < verts.size(); vi++ ){
@@ -786,32 +829,72 @@ void snark::ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, digra
       econtig += eseq;
     }
     ValidateEfastaRecord( econtig );
-    cout << "before last cut:"; PRINT( econtig.Length1() );
+    PRINT(econtig.size() );
     // check if there is enough room for the cut on the right
+
     vec<int> gaps;
-    if ( lastcut == 0 ){
-      // nothing to be done
-    }else{
-      vec<BaseVec> bpaths;
-      cout << "TO DO: compute min length of efasta here instead of expanding!!!" << endl;
-      econtig.ExpandTo( bpaths );
-      vec<BaseVec> seqs;
-      for ( size_t bi = 0; bi < bpaths.size(); bi++ ){
-	BaseVec seq = bpaths[bi];
-	if ( bpaths[bi].isize() >= lastcut ){
-	  BaseVec seq( bpaths[bi], 0, bpaths[bi].isize() - lastcut );
-	  seqs.push_back(seq);
+    if ( lastcut > 0 ){
+      if ( econtig.MinLength() < lastcut ){
+	vec<BaseVec> bpaths;
+	econtig.ExpandTo( bpaths );
+	vec<BaseVec> seqs;
+	for ( size_t bi = 0; bi < bpaths.size(); bi++ ){
+	  if ( bpaths[bi].isize() >= lastcut ){
+	    BaseVec seq( bpaths[bi], 0, bpaths[bi].isize() - lastcut );
+	    seqs.push_back(seq);
+	  }else{
+	    gaps.push_back( bpaths[bi].isize() - lastcut );
+	  }
+	}
+	
+	if ( seqs.size() > 0 ){
+	  efasta eseq( seqs );
+	  econtig = eseq;
 	}else{
-	  gaps.push_back( bpaths[bi].isize() - lastcut );
+	  econtig.clear();
+	} 
+      }else{
+	
+	size_t braRightLoc = econtig.rfind("}");
+	if ( braRightLoc == String::npos ||
+	     (ssize_t)econtig.size() - (ssize_t)braRightLoc - (ssize_t)1 >= (ssize_t)lastcut ){
+	  econtig.erase( econtig.size() - lastcut, lastcut );
+	}else{
+	  Bool Found = False;
+	  PRINT3( econtig.MinLength(), econtig.MaxLength(), econtig.size() );
+	  for ( int ie = econtig.isize() -1; ie >= 0; ie-- ){
+	    if ( ! Found && ( econtig[ie] == '{' || ie == 0 || ! econtig.IndexInAmbiguity(ie) ) ){
+	      String secontigR( econtig, ie, econtig.isize() - ie );
+	      efasta econtigR( secontigR );
+	      if ( econtigR.MinLength() >= lastcut ){
+		Found = True;
+		vec<BaseVec> bpaths;
+		econtigR.ExpandTo( bpaths );
+		vec<BaseVec> seqs;
+		for ( size_t bi = 0; bi < bpaths.size(); bi++ ){
+		  ForceAssertGe( bpaths[bi].isize(), lastcut );
+		  BaseVec seq( bpaths[bi], 0, bpaths[bi].isize() - lastcut );
+		  seqs.push_back(seq);
+		}
+		efasta eseq( seqs );
+		String secontigL( econtig, 0, ie );
+		efasta econtigL( secontigL );
+		efasta echeck = econtigL + econtigR;
+		ForceAssertEq( econtig, echeck );
+		econtig = efasta(econtigL) + eseq;
+	      }
+	    }
+	  }
+	  ForceAssert( Found );
 	}
       }
-      ForceAssertGt( seqs.isize(), 0 );
-      efasta eseq( seqs );
-      econtig = eseq;
     }
 
-    ValidateEfastaRecord(econtig);
+    if ( econtig.size() > 0 )
+      ValidateEfastaRecord(econtig);
     econtigs[eci] = econtig;
+    PRINT( gaps.size() );
+
     // update scaffold graph
 
     if ( gaps.isize() > 0 ){
@@ -845,33 +928,30 @@ void snark::ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, digra
     }
   }
 
-  cout << "gaps in final SG: \n";
-  for ( int ei = 0; ei < SG.Edges().isize(); ei++ )
-    if ( SG.Edges()[ei].Dev() > 0 )
-      PRINT2( SG.Edges()[ei].Sep(), SG.Edges()[ei].Dev() );
-
-
-  int cLen1Sum = 0;
-  for ( size_t eci = 0; eci < econtigs.size(); eci++ )
-    cLen1Sum += econtigs[eci].Length1();
-  PRINT(cLen1Sum);
 
   superbs.clear();
   superbs = supervs;
+  longlong eLenSum = 0;
   for ( size_t si = 0; si < superbs.size(); si++ ){
     for ( int ti = 0; ti < superbs[si].Ntigs(); ti++ ){
       int tig = superbs[si].Tig(ti);
       superbs[si].SetLen( ti, econtigs[tig].Length1() );
+      eLenSum += econtigs[tig].size();
     }
   }
 
   PRINT2( superbs.size(), econtigs.size() );
+  int fullLength = 0, reducedLength = 0; 
   for ( size_t si = 0; si < superbs.size(); si++ ){
     PRINT2( si, superbs[si].Ntigs() );
     superbs[si].Print(cout,ToString(si));
+    fullLength += superbs[si].FullLength();
+    reducedLength += superbs[si].ReducedLength();
   }
- 
+  PRINT2( fullLength, reducedLength );
+  PRINT( eLenSum );
   cout << Date() << " : Done with scaffolding" << endl;
+  return;
 }
 
 void uniseq::TrimLeft( const int n )
@@ -894,3 +974,31 @@ void uniseq::TrimEnds( const int n, const int m )
      if ( overlap_.isize() >= n+m )
           overlap_ = SubOf( overlap_, n, overlap_.isize() - m - n );    
      else overlap_.clear();     }
+
+void uniseq::writeBinary( BinaryWriter& writer ) const
+{    writer.write(u_);
+     writer.write(overlap_);    }
+
+void uniseq::readBinary( BinaryReader& reader )
+{    reader.read(&u_);
+     reader.read(&overlap_);    }
+
+void gapster::writeBinary( BinaryWriter& writer ) const
+{    writer.write(open_);
+     writer.write(sep_);
+     writer.write(dev_);
+     writer.write(closures_);    }
+
+void gapster::readBinary( BinaryReader& reader )
+{    reader.read(&open_);
+     reader.read(&sep_);
+     reader.read(&dev_);
+     reader.read(&closures_);    }
+
+void snark::writeBinary( BinaryWriter& writer ) const
+{    writer.write(G_);
+     writer.write(seq_);    }
+
+void snark::readBinary( BinaryReader& reader )
+{    reader.read(&G_);
+     reader.read(&seq_);    }

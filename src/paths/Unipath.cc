@@ -10,8 +10,9 @@
 #include "CoreTools.h"
 #include "Equiv.h"
 #include "math/Functions.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "graph/Digraph.h"
 #include "paths/HyperBasevector.h"
 #include "paths/HyperKmerPath.h"
@@ -88,7 +89,7 @@ struct uinterval {
     return out << u.kpi << " betw " << u.prev_kmer << " and " << u.next_kmer;
   }
 };
-
+TRIVIALLY_SERIALIZABLE(uinterval);
 
 // Step 2: Build unipath intervals
 // Returns num_known_path_starts, a poor lower bound on the number of unipaths.
@@ -104,10 +105,11 @@ int BuildUnipathIntervals( const vec<TAGGED_RPINT>& pathsdb,
   // This is an idiotic interface, but I can't think of a better one:
   // If uni_intervals_file is nonempty, we write the intervals to disk, 
   // instead of pushing them back onto uni_intervals (which we leave untouched)
-  Binary3Writer<uinterval> uni_writer;
+  typedef BinaryIteratingWriter< vec<uinterval> > BIW;
+  BIW* uni_writer = 0;
   bool write_to_file = ! uni_intervals_file.empty();
   if( write_to_file )
-    uni_writer.Open( uni_intervals_file );
+    uni_writer = new BIW( uni_intervals_file );
 
 
   ForceAssert( pathsdb.nonempty() );
@@ -243,7 +245,7 @@ int BuildUnipathIntervals( const vec<TAGGED_RPINT>& pathsdb,
     // Record the unipath interval I just created.
     uinterval u(current_kmer, ending_kmer, prev_seg_kmer, next_seg_kmer );
     if( write_to_file )
-      uni_writer.Write( u );
+      uni_writer->write( u );
     else
       uni_intervals.push_back( u );
 
@@ -268,7 +270,10 @@ int BuildUnipathIntervals( const vec<TAGGED_RPINT>& pathsdb,
 
 
   if( write_to_file )
-    uni_writer.Close();
+  {
+    uni_writer->close();
+    delete uni_writer;
+  }
 
   return num_known_path_starts;
 

@@ -11,7 +11,7 @@
 
 #include "PairsManager.h"
 #include "String.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "math/Functions.h"
 #include "math/HoInterval.h"
 

@@ -6,6 +6,7 @@
 #include "CoreTools.h"
 #include "math/Functions.h"
 #include "CommonSemanticTypes.h"
+#include "feudal/BinaryStreamTraits.h"
 
 // Portability note: endianness
 // The implementations here would need to be changed for big endian architectures.
@@ -401,6 +402,7 @@ public:
 
   static const Bool IS_BIG = False;
 };
+TRIVIALLY_SERIALIZABLE(tagged_rpint);
 
 /**
    Class: big_tagged_rpint
@@ -538,6 +540,7 @@ public:
   
   static const Bool IS_BIG = True;
 };
+TRIVIALLY_SERIALIZABLE(big_tagged_rpint);
 
 // A new_tagged_rpint is the same as a big_tagged_rpint, but allows more space for
 // the length.  Presumably we should change new_tagged_rpint to big_tagged_rpint,
@@ -663,6 +666,7 @@ public:
   static const unsigned int POSITION_MAX = 0xffffffff; // 4 bytes
   static const unsigned int LENGTH_MAX   = 0xffffffff; // 4 bytes
 };
+TRIVIALLY_SERIALIZABLE(new_tagged_rpint);
 
 
 #endif

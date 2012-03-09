@@ -43,6 +43,7 @@
 #include "math/Functions.h"
 #include "math/HoInterval.h"
 #include "MainTools.h"
+#include "feudal/BinaryStream.h"
 #include "paths/ImproperMerge.h"
 #include "paths/KmerBaseBroker.h"
 #include "paths/KmerPath.h"
@@ -103,7 +104,7 @@ int main( int argc, char *argv[] )
     Unipath( paths, paths_rc, pathsdb, unipaths, unipathsdb, True, unipaths_file );
     
     cout << Tag() << "writing unipaths db" << endl;
-    BinaryWrite3( run_dir + "/" + READS + "." + UNIPATHS + "db.k" + KS, unipathsdb );    
+    BinaryWriter::writeFile( run_dir + "/" + READS + "." + UNIPATHS + "db.k" + KS, unipathsdb );
 
   
     // Output some statistics on unipath sizes.
@@ -130,7 +131,7 @@ int main( int argc, char *argv[] )
       BuildUnipathAdjacencyGraph( paths, paths_rc, pathsdb, unipaths, unipathsdb, unigraph );
 
       cout << Tag() << "writing unipath adjacency graph" << endl;
-      BinaryWrite( run_dir + "/" + READS + "." + UNIGRAPH + ".k" + KS, unigraph );
+      BinaryWriter::writeFile( run_dir + "/" + READS + "." + UNIGRAPH + ".k" + KS, unigraph );
     }
   }
   
@@ -159,7 +160,7 @@ int main( int argc, char *argv[] )
       BuildUnibaseAdjacencyGraph( unibases, unibasegraph, K );
 
       cout << Tag() << "writing unibase adjacency graph" << endl;
-      BinaryWrite( run_dir + "/" + READS + "." + UNIBASES + "." + UNIBASE_GRAPH + ".k" + KS, unibasegraph );
+      BinaryWriter::writeFile( run_dir + "/" + READS + "." + UNIBASES + "." + UNIBASE_GRAPH + ".k" + KS, unibasegraph );
     }
   }
   

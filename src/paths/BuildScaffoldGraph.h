@@ -10,7 +10,7 @@
 #define BUILD_SCAFFOLD_GRAPH_H
 
 #include "PairsManager.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
 #include "graph/Digraph.h"
 #include "graph/DigraphTemplate.h"

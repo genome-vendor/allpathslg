@@ -79,11 +79,10 @@ void lookup_table::AddContigName( String contig_name, const String&
  */
 void lookup_table::ReadHeader( )
 {
-     ForceAssert(-1!=fd_);
-     off_t bytes_in_header_ = 0;
-     bytes_in_header_ += read( fd_, &control_[0], 1024 );
-     if ( bytes_in_header_ != 1024 ) FatalErr( "Lookup table read failed." );
-     bytes_in_header_ += read( fd_, &control2_[0], 1024 );
+     ForceAssert(fw_.isOpen());
+     fw_.seek(0);
+     fw_.read( &control_[0], 1024 );
+     fw_.read( &control2_[0], 1024 );
      SetK( control_[0] );
      nchunks_ = control_[1];
      unsigned int& ncontigs = control_[2];
@@ -96,7 +95,7 @@ void lookup_table::ReadHeader( )
      // note: chunk_sizes_ actually holds the sizes of locs_ for each chunk!!
 
      unsigned int max_chunk_size = Max(chunk_sizes_);
-     bytes_in_header_ += read( fd_, &freq_[0], FourToK( ) * 4 );
+     fw_.read( &freq_[0], FourToK( ) * 4 );
 
      contig_name_.resize(ncontigs);
      contig_name_alt_.resize(ncontigs);
@@ -104,12 +103,12 @@ void lookup_table::ReadHeader( )
 
   for ( int i = 0; i < (int) ncontigs; i++ )
     {
-      bytes_in_header_ += read( fd_, &contig_sizes_[i], 4 );
+      fw_.read( &contig_sizes_[i], 4 );
       char cname[256];
-      bytes_in_header_ += read( fd_, &cname[0], 252 );
+      fw_.read( &cname[0], 252 );
       contig_name_[i] = String( &cname[0] );
       char cname_alt[256];
-      bytes_in_header_ += read( fd_, &cname_alt[0], 256 );
+      fw_.read( &cname_alt[0], 256 );
       contig_name_alt_[i] = String( &cname_alt[0] );
     }
 
@@ -127,7 +126,7 @@ void lookup_table::ReadHeader( )
      // Initialize chunk_start_ vector:
      // we have enough info to compute start positions of all chunks right away
      chunk_start_.resize(nchunks_);
-     off_t offset = bytes_in_header_;
+     off_t offset = fw_.tell();
      for ( unsigned int i=0; i < nchunks_; ++i ) {
        chunk_start_[i] = offset;
        offset += off_t(FourToK())*4;       // size of the lookup table
@@ -178,21 +177,21 @@ void lookup_table::ReadHeader( )
  *  @see WriteChunk()
  */
 void lookup_table::WriteHeader( ) const
-{    lseek( fd_, 0, SEEK_SET );
-     WriteBytes( fd_, &control_[0], 1024 );
-     WriteBytes( fd_, &control2_[0], 1024 );
-     WriteBytes( fd_, &freq_[0], FourToK( ) * 4 );
+{    fw_.seek( 0 );
+     fw_.write( &control_[0], 1024 );
+     fw_.write( &control2_[0], 1024 );
+     fw_.write( &freq_[0], FourToK( ) * 4 );
      vec<char> cname;
      for ( int i = 0; i < (int) contig_name_.size( ); i++ )
-     {    WriteBytes( fd_, &contig_sizes_[i], 4 );
+     {    fw_.write( &contig_sizes_[i], 4 );
           cname.resize_and_set( 252, 0 );
           for ( int j = 0; j < (int) contig_name_[i].size( ); j++ )
                cname[j] = contig_name_[i][j];
-          WriteBytes( fd_, &cname[0], 252 );
+          fw_.write( &cname[0], 252 );
           cname.resize_and_set( 256, 0 );
           for ( int j = 0; j < (int) contig_name_alt_[i].size( ); j++ )
                cname[j] = contig_name_alt_[i][j];
-          WriteBytes( fd_, &cname[0], 256 );
+          fw_.write( &cname[0], 256 );
      }
 }
 
@@ -226,8 +225,8 @@ void lookup_table::WriteHeader( ) const
  */
 
 void lookup_table::WriteChunk( const vec<char>& bases )
-{    WriteBytes( fd_, &lookup_[0], FourToK( ) * 4 );
-     WriteBytes( fd_, &locs_[0], ( (longlong) NLocs( ) ) * LLCONST(4) );
+{    fw_.write( &lookup_[0], FourToK( ) * 4 );
+     fw_.write( &locs_[0], ( (longlong) NLocs( ) ) * LLCONST(4) );
      ForceAssert( control_[1] + 5 < 256 );
      control_[ control_[1] + 5 ] = locs_.size( );
 
@@ -243,14 +242,14 @@ void lookup_table::WriteChunk( const vec<char>& bases )
      }
 
      int byte_count = ( ( b.size( ) + 15 ) / 16 ) * 4;
-     off_t fd_pos = lseek( fd_, 0, SEEK_CUR );
+     off_t fd_pos = fw_.tell();
      int c2start = control_[1] * 4;
      ForceAssertLt( c2start, 252 ); // will fail if > 62 chunks
      control2_[ c2start ] = *( (unsigned int*) (&fd_pos) );
      control2_[ c2start + 1 ] = *( (unsigned int*) (&fd_pos) + 1 );
      control2_[ c2start + 2 ] = start;
      control2_[ c2start + 3 ] = b.size();
-     BinaryWriteContent(fd_,b);
+     b.writeContent(fw_);
      ++control_[1];
 }
 
@@ -359,7 +358,7 @@ void lookup_table::DumpChunk(
 
 void lookup_table::FetchBasesFromDisk( unsigned int start, unsigned int stop,
      basevector& b )
-{   ForceAssert(-1!=fd_);
+{   ForceAssert(fw_.isOpen());
     basevector b0;
     for ( unsigned int i = 0; i < NChunks( ); i++ )
      {    if ( start < StartBaseInChunk(i) ) continue;
@@ -372,10 +371,10 @@ void lookup_table::FetchBasesFromDisk( unsigned int start, unsigned int stop,
           // Note: the following was originally done with pread, but it did not
           // perform correctly on ia32 machines.
 
-          off_t current = lseek( fd_, 0, SEEK_CUR );
-          lseek( fd_, d, SEEK_SET );
-          BinaryReadContent(fd_,b0);
-          lseek( fd_, current, SEEK_SET );
+          off_t current = fw_.tell();
+          fw_.seek( d );
+          b0.readContent(fw_);
+          fw_.seek( current );
 
           b.resize( stop - start );
           for ( unsigned int j = start; j < stop; j++ )
@@ -385,7 +384,7 @@ void lookup_table::FetchBasesFromDisk( unsigned int start, unsigned int stop,
           << stop << " do not exist in a base chunk on disk." );
 }
 
-/** \breaf Reads in i-th chunk from disk.
+/** \brief Reads in i-th chunk from disk.
  *
  *  This method reads in and makes available the i-th chunk data: its lookup,
  *  location offsets, and bases. Additionally, the chunk-dependent
@@ -396,7 +395,7 @@ void lookup_table::ReadChunk( int i )
 {
   if (i==chunk_)
     return;  // nothing to do!
-  ForceAssert(-1!=fd_);
+  ForceAssert(fw_.isOpen());
 
   // For some reason the values of chunk_start_[i] are screwed up.  Therefore
   // we compute them from scratch here.
@@ -409,14 +408,14 @@ void lookup_table::ReadChunk( int i )
 
   if (i!=1+chunk_) {
     // Seek to right place
-    lseek( fd_, chunk_start_i, SEEK_SET);
+    fw_.seek( chunk_start_i );
   }
   // Read lookup and locs
-  read( fd_, &lookup_[0], FourToK( ) * 4 );
+  fw_.read( &lookup_[0], FourToK( ) * 4 );
   // bad name. chunk_sizes_ actually holds sizes of locs_ for each chunk,
   // see ReadHeader(), WriteChunk() and file format specification...
   locs_.resize( chunk_sizes_[i] );
-  read( fd_, &locs_[0], ( (longlong) chunk_sizes_[i] ) * LLCONST(4) );
+  fw_.read( &locs_[0], ( (longlong) chunk_sizes_[i] ) * LLCONST(4) );
 
   // Read bases for this chunk:
   b_start_ = StartBaseInChunk(i);
@@ -424,7 +423,7 @@ void lookup_table::ReadChunk( int i )
   //PRINT2(b_start_, base_count);
   int byte_count = ( ( base_count + 15 ) / 16 ) * 4;
   b_.Setsize(base_count);
-  BinaryReadContent(fd_,b_);
+  b_.readContent(fw_);
 
   chunk_ = i; // remember what chunk is currently loaded
 
@@ -474,7 +473,6 @@ String lookup_table::ContigNameBasic(int i)
 
 
 lookup_table::lookup_table( unsigned int K, const basevector &b ) :
-  fd_(-1), // Don't ever try to read from or close fd
   control_(256,0), control2_(256,0),
   nchunks_(1), // Only one chunk in this style of table
   chunk_sizes_(1, b.size()),

@@ -16,6 +16,7 @@
 #include "graph/DigraphTemplate.h"
 #include "paths/HyperFastavector.h"
 #include "system/Worklist.h"
+#include "feudal/BinaryStream.h"
 
 // Template instantiations:
 
@@ -392,14 +393,6 @@ void HyperFastavector::PrintSummaryDOT0w( ostream& out, Bool label_contigs,
 	 label_edges_extra, label_contigs_extra, verticesToPrint );    }
 
 
-void BinaryWrite( int fd, const HyperFastavector& h )
-{    WriteBytes( fd, &h.K_, sizeof(int) );
-     BinaryWrite( fd, (const digraphE<fastavector>&) h );    }
-
-void BinaryRead( int fd, HyperFastavector& h )
-{    ReadBytes( fd, &h.K_, sizeof(int) );
-     BinaryRead( fd, (digraphE<fastavector>&) h );    }
-
 void HyperFastavector::LowerK( int newK )
 {    ForceAssertLe( newK, K( ) );
      for ( int i = 0; i < EdgeObjectCount( ); i++ )
@@ -419,9 +412,7 @@ HyperFastavector::HyperFastavector( const HyperBasevector& h )
      (*this) = HyperFastavector( h.K( ), h, fastas );    }
 
 HyperFastavector::HyperFastavector( const String& filename )
-{    int fd = OpenForRead(filename);
-     BinaryRead( fd, *this );
-     close(fd);    }
+{    BinaryReader::readFile( filename, this ); }
 
 void HyperFastavector::RemoveUnneededVertices( )
 {    for ( int i = 0; i < N( ); i++ )
@@ -431,6 +422,18 @@ void HyperFastavector::RemoveUnneededVertices( )
                p.Append( EdgeObjectByIndexFrom( i, 0 ) );
                JoinEdges( i, p );    }    }
      RemoveEdgelessVertices( );    }
+
+void HyperFastavector::writeBinary( BinaryWriter& writer ) const
+{
+    writer.write(K_);
+    writer.write(static_cast<digraphE<fastavector> const&> (*this));
+}
+
+void HyperFastavector::readBinary( BinaryReader& reader )
+{
+    reader.read(&K_);
+    reader.read(static_cast<digraphE<fastavector>*> (this));
+}
 
 String EdgeLabel( int v, int w, const fastavector& p, int K )
 {    ostringstream out;

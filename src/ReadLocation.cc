@@ -13,7 +13,7 @@
 #include "ReadLocation.h"
 #include "ReadPairing.h"
 #include "VecString.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "system/file/FileReader.h"
 
 void read_location::ForceInBounds( ostream * out_ptr )
@@ -140,7 +140,7 @@ void WriteLocs( const String& locs_file , const vec<read_location>& v,
                     {    if ( indexr[j] < 0 ) 
                          {    indexr[j] = i;
                               break;    }    }    }    }
-          BinaryWrite( locs_index_filer, indexr );    }
+          BinaryWriter::writeFile( locs_index_filer, indexr );    }
 
      // Generate index by contigs.
 
@@ -503,7 +503,7 @@ void AnnotateReadLocations2( const String& run_dir, const String& sub_dir,
      for ( int i = 0; i < all_ids.isize( ); i++ )
           to_all[ all_ids[i] ] = i;
      vec<Bool> is_transposon;
-     BinaryReadSubset0( run_dir + "/reads.is_transposon", all_ids, is_transposon );
+     AsciiBoolVecReadSubset( run_dir + "/reads.is_transposon", all_ids, is_transposon );
      vecString readnames;
      readnames.Read( run_dirx + "/reads.ids", all_ids );
      int last_contig = -1;
@@ -587,6 +587,4 @@ bool operator%(const read_location& oldRead, const read_location& newRead) {
 	       && (oldRead.LengthOfContig() == newRead.LengthOfContig()))
 	   return 0;
        else return 1;   }
-
-BINARY2_DEF(read_location_short);
 

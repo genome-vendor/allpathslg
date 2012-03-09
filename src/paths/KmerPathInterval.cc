@@ -1,7 +1,6 @@
 // Copyright (c) 2005 Broad Institute/Massachusetts Institute of Technology
 
 #include "paths/KmerPathInterval.h"
-#include "VecTemplate.h"
 
 #include <algorithm> // upper_bound
 
@@ -256,13 +255,3 @@ template<class TAG> longlong Instance( const vec<TAG>& segs, kmer_id_t k ) {
 template longlong Instance( const vec<tagged_rpint>& segs, kmer_id_t k );
 template longlong Instance( const vec<big_tagged_rpint>& segs, kmer_id_t k );
 template longlong Instance( const vec<new_tagged_rpint>& segs, kmer_id_t k );
-
-
-BINARY2_DEF(tagged_rpint);
-BINARY2_DEF(big_tagged_rpint);
-BINARY2_DEF(new_tagged_rpint);
-
-BINARY3_DEF(tagged_rpint);
-BINARY3_DEF(big_tagged_rpint);
-BINARY3_DEF(new_tagged_rpint);
-

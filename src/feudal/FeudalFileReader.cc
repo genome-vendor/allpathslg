@@ -30,7 +30,7 @@ FeudalFileReader::FeudalFileReader( char const* filename )
 
 FeudalFileReader::FeudalFileReader( FeudalFileReader const& that )
 : mpMapper(that.mpMapper), mCurEle(mpMapper->getNElements()),
-  mReader(that.mReader.getFilename(),false)
+  mReader(that.mReader.getFilename().c_str(),false)
 {
     SpinLocker locker(*mpMapper);
     mpMapper->ref();

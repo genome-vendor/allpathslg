@@ -13,7 +13,7 @@
 #include "String.h"
 #include "system/Types.h"
 #include "Vec.h"
-
+#include "feudal/BinaryStreamTraits.h"
 
 enum read_type { insert_4k,
                  insert_40k,
@@ -125,6 +125,7 @@ class read_pairing {
      friend istream& operator>>( istream& i, vec<read_pairing>& v );
 
 };
+TRIVIALLY_SERIALIZABLE(read_pairing);
 
 void ReadBinaryPairs ( istream &in, vec<read_pairing> &vecPairs );
 

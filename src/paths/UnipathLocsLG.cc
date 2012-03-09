@@ -23,10 +23,10 @@
 #include "MainTools.h"
 #include "ParallelVecUtilities.h"
 #include "ReadLocationLG.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "paths/KmerPath.h"
 #include "paths/PdfEntry.h"
-
+#include "feudal/BinaryStream.h"
 
 static inline 
 String Tag(String S = "ULLG") { return Date() + " (" + S + "): "; } 
@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
   if (WRITE) {
     const String filehead = run_dir + "/" + READS + ".unilocs." + ToString(K);
     cout << Tag() << "Writing locs to '" << filehead << "'." << endl;
-    BinaryWrite2(filehead, ulocs);
+    BinaryWriter::writeFile(filehead, ulocs);
     index.WriteAll(filehead + ".indexr");
   }
   

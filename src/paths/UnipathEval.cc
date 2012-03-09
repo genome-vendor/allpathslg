@@ -21,6 +21,7 @@
 #include "ParseSet.h"
 #include "PredictionStats.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "lookup/LookAlign.h"
 #include "lookup/PerfectLookup.h"
 #include "paths/KmerBaseBroker.h"
@@ -741,10 +742,10 @@ int main( int argc, char *argv[] )
   }
      
   if ( ! SAVE_FW_PLACEMENTS_TO.empty() )
-    BinaryWrite3( run_dir + "/" + SAVE_FW_PLACEMENTS_TO, fw_placements );
+    BinaryWriter::writeFile( run_dir + "/" + SAVE_FW_PLACEMENTS_TO, fw_placements );
      
   if ( ! SAVE_RC_PLACEMENTS_TO.empty() )
-    BinaryWrite3( run_dir + "/" + SAVE_RC_PLACEMENTS_TO, rc_placements );
+    BinaryWriter::writeFile( run_dir + "/" + SAVE_RC_PLACEMENTS_TO, rc_placements );
 
   if ( SAVE_ALIGNS ) {
     out << "\n" << Date( ) << ": sorting and saving alignments\n" << endl;

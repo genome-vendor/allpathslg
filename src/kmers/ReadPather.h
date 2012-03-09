@@ -209,7 +209,8 @@ private:
 };
 
 template <unsigned K>
-struct Serializability< KmerDictEntry<K> > : public TriviallySerializable {};
+struct Serializability< KmerDictEntry<K> >
+{ typedef TriviallySerializable type; };
 
 /// A set of KmerDictEntry's, used as a map from KMer onto KDef.
 template <unsigned K>
@@ -283,8 +284,8 @@ public:
     friend bool operator!=( KmerDict const& kd1, KmerDict const& kd2 )
     { return !(kd1==kd2); }
 
-    size_t writeBinary( BinaryWriter& writer ) const
-    { return writer.write(mKSet); }
+    void writeBinary( BinaryWriter& writer ) const
+    { writer.write(mKSet); }
 
     void readBinary( BinaryReader& reader )
     { reader.read(&mKSet); }
@@ -299,7 +300,8 @@ private:
 };
 
 template <unsigned K>
-struct Serializability< KmerDict<K> > : public SelfSerializable {};
+struct Serializability< KmerDict<K> >
+{ typedef SelfSerializable type; };
 
 /// An unbranched sequence of kmers.
 /// Described by a close-ended range of kmer IDs.

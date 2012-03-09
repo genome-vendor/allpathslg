@@ -49,7 +49,7 @@ class FastaConverter {
 // FastaNullConverter knows nothing other than that the data is stored
 // in fasta format.
 
-typedef FastaConverter< charvector > FastaNullConverter;
+typedef FastaConverter< CharVec > FastaNullConverter;
 
 
 // FastaSequenceConverter specifically understands how to extract

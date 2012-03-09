@@ -11,6 +11,18 @@
 
 
 
+// -------------- Union Find ---------------
+//
+//  Problem: having a set of vertexes, we want to progressively group them.
+// 
+//  Solution: create a UnionFind object.
+//
+//    UnionFind uf(nv);
+//
+//    uf.unite(iv, jv);   // associates a common root vertex with both iv and jv.
+//
+//    uf.iv_root(iv);    // returns the root vertex associated with vertex iv.  
+
 class UnionFind
 {
   vec<size_t> iv_parent;   // index of parent vertex for each vertex
@@ -36,25 +48,41 @@ public:
     const size_t ivp = iv_parent[iv];
     return (ivp == iv) ? 
       ivp : 
-      iv_parent[iv] = iv_root(ivp); // path-compression (non-const method)
+      iv_parent[iv] = iv_root(ivp); // path-compression (non-const method) 
+
+    // note: path compression with a const method could be achieved with mutable
+    //       but thread-safety would have to be addressed
+    
   }
+
+  // ---- Unite vertexes
+  //      returns 'true'  if vertexes were not previously united
+  //              'false' if vertexes were     previously united
   
-  void unite(const size_t iv0, const size_t iv1)
+  bool unite(const size_t iv0, const size_t iv1)
   {
     const size_t iv0_root = iv_root(iv0);
     const size_t iv1_root = iv_root(iv1);
-    
+
+    if (iv0_root == iv1_root) // vertexes already united; unite fails
+      return false;
+
     // union-by-rank to keep tree balanced
 
-    if (iv0_root != iv1_root) {
-      if      (rank[iv0_root] < rank[iv1_root])  iv_parent[iv0_root] = iv1_root;
-      else if (rank[iv0_root] > rank[iv1_root])  iv_parent[iv1_root] = iv0_root;
-      else {
-        iv_parent[iv1_root] = iv0_root;
-        rank[iv0_root]++;
-      }
+    if      (rank[iv0_root] < rank[iv1_root])  iv_parent[iv0_root] = iv1_root;
+    else if (rank[iv0_root] > rank[iv1_root])  iv_parent[iv1_root] = iv0_root;
+    else {
+      iv_parent[iv1_root] = iv0_root;
+      rank[iv0_root]++;
     }
+    return true; // unite succeds
   }
+
+  bool united(const size_t iv0, const size_t iv1) const
+  {
+    return iv_root(iv0) == iv_root(iv1);
+  }
+
 
   void report_print()
   {
@@ -121,12 +149,13 @@ void minimum_spanning_tree_kruskal(const vec<EdgeWeight<WEIGHT_t> > & edges,
   // ---- start picking edges from the lightest one
 
   for (size_t iie = 0; iie < ne; iie++) {
+
     const size_t ie = weight_ie[iie].second;
+
     const EdgeWeight<WEIGHT_t> & edge = edges[ie];
-    if (tree_p->iv_root(edge.iv0) != tree_p->iv_root(edge.iv1)) {
-      tree_p->unite(edge.iv0, edge.iv1);
+
+    if (tree_p->unite(edge.iv0, edge.iv1))
       i_edges_p->push_back(ie);
-    }
   }
 }
                                   

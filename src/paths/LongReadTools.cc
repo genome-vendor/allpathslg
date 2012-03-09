@@ -393,34 +393,44 @@ void MakeAlignmentGraph( const vec< pair< int, vec< pair<int,int> > > >& alignsx
      vec< vec<int> > from(N), to(N), from_edge_obj(N), to_edge_obj(N);
      vec<int> overlaps;
      vec< triple<int,int,int> > ALIGNS;
+
+     vec< triple<int,int,int> > flat;
+     for ( int i = 0; i < alignsx.isize( ); i++ )
+     {    for ( int j = 0; j < alignsx[i].second.isize( ); j++ )
+          {    flat.push( alignsx[i].second[j].second,
+                    alignsx[i].second[j].first, i );    }    }
+     Sort(flat);
+     vec< vec< pair<int,int> > > offsets(N);
+     for ( int i = 0; i < flat.isize( ); i++ )
+     {    int j;
+          for ( j = i + 1; j < flat.isize( ); j++ )
+               if ( flat[j].first != flat[i].first ) break;
+          for ( int k1 = i; k1 < j; k1++ )
+          for ( int k2 = i; k2 < j; k2++ )
+          {    if ( k2 == k1 ) continue;
+               int j1 = flat[k1].third, j2 = flat[k2].third;
+               int v1 = alignsx[j1].first, v2 = alignsx[j2].first;
+               int o = flat[k1].second - flat[k2].second;
+               if ( U[v1].isize( ) >= U[v2].isize( ) + o ) continue;
+               if ( v1 == v2 && o == 0 ) continue;
+               Bool match = True;
+               for ( int x1 = Max( 0, o ); x1 < U[v1].isize( ); x1++ )
+               {    int x2 = x1 - o;
+                    if ( x2 >= U[v2].isize( ) ) break;
+                    if ( U[v1][x1] != U[v2][x2] )
+                    {    match = False;
+                         break;    }    }
+               if (match) offsets[j1].push( j2, o );    }
+          i = j - 1;    }
      for ( int j1 = 0; j1 < N; j1++ )
-     for ( int j2 = 0; j2 < N; j2++ )
-     {    if ( j1 == j2 ) continue;
-          int v1 = alignsx[j1].first, v2 = alignsx[j2].first;
-          vec<int> offsets;
-          const vec< pair<int,int> >& M1 = alignsx[j1].second;
-          const vec< pair<int,int> >& M2 = alignsx[j2].second;
-          for ( int l1 = 0; l1 < M1.isize( ); l1++ )
-          {    for ( int l2 = 0; l2 < M2.isize( ); l2++ )
-               {    if ( M1[l1].second != M2[l2].second ) continue;
-                    int o = M1[l1].first - M2[l2].first;
-                    if ( U[v1].isize( ) >= U[v2].isize( ) + o ) continue;
-                    if ( v1 == v2 && o == 0 ) continue;
-                    Bool match = True;
-                    for ( int x1 = Max( 0, o ); x1 < U[v1].isize( ); x1++ )
-                    {    int x2 = x1 - o;
-                         if ( x2 >= U[v2].isize( ) ) break;
-                         if ( U[v1][x1] != U[v2][x2] )
-                         {    match = False;
-                              break;    }    }
-                    if (match) offsets.push_back(o);    }    }
-          UniqueSort(offsets);
-          for ( int l = 0; l < offsets.isize( ); l++ )
-          {    int o = offsets[l];
+     {    UniqueSort( offsets[j1] );
+          for ( int l = 0; l < offsets[j1].isize( ); l++ )
+          {    int o = offsets[j1][l].second, j2 = offsets[j1][l].first;
                from[j1].push_back(j2), to[j2].push_back(j1);
                from_edge_obj[j1].push_back( overlaps.size( ) );
                to_edge_obj[j2].push_back( overlaps.size( ) );
                overlaps.push_back(o);
+               int v1 = alignsx[j1].first, v2 = alignsx[j2].first;
                if ( verbosity >= 1 ) 
                     PRINT5_TO( rout, j1, j2, v1, v2, o );    }    }
      G.Initialize( from, to, overlaps, to_edge_obj, from_edge_obj );    }

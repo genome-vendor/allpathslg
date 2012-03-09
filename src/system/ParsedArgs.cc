@@ -577,10 +577,9 @@ void parsed_args::MemMonitor() {
   if (pos != -1) {
     if ( def_[pos] == "True" ) {
       int pid = getpid();
-      String cmdpath = search_path_for_command("MemMonitor");
-      if (cmdpath != "") {
-	String mmcmd = cmdpath + " NH=True PID=" + ToString(pid);
-	
+      String cmd = "MemMonitor";
+      if (IsCommandInPath(cmd) ) {
+	String mmcmd = cmd + " NH=True PID=" + ToString(pid);
 	for (unsigned int mmindex = 0; mmindex < used_.size( ); mmindex++) {
 	  if (name_[mmindex].Contains("_MM_")) {
 	    mmcmd += " " + name_[mmindex].After("_MM_") + "=" + def_[mmindex];

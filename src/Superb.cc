@@ -14,26 +14,27 @@
 #include "Superb.h"
 #include "math/Functions.h"
 #include "system/file/FileReader.h"
+#include "system/file/FileWriter.h"
 
 #include <math.h>
 
 void WriteSuperbs( const String& fn, const vec<superb>& s )
 {    ForceAssert( !IsRegularFile( fn + ".gz" ) );
-     int fd = Open( fn, O_WRONLY | O_CREAT );
+     FileWriter fw(fn);
      int n = s.size( );
-     WriteBytes( fd, &n, sizeof(int) );
+     fw.write( &n, sizeof(int) );
      for ( int i = 0; i < n; i++ )
      {    int ntigs = s[i].Ntigs( );
           if ( ntigs == 0 )
           {    cout << "In superb::Write: attempt to write super " << i
                     << ", which has zero contigs.  Abort.\n";
                TracebackThisProcess( );    }
-          WriteBytes( fd, &ntigs, sizeof(int) );
-          WriteBytes( fd, &s[i].mtig_[0], ntigs * sizeof(int) );
-          WriteBytes( fd, &s[i].len_[0], ntigs * sizeof(int) );
+          fw.write( &ntigs, sizeof(int) );
+          fw.write( &s[i].mtig_[0], ntigs * sizeof(int) );
+          fw.write( &s[i].len_[0], ntigs * sizeof(int) );
           if ( ntigs > 1 )
-               WriteBytes( fd, &s[i].gap_[0], (ntigs-1) * sizeof(superb::gapb) );   }
-     close(fd);    }
+               fw.write( &s[i].gap_[0], (ntigs-1) * sizeof(superb::gapb) );   }
+     fw.close();    }
 
 void ReadSuperbs( const String& fn, vec<superb>& s )
 {    FileReader fr(fn.c_str());
@@ -314,19 +315,11 @@ superb superb::SubSuper( const vec<int>& to_use ) const
           s.SetDev( i - 1, dev );    }
      return s;    }
 
-void TestSuperbIndex( const String& dir )
-{    FileReader fr( (dir + "/mergedcontigs.superb_index").c_str() );
-     int entries;
-     fr.read( &entries, sizeof(int) );
-     int file_size = FileSize( dir + "/mergedcontigs.superb_index" );
-     if ( file_size != (int) sizeof(int) + entries * (int) sizeof(superb_by_tig) )
-     {    FatalErr( "The file mergedcontigs.superb_index in " << dir
-               << " seems to be out of date." );    }    }
-
 void FetchSuperbIndexEntries( const String& dir, const vec<int>& tigs,
      vec<superb_by_tig>& indices )
-{    TestSuperbIndex(dir);
-     BinaryReadSubset( dir + "/mergedcontigs.superb_index", tigs, indices );    }
+{
+    indices.ReadSubset( dir + "/mergedcontigs.superb_index", tigs );
+}
 
 void WriteSummary( const String & fn, const vec<superb> & s, const vecBoolvector& s_rc )
 {    Ofstream( summary, fn );
@@ -354,7 +347,7 @@ void WriteSuperbsAndSummary( const String & dir, const vec<superb> & s,
      for ( size_t i = 0; i < s.size(); i++ )
           for ( int j = 0; j < s[i].Ntigs( ); j++ )
                by_tig[ s[i].Tig(j) ] = superb_by_tig( i, j, s[i].Ntigs( ) );
-     BinaryWrite( dir + "/" + base + ".superb_index", by_tig );
+     BinaryWriter::writeFile( dir + "/" + base + ".superb_index", by_tig );
      if (index_only) return;
 
      // Write mergedcontigs.superb and mergedcontigs.summary.

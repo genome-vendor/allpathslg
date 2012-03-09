@@ -16,6 +16,7 @@
 #include "CommonSemanticTypes.h"
 #include "math/Functions.h"
 #include "math/HoInterval.h"
+#include "feudal/BinaryStreamTraits.h"
 
 // enum orientation {ForwardOr, ReverseOr};  --  too inefficient -- it uses 4 bytes
 typedef char orientation;
@@ -287,6 +288,7 @@ class read_location_short {
      int start_;
 
 };
+TRIVIALLY_SERIALIZABLE(read_location_short);
 
 inline Bool cmp_contig_read( const read_location_short& r1, 
      const read_location_short& r2 )

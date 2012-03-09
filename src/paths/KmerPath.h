@@ -63,9 +63,7 @@ public:
 
   typedef KmerPathInterval value_type;
 
-  KmerPath( )
-  : SerfVec<KmerPathInterval>()
-  { }
+  KmerPath() {}
 
   KmerPath( String s );
 
@@ -241,9 +239,6 @@ public:
   // >   ----------2----------
   // Read code to see exact handling of subtleties.
   friend Bool IsSubpathAnchoredLeft( const KmerPath& p1, const KmerPath& p2 );
-
-  friend void BinaryWrite( int fd, const KmerPath& p );
-  friend void BinaryRead( int fd, KmerPath& p );
 
   // Pretty-printed output:
   friend ostream& operator<<(ostream& out, const KmerPath& p);

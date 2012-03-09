@@ -111,7 +111,8 @@ public:
 };
 
 template <class T>
-struct Serializability< SerfVec<T> > : public SelfSerializable {};
+struct Serializability< SerfVec<T> >
+{ typedef SelfSerializable type; };
 
 template <class T>
 void swap( SerfVec<T>& v1, SerfVec<T>& v2 )

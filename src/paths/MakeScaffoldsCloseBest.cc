@@ -13,7 +13,7 @@
 #include "FastIfstream.h"
 #include "PairsManager.h"
 #include "Superb.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
 #include "graph/Digraph.h"
 #include "graph/DigraphTemplate.h"
@@ -818,8 +818,7 @@ void MakeScaffoldsCloseBest( vec<superb> &scaffolds,
 
 	  if ( SCAFFOLD_GRAPH_OUT != "" ) {
 	    String out_file = SCAFFOLD_GRAPH_OUT + "." + ToString(iterationCt);
-	    int fd = OpenForWrite( out_file );
-	    BinaryWrite( fd, G );
+	    BinaryWriter::writeFile( out_file, G );
 	  }
 	  
 	  // Now use the links to define lines in the scaffold graph.  There are

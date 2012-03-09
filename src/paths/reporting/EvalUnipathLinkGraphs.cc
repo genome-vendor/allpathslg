@@ -36,6 +36,7 @@
 #include "paths/Unipath.h" // BuildUnipathAdjacencyGraph
 #include "paths/Sepdev.h" // digraphE<fsepdev>
 #include "paths/simulation/Placement.h" // placement
+#include "feudal/BinaryStream.h"
 
 
 
@@ -452,7 +453,7 @@ int main( int argc, char *argv[] )
   
   // Unipath link graph (currently, just the 'seeds' graph is analyzed)
   digraphE<fsepdev> LG;
-  BinaryRead( sub_dir + "/unipath_link_graph." + GRAPH + kK, LG );
+  BinaryReader::readFile( sub_dir + "/unipath_link_graph." + GRAPH + kK, &LG );
   
   /*
   // Unipath copy numbers (predicted)

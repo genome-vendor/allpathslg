@@ -71,10 +71,23 @@ class efasta : public String {
 
      int Index1Alt(const int n) const;
 
+     // MinLength returns the shortes length in bases of the record
+     
+     int MinLength( ) const;
+
+     
+     // MaxLength returns the largest length in bases of the record
+     
+     int MaxLength( ) const;
+
      // Ambiguities returns the number of "ambiguities" in the record, which we
      // define to be the sum of all expressions {x1,...,xn}, of n-1.
 
      int Ambiguities( ) const;
+
+     // AmbEventCount returns the number of ambiguous events (number of brackets "{")
+
+     int AmbEventCount( ) const;
 
      // AmbCount returns the number of "ambiguous bases" in the record, which we
      // define to be the sum over all expressions {x1,...,xn}, of the maximum
@@ -83,6 +96,10 @@ class efasta : public String {
      int AmbCount( ) const;
      int AmbCount(int& snp_count, int&indel_count ) const;
 
+     // Indicate if the index position n is within brackets (in the ambiguous region) 
+
+     Bool IndexInAmbiguity( const longlong pos ) const;
+
      // FlattenTo.  Make the first choice when a bracket expression is encountered.
      // When converting to a basevector, converts Ns to As.  The form
      // FlattenTo(fastavector) converts expressions like {A,C} into ambiguous bases.
@@ -90,8 +107,11 @@ class efasta : public String {
      void FlattenTo( basevector& b ) const;
      void FlattenTo( basevector& b, bitvector& gaps ) const;
      void FlattenTo( fastavector& v ) const;
-     void FlattenTo(fastavector& v, vec<Ambiguity> & va, 
+     void FlattenTo( fastavector& v, vec<Ambiguity> & va, 
           const Bool ambiguous_base_codes = True) const;
+
+     void FlattenMaxTo( fastavector& v ) const;
+     void FlattenMinTo( fastavector& v ) const;
 
      // FlattenMaxTo. When a bracket expression is encountered, make the longest 
      // choice but convert each character to 'N'.
@@ -104,6 +124,9 @@ class efasta : public String {
 
      Bool ExpandTo( vec<fastavector>& v, const int max_count = -1 ) const;
      Bool ExpandTo( vec<basevector>& v, const int max_count = -1 ) const;
+
+     // compute reverse-complement
+     void ReverseComplement( );
 
      // MakeGraph.  Convert to a graph.  Note that in the basevector case, this 
      // will convert Ns to As.

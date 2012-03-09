@@ -48,7 +48,7 @@ void FastaConverter<sequenceT>::extractAllFromBuffer( char* buffer,
 
 template<>
 bool
-FastaConverter<charvector>::extractDatumFromBuffer( char* buffer, charvector &sequence )
+FastaConverter<CharVec>::extractDatumFromBuffer( char* buffer, CharVec &sequence )
 {
   sequence.resize(0);
   while ( *buffer != 0 )
@@ -163,6 +163,6 @@ template void FastaConverter<sequenceT>::extractNameFromBuffer( char* buffer, St
 template void FastaConverter<sequenceT>::extractAllFromBuffer( char* buffer, String &name, \
                                                                sequenceT &sequence );
 
-INSTANTIATE(charvector)
+INSTANTIATE(CharVec)
 INSTANTIATE(CompressedSequence)
 INSTANTIATE(qualvector)

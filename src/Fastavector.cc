@@ -194,23 +194,6 @@ void fastavector::ReverseComplement()
     GeneralizedBase::reverseComplement(begin(), end());
 }
 
-void BinaryWrite( int fd, const fastavector& b )
-{
-    fastavector::size_type n = b.size();
-    WriteBytes(fd, &n, sizeof(n));
-    if ( n )
-        WriteBytes(fd, &b[0], b.size());
-}
-
-void BinaryRead( int fd, fastavector& b )
-{
-    fastavector::size_type n;
-    ReadBytes(fd, &n, sizeof(n));
-    b.resize(n);
-    if ( n > 0 )
-        ReadBytes(fd, &b[0], b.size());
-}
-
 void LoadFromFastaFile( const String& f, vec<fastavector>& vfv )
 {
     ifstream in(f.c_str());

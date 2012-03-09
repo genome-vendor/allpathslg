@@ -10,7 +10,7 @@
 #define ALIGNLETS_2_READ_LOCS_H
 
 #include "PairsManager.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
 #include "paths/Alignlet.h"
 #include "paths/ReadLoc.h"

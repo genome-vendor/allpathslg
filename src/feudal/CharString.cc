@@ -12,7 +12,6 @@
  */
 #include "feudal/CharString.h"
 #include "feudal/FeudalStringDefs.h"
-#include "feudal/OuterVec.h"
 #include "system/ErrNo.h"
 #include <cmath>
 #include <cstring>
@@ -24,8 +23,6 @@ using std::endl;
  * External Broad Requirements
  */
 
-template class SmallVec< char, MempoolAllocator< char > >;
-template class OuterVec< String >;
 template class FeudalString< char >;
 
 // ToStringAbbrev
@@ -138,37 +135,6 @@ unsigned int UnBaseAlpha(const String& s)
   for ( String::const_iterator itr(s.begin()); itr != end; ++itr )
       answer = 26*answer + (*itr - 'A');
   return answer; }
-
-void BinaryWrite(int fd, const String& s)
-{ String::size_type len = s.size();
-  if (write(fd, &len, sizeof(len)) != sizeof(len))
-  { ErrNo err;
-    cout << "BinaryWrite of String length failed" << err << endl;
-    CRD::exit(1); }
-  BinaryWriteContent(fd, s); }
-
-void BinaryWriteContent(int fd, const String& s)
-{ String::size_type len = s.size();
-  if (write(fd, s.data(), len) != len)
-  { ErrNo err;
-    cout << "BinaryWrite of String data failed" << err << endl;
-    CRD::exit(1); } }
-
-void BinaryRead(int fd, String& s)
-{ String::size_type len;
-  if (read(fd, &len, sizeof(len)) != sizeof(len))
-  { ErrNo err;
-    cout << "BinaryRead of String length failed" << err << endl;
-    CRD::exit(1); }
-  s.resize(len);
-  BinaryReadContent(fd, s); }
-
-void BinaryReadContent(int fd, String& s)
-{ String::size_type len = s.size();
-  if (read(fd, &s[0], len) != len)
-  { ErrNo err;
-    cout << "BinaryRead of String data failed" << err << endl;
-    CRD::exit(1); } }
 
 std::istream& operator>> (std::istream& in, String& s)
 { std::string buf; in >> buf; s = buf.c_str(); return in; }

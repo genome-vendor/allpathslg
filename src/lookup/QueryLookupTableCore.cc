@@ -1033,21 +1033,23 @@ void ProcessCluster( int call, unsigned int K, int seq_id, Bool rc_seq, int h1,
 	       sync_aligns_to_TACG, SMITH_WAT, BW_ADD, SW_MISMATCH_PENALTY,
                SW_GAP_PENALTY, SW_GAP_VERBOSE, out );    }    }
 
+typedef std::pair<size_t,size_t> SummaryEntry;
+
 void ProcessQuerySequence( const int npasses, const Bool firstpass, 
      lookup_table& look, int seq_id,
      basevector s, int start_on_query, int stop_on_query, int orig_query_length,
-     qualvector q, int& n_all_qualifiers, off_t& disk_pos, unsigned int Kdiffbits,
+     qualvector q, int& n_all_qualifiers, unsigned int Kdiffbits,
      unsigned int four_to_Kdiff, unsigned int mfreq, const map_longlong_longlong& to_query_id,
      unsigned int K, double MIN_COVERAGE, unsigned int MIN_HITS_TO_OVERRIDE,
      double WINNING_EDGE, unsigned int MAX_OFFSET_DIFF, unsigned int MIN_OVERLAP,
      unsigned int END_STRETCH, double PROGRESSION_RATIO,
      unsigned int MIN_MUTMER_LENGTH, Bool SINGLETON_HITS, unsigned int KEEP_BEST,
      Bool SHOW_PREMUTMERS, Bool SHOW_MUTMERS, vec<unsigned int>* hits_ptr,
-     vec< pair<unsigned int, unsigned int> >* hitsp_ptr, int fdq, int fdqs,
-     Bool imperfect_extension, const vec<longlong>& targets_to_process,
-     const Bool sync_aligns_to_TACG, Bool SMITH_WAT, int BW_ADD,
-     const int SW_MISMATCH_PENALTY, const int SW_GAP_PENALTY,
-     Bool SW_GAP_VERBOSE, ostream& out )
+     vec< pair<unsigned int, unsigned int> >* hitsp_ptr, BinaryWriter& bwq,
+     BinaryWriter& bwqs, Bool imperfect_extension,
+     const vec<longlong>& targets_to_process, const Bool sync_aligns_to_TACG,
+     Bool SMITH_WAT, int BW_ADD, const int SW_MISMATCH_PENALTY,
+     const int SW_GAP_PENALTY, Bool SW_GAP_VERBOSE, ostream& out )
 {
      vec<unsigned int>& hits = *hits_ptr;
      vec< pair<unsigned int, unsigned int> >& hitsp = *hitsp_ptr;
@@ -1225,17 +1227,13 @@ void ProcessQuerySequence( const int npasses, const Bool firstpass,
      {    const look_align& q = qualifiers[m];
           if ( q.nhits >= hfloor )
           {
-               // Story query id as longlong to make it easier to
-               // read the entire structure back into memory.
-
-               longlong qid = q.query_id;
-               ForceAssertEq( sizeof(qid), sizeof(disk_pos) );
-
-               WriteBytes( fdqs, &qid, sizeof(qid) );
-               WriteBytes( fdqs, &disk_pos, sizeof(disk_pos) );
-               disk_pos += q.BinaryWrite(fdq);
-               ++n_all_qualifiers;
-               if ( ++qualifiers_saved == (int) KEEP_BEST ) break;     }    }    }
+              SummaryEntry entry;
+              entry.first = q.query_id;
+              entry.second = bwq.tell();
+              bwqs.write(entry);
+              bwq.write(q);
+              ++n_all_qualifiers;
+              if ( ++qualifiers_saved == (int) KEEP_BEST ) break;     }    }    }
 
 void arachne_signal_handler( int signal_number );
 
@@ -1958,13 +1956,12 @@ void QueryLookupTableCore( int argc, char *argv[] )
           // Set up temporary files for alignments.
 
           String real_tmp = RealPath(TMP_DIR);
-          temp_file qualifiers_file( real_tmp + "/QueryLookupTable_tmp1_XXXXXXX" );
-          int fdq = OpenForWrite(qualifiers_file);
-          temp_file qualifiers_summary_file(
-               real_tmp + "/QueryLookupTable_tmp2_XXXXXXX" );
-          int fdqs = OpenForWrite(qualifiers_summary_file);
-          fchmod( fdq, 0666 ), fchmod( fdqs, 0666 );
-          off_t disk_pos = 0;
+          temp_file qualifiers_file( real_tmp +
+                                             "/QueryLookupTable_tmp1_XXXXXXX" );
+          BinaryWriter bwq(qualifiers_file);
+          temp_file qualifiers_summary_file(real_tmp +
+                                             "/QueryLookupTable_tmp2_XXXXXXX" );
+          BinaryWriter bwqs(qualifiers_summary_file);
 
           int n_all_qualifiers = 0;
           for ( unsigned int i = 0; i < look.NChunks( ); i++ )
@@ -2050,13 +2047,13 @@ void QueryLookupTableCore( int argc, char *argv[] )
                          Bool firstpass = ( RC_ONLY ? 2 : 1 );
                          ProcessQuerySequence( npasses, firstpass, look, j, s,
                               ints[u].first, ints[u].second, s.size( ), q,
-                              n_all_qualifiers, disk_pos, Kdiffbits, four_to_Kdiff,
+                              n_all_qualifiers, Kdiffbits, four_to_Kdiff,
                               mfreq, to_query_id, K, MIN_COVERAGE,
                               MIN_HITS_TO_OVERRIDE, WINNING_EDGE, MAX_OFFSET_DIFF,
                               MIN_OVERLAP, END_STRETCH, PROGRESSION_RATIO,
                               MIN_MUTMER_LENGTH, SINGLETON_HITS, KEEP_BEST,
                               SHOW_PREMUTMERS, SHOW_MUTMERS, hits_ptr, hitsp_ptr,
-                              fdq, fdqs, IMPERFECT_EXTENSION,
+                              bwq, bwqs, IMPERFECT_EXTENSION,
                               targets, SYNC_ALIGNS_TO_TACG, SMITH_WAT,
                               BW_ADD, SW_MISMATCH_PENALTY, SW_GAP_PENALTY,
                               SW_GAP_VERBOSE, out );    }    }    }
@@ -2071,18 +2068,15 @@ void QueryLookupTableCore( int argc, char *argv[] )
           // Summarize qualifiers.
 
           progress.resize_and_set( seq.size( ), False );
-          close(fdq);
-          fdq = OpenForRead(qualifiers_file);
-          if ( fdq < 0 )
-          {    ABORT( "Unable to reopen alignment scratch file.  Could it have been "
-                    << "deleted somehow?" );    }
-          close(fdqs);
-          vec< pair<longlong, off_t> > all_qualifiers_summary( n_all_qualifiers );
+          bwq.close();
+          bwqs.close();
+
+          BinaryReader brq(qualifiers_file);
+          vec<SummaryEntry> all_qualifiers_summary( n_all_qualifiers );
           if ( n_all_qualifiers > 0 )
-          {    FileReader fr(qualifiers_summary_file.c_str());
-               fr.read( &all_qualifiers_summary[0],
-                       (sizeof(longlong) + sizeof(off_t))*n_all_qualifiers );  }
-          Remove(qualifiers_summary_file);
+          {    BinaryReader brqs(qualifiers_summary_file);
+               brqs.read(&all_qualifiers_summary[0],
+                           &all_qualifiers_summary[n_all_qualifiers]);   }
           Sort(all_qualifiers_summary);
 
           if ( !QUIET )
@@ -2105,8 +2099,8 @@ void QueryLookupTableCore( int argc, char *argv[] )
                     these_qualifiers.resize(q_count);
                for ( int x = 0; x < q_count; x++ )
                {    off_t disk_loc = all_qualifiers_summary[ i + x ].second;
-                    lseek( fdq, disk_loc, SEEK_SET );
-                    these_qualifiers[x].BinaryRead(fdq);    }
+                    brq.seek(disk_loc);
+                    brq.read(&these_qualifiers[x]);    }
                sort( these_qualifiers.begin( ),
                     these_qualifiers.begin( ) + q_count );
 
@@ -2479,8 +2473,6 @@ void QueryLookupTableCore( int argc, char *argv[] )
                          accepted[id] = True;    }
 
                i = j - 1;    }
-
-          close(fdq);
 
           if (LIST_UNPLACED_BY_PASS)
           {    out << "\nUNPLACED QUERY SEQUENCES:";

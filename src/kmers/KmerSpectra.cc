@@ -309,26 +309,24 @@ void KmerSpectrum::analyze(const unsigned ploidy,
       double mu = 0;
       double sig2 = 0;
       double sig = 0;
-      while (sig == 0 || _kf_min3 - mu < 4 * sig || _kf_min3 < 3 * mu) {
-	if (sig > 0)
-	  _kf_min3++;
 
-	sum = 0;
-	for (size_t kf = _kf_min1; kf != _kf_min3; kf++) sum += ndk[kf];
-	mu = 0;
-	for (size_t kf = _kf_min1; kf != _kf_min3; kf++) mu += kf * ndk[kf];
-	mu /= sum;
+      _kf_min3 = _kf_max2 + (_kf_max2 - _kf_min1); 
 
-	sig2 = 0;
-	for (size_t kf = _kf_min1; kf != _kf_min3; kf++) sig2 += (kf - mu) * (kf - mu) * ndk[kf];
-	sig2 /= sum;
+      sum = 0;
+      for (size_t kf = _kf_min1; kf != _kf_min3; kf++) sum += ndk[kf];
+      mu = 0;
+      for (size_t kf = _kf_min1; kf != _kf_min3; kf++) mu += kf * ndk[kf];
+      mu /= sum;
       
-	sig = sqrt(fabs(sig2));
-	if (verbosity > 1) cout << "kf_min3         = " << _kf_min3 << endl;
-	if (verbosity > 1) cout << "mu              = " << mu << endl;
-	if (verbosity > 1) cout << "sig             = " << sig << endl;
-      }
-            
+      sig2 = 0;
+      for (size_t kf = _kf_min1; kf != _kf_min3; kf++) sig2 += (kf - mu) * (kf - mu) * ndk[kf];
+      sig2 /= sum;
+      
+      sig = sqrt(fabs(sig2));
+      if (verbosity > 1) cout << "kf_min1         = " << _kf_min1 << endl;
+      if (verbosity > 1) cout << "kf_min3         = " << _kf_min3 << endl;
+      if (verbosity > 1) cout << "mu              = " << mu << endl;
+      if (verbosity > 1) cout << "sig             = " << sig << endl;
       if (verbosity > 1) cout << "kf mean          = " << setprecision(5) << mu << endl;
       if (verbosity > 1) cout << "kf sig2          = " << setprecision(5) << sig2 << endl;
       if (verbosity > 1) cout << "kf sig           = " << setprecision(5) << sig << endl;

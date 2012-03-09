@@ -334,9 +334,9 @@ public:
 
     A get_allocator() const { return allocator(); }
 
-    size_t writeFeudal( BinaryWriter& writer, void const** ppFixed ) const
+    void writeFeudal( BinaryWriter& writer, void const** ppFixed ) const
     { *ppFixed = &mSize;
-      return writer.write(data(),dataEnd()); }
+      writer.write(data(),dataEnd()); }
 
     void readFeudal( BinaryReader& reader, unsigned long dataLen, void* fixed );
 
@@ -345,9 +345,9 @@ public:
                 0U : // for compatibility with existing feudal files of primitive T's
                 sizeof(size_type); } // for efficiency with complex T's
 
-    size_t writeBinary( BinaryWriter& writer ) const
-    { size_t len = writer.write(mSize);
-      return len+writer.write(data(),dataEnd()); }
+    void writeBinary( BinaryWriter& writer ) const
+    { writer.write(mSize);
+      writer.write(data(),dataEnd()); }
 
     void readBinary( BinaryReader& reader )
     { size_type sz; reader.read(&sz); resize(sz);
@@ -460,7 +460,8 @@ private:
 };
 
 template <class T, class A>
-struct Serializability< SmallVec<T,A> > : public SelfSerializable {};
+struct Serializability< SmallVec<T,A> >
+{ typedef SelfSerializable type; };
 
 template <class T, class A1, class A2>
 bool operator==( SmallVec<T,A1> const& v1, SmallVec<T,A2> const& v2 )

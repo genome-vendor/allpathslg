@@ -73,8 +73,12 @@ public:
     /// Default constructor refers to the root directory.
     Directory() : File(File::ROOT) {}
     Directory( char const* path ) : File(path) {}
-    Directory( std::string path ) : File(path) {}
-    Directory( File const& file ) : File(file) {}
+
+    /// Construct from something with a c_str() member (like string or String)
+    template <class C>
+    explicit Directory( C const& path,
+                            char const* (C::*)() const = &C::c_str )
+    : File(path.c_str()) {}
 
     // compiler-supplied copying and destructor are OK
 

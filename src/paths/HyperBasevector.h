@@ -127,17 +127,9 @@ class HyperBasevector : public digraphE<basevector> {
 			     const vec<String> *label_contigs_extra = NULL,
 			     const vec<int> *verticesToPrint = NULL ) const;
 
-     friend void BinaryWrite( int fd, const HyperBasevector& h );
-     friend void BinaryRead( int fd, HyperBasevector& h );
-
-     friend void BinaryWrite( int fd, const vec<HyperBasevector>& h )
-     {    BinaryWriteComplex( fd, h );    }
-     friend void BinaryRead( int fd, vec<HyperBasevector>& h )
-     {    BinaryReadComplex( fd, h );    }
-
-     size_t writeBinary( BinaryWriter& writer ) const;
+     void writeBinary( BinaryWriter& writer ) const;
      void readBinary( BinaryReader& reader );
-     static size_t externalSizeof();
+     static size_t externalSizeof() { return 0; }
 
      friend Bool operator==( const HyperBasevector& h1, const HyperBasevector& h2 );
 

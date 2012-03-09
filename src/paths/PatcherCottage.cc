@@ -14,6 +14,7 @@
 #include "MainTools.h"
 #include "ParseSet.h"
 #include "feudal/BinaryStream.h"
+#include "feudal/FeudalTools.h"
 #include "paths/PatcherCottageCore.h"
 #include "paths/UnipathFixerTools.h"
 #include "system/WorklistMP.h"
@@ -71,14 +72,25 @@ int main( int argc, char *argv[] )
          PCottageResults results;
          results.itemNumber = iMsg.itemNumber;
 
-         PatcherCottageCore( joinData.L, joinData.R, joinData.sep, joinData.dev,
-                             joinData.reads, joinData.quals, joinData.pairs,
-                             results.report, log_params, data_dir,
-                             results.startStop, K, MAX_READS, MAX_JOINS,
-                             MIN_OVERLAP_END, ROOT, iMsg.itemNumber,
-                             iMsg.u1, iMsg.u2, False );
+         if ( !SameSizes(joinData.reads,joinData.quals) )
+         {
+             std::cout << "Cottage ignoring item number " << iMsg.itemNumber
+                       << " at offset " << iMsg.offset
+                       << ": reads and quals have different shapes."
+                       << std::endl;
+             results.report = "FAILED";
+         }
+         else
+         {
+             PatcherCottageCore( joinData.L, joinData.R, joinData.sep, joinData.dev,
+                                 joinData.reads, joinData.quals, joinData.pairs,
+                                 results.report, log_params, data_dir,
+                                 results.startStop, K, MAX_READS, MAX_JOINS,
+                                 MIN_OVERLAP_END, ROOT, iMsg.itemNumber,
+                                 iMsg.u1, iMsg.u2, False );
 
-         joinData.reads.swap(results.reads);
+             joinData.reads.swap(results.reads);
+         }
          client.reportResults(results);
      }
 }

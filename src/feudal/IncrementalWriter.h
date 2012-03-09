@@ -23,14 +23,24 @@
 
 /// A class for writing feudal files for some particular feudal type.
 /// The template parameter T must be a class that has a value_type, the
-/// method size_t T::writeFeudal( BinaryWriter&, void const** ) const, and the
+/// method void T::writeFeudal( BinaryWriter&, void const** ) const, and the
 /// static method T::fixedDataLen().
 template <class T>
 class IncrementalWriter
 {
 public:
-    IncrementalWriter( char const* fileName, unsigned long estimatedSize = 1000000 )
-    : mWriter(fileName,sizeof(T),sizeof(typename T::value_type),
+    IncrementalWriter( char const* filename,
+                            unsigned long estimatedSize = 1000000 )
+    : mWriter(filename,sizeof(T),sizeof(typename T::value_type),
+              T::fixedDataLen(),estimatedSize)
+    {}
+
+    /// Construct from something with a c_str() member (like string or String)
+    template <class C>
+    explicit IncrementalWriter( C const& filename,
+                                    unsigned long estimatedSize = 1000000,
+                                    char const*(C::*)() const=&C::c_str )
+    : mWriter(filename.c_str(),sizeof(T),sizeof(typename T::value_type),
               T::fixedDataLen(),estimatedSize)
     {}
 
@@ -39,8 +49,8 @@ public:
     void add( T const& val )
     { size_t buf;
       void const* pBuf = &buf;
-      size_t len = val.writeFeudal(mWriter.getWriter(),&pBuf);
-      mWriter.addElement(len,pBuf); }
+      val.writeFeudal(mWriter.getWriter(),&pBuf);
+      mWriter.addElement(pBuf); }
 
     template <class Itr>
     void add( Itr begin, Itr end )

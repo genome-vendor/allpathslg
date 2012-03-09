@@ -139,28 +139,34 @@ TRIVIALLY_SERIALIZABLE(KmerFreqAffixes<Kmer504>);
 
 
 
-template<class MAP_t>
+template<class KMER_REC_t>
 class KmerAffixesMapNavigator
 {
-  typedef typename MAP_t::rec_type  KmerRec_t;
-  typedef typename MAP_t::kmer_type Kmer_t;
+  typedef typename KMER_REC_t::kmer_type Kmer_t;
 
-  const MAP_t & _kmap;
+  const KmerMap<KMER_REC_t> & _kmap;
   Kmer_t _kmer_fw;
   Kmer_t _kmer_rc;
   bool _fw;
-  KmerRec_t _kmer_rec;
+  KMER_REC_t _kmer_rec;
 
-  KmerAffixesMapNavigator(const MAP_t & kmap,
+public:
+  KmerAffixesMapNavigator(const KmerMap<KMER_REC_t> & kmap,
 			  const Kmer_t & kmer) : 
     _kmap(kmap),
     _kmer_fw(kmer),
     _kmer_rc(reverse_complement(kmer)),
     _fw(_kmer_fw < _kmer_rc),
     _kmer_rec(kmap(_fw ? _kmer_fw : _kmer_rc))
-  {}
+  {
+    ForceAssert(_kmer_rec.is_valid_kmer());
+  }
 
-  KmerRec_t & kmer_rec() { return _kmer_rec; }
+  KMER_REC_t & rec() const  { return _kmer_rec; } 
+  
+  Kmer_t & fw() const { return _kmer_fw; }
+  Kmer_t & rc() const { return _kmer_rc; }
+
 
   unsigned n_prefixes() const { return _kmer_rec.n_prefixes(_fw); }
   unsigned n_suffixes() const { return _kmer_rec.n_suffixes(_fw); }
@@ -179,7 +185,7 @@ class KmerAffixesMapNavigator
     _fw = (_kmer_fw < _kmer_rc);
     _kmer_rec = _kmap(_fw ? _kmer_fw : _kmer_rc);
 
-    ForceAssert(_kmer_rec);
+    ForceAssert(_kmer_rec.is_valid_kmer());
   }
 
   void next_by_suffix(const unsigned i_suf)
@@ -193,9 +199,8 @@ class KmerAffixesMapNavigator
     _fw = (_kmer_fw < _kmer_rc);
     _kmer_rec = _kmap(_fw ? _kmer_fw : _kmer_rc);
 
-    ForceAssert(_kmer_rec);
+    ForceAssert(_kmer_rec.is_valid_kmer());
   }
-
 };
 
 
@@ -205,7 +210,43 @@ class KmerAffixesMapNavigator
 
 
 
+/*
+template<class KMER_t>
+void navigate_suffixes_up_to(const KMER_t kmer_final_fw,
+                             BaseVec * bv_p,
+                             const size_t nb_max,
+                             const size_t n_branches_max) 
+{
+  if (kmer_final_fw != _kmer_fw &&
+      n_branches_max > 0 &&
+      bv_p->size() < nb_max) {
+    
+    while (n_suffixes() == 1 && 
+           kmer_final_fw != _kmer_fw &&
+           bv_p->size() < nb_max) {
+      
+      
+      bv_p.push_back(suffix(0));
+      next_by_suffix(0);
+      
+      
+      
+    }
+    
+    const unsigned n_suf = n_suffixes();
+    for (unsigned i_suf = 0; i_suf < n_suf; i_suf++) {
+      BaseVec bv;
+      
+      
+      while (bv.size() < nb_max) {
+        if (n_suffixes() == 0);
+      }
+    }
+    
+  }
+}
 
+*/
 
 
 
@@ -279,6 +320,32 @@ void kmer_freq_affixes_map_build_parallel(const size_t K,
 
 
 
+
+
+
+
+template <class KMER_REC_t>
+void kmer_freq_affixes_map_build_parallel(const size_t K,
+                                          const BaseVecVec & bvv,
+                                          const double hash_table_ratio,
+                                          KmerMap<KMER_REC_t> * kmap_p,
+                                          const size_t verbosity,
+                                          const size_t num_threads,
+                                          const size_t mean_mem_ceil = 0)
+{
+  Validator validator_kf;
+  kmer_freq_affixes_map_build_parallel(K, bvv, validator_kf, hash_table_ratio, 
+                                       kmap_p,
+                                       verbosity, num_threads, mean_mem_ceil);
+}
+
+
+
+
+
+
+
+
 template <class KMER_REC_t>
 void kmer_spectrum_from_kmer_freq_map(const KmerMap<KMER_REC_t> & kmap,
                                       KmerSpectrum * kspec_p)
@@ -345,6 +412,7 @@ void kmer_affixes_map_freq_table_print(const KmerMap<KMER_REC_t> & kmap)
 
 
 
+
 template<class KMER_REC_t>
 void kmer_affixes_vec_freq_table_print(const vec<KMER_REC_t> & kvec)
 {
@@ -396,50 +464,137 @@ void kmer_affixes_vec_freq_table_print(const vec<KMER_REC_t> & kvec)
 
 
 template<class KMER_REC_t>
-void kmer_affixes_map_verify(const KmerMap<KMER_REC_t> & kmap)
+void kmer_freq_affixes_map_verify(const KmerMap<KMER_REC_t> & kmap)
 {
   typedef typename KMER_REC_t::kmer_type Kmer_t;
 
   const size_t nh = kmap.size_hash();
-  size_t n_good = 0;
-  size_t n_total = 0;
-  for (size_t ih = 0; ih != nh; ih++) {
-    dots_pct(ih, nh);
+  size_t n_aff = 0;
+  size_t n_aff_exist = 0;
+  for (size_t ih = 0; ih != nh; dots_pct(ih++, nh)) {
 
     const KMER_REC_t & krec0 = kmap[ih];
-    if (krec0) { 
-      const Kmer_t kmer0FW(krec0);
-      const Kmer_t kmer0RC(reverse_complement(krec0));
+    if (krec0.is_valid_kmer()) { 
       unsigned n_pres = krec0.n_prefixes();
       unsigned n_sufs = krec0.n_suffixes();
+      
+      // ---- look at prefixes
 
       for (unsigned i = 0; i != n_pres; i++) {
-	n_total++;
-	Kmer_t kmerFW = kmer0FW;
-	Kmer_t kmerRC = kmer0RC;
-	kmerFW.push_left(krec0.prefix(i));
-	kmerRC.push_right(3u ^ krec0.prefix(i));
-	Kmer_t & kmer = (kmerFW < kmerRC) ? kmerFW : kmerRC;
-	if (kmap(kmer))
-	  n_good++;
+	n_aff++;
+	KmerFWRC<Kmer_t> kmerFR(krec0);
+	kmerFR.push_left(krec0.prefix(i));
+	if (kmap(kmerFR.canonical()).is_valid_kmer())
+	  n_aff_exist++;
       }
 
       for (unsigned i = 0; i != n_sufs; i++) {
-	n_total++;
-	Kmer_t kmerFW = kmer0FW;
-	Kmer_t kmerRC = kmer0RC;
-	kmerFW.push_right(krec0.suffix(i));
-	kmerRC.push_left(3u ^ krec0.suffix(i));
-	Kmer_t & kmer = (kmerFW < kmerRC) ? kmerFW : kmerRC;
-	if (kmap(kmer))
-	  n_good++;
+	n_aff++;
+	KmerFWRC<Kmer_t> kmerFR(krec0);
+	kmerFR.push_right(krec0.suffix(i));
+	if (kmap(kmerFR.canonical()).is_valid_kmer())
+	  n_aff_exist++;
       }
       
     }
   }      
     
-  cout << "n_good= " << n_good << " n_total= " << n_total << endl;
+  cout << "n_affixes= " << n_aff << endl
+       << "n_found  = " << n_aff_exist << endl;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+template<class KMER_REC_t>
+void base_vec_extension(const unsigned K, 
+                        const KmerMap<KMER_REC_t> & kmap,
+                        const BaseVec & bv,
+                        const unsigned nb_extra,
+                        BaseVec * bv_extra_p,
+                        const bool get_pre)
+{
+  typedef typename KMER_REC_t::kmer_type Kmer_t;
+
+  const size_t nb = bv.size();
+  bv_extra_p->clear();
+
+  SubKmers<BaseVec, Kmer_t> sub_kmer0(K, bv, get_pre ? 0 : nb - K);
+  const Kmer_t kmer0 = get_pre ? sub_kmer0.rc() : sub_kmer0.fw();
+
+  for (size_t i = 0; i < K; i++)
+    bv_extra_p->push_back(kmer0[i]);
+  
+  KmerAffixesMapNavigator<KMER_REC_t> knav(kmap, kmer0);
+
+  // get_pre = true  =>  follow suffixes of RC of first kmer
+  // get_pre = false =>  follow suffixes of FW of last  kmer
+
+  while (bv_extra_p->size() < K + nb_extra && 
+         knav.n_suffixes() == 1) {
+    bv_extra_p->push_back(knav.suffix(0));
+    knav.next_by_suffix(0);
+  }
+}
+
+
+
+template<class KMER_REC_t>
+void base_vec_extensions_compute(const unsigned K, 
+                                 const KmerMap<KMER_REC_t> & kmap,
+                                 const BaseVecVec bvv_in,
+                                 BaseVecVec * bvv_adj_p,
+                                 const unsigned nb_extra)
+{
+  typedef typename KMER_REC_t::kmer_type Kmer_t;
+
+  const size_t nbv = bvv_in.size();
+  
+  for (size_t ibv = 0; ibv < nbv; ibv++) {
+    const BaseVec & bv_in = bvv_in[ibv];
+
+    // ---- find prefix extension
+
+    BaseVec bv_pre;
+    base_vec_extension(K, kmap, bv_in, nb_extra, &bv_pre, true);
+
+    if (bv_pre.size() == K + nb_extra)
+      bvv_adj_p->push_back(bv_pre);
+
+
+    // ---- find suffix extension
+
+    BaseVec bv_suf;
+    base_vec_extension(K, kmap, bv_in, nb_extra, &bv_suf, false);
+
+    if (bv_suf.size() == K + nb_extra)
+      bvv_adj_p->push_back(bv_suf);
+  }
+}
+
+
+
+
+
+
+
 
 
 

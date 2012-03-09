@@ -23,7 +23,6 @@
 #include "ScoreAlignment.h"
 #include "ShortVector.h"
 #include "STLExtensions.h"
-#include "VecTemplate.h"
 #include "lookup/LookAlign.h"
 #include "math/Arith.h"
 #include "math/Functions.h"
@@ -716,6 +715,32 @@ void look_align::PrintVisual( ostream& out, const basevector& query,
           ar.ReverseThis( query.size( ), target.size( ) );
           PrintVisualAlignment( abbr, out, rd1, target_rc, ar, q1 );    }    }
 
+void look_align::writeBinary( BinaryWriter& writer ) const
+{
+    writer.write(query_id);
+    writer.write(target_id);
+    writer.write(query_length);
+    writer.write(target_length);
+    writer.write(nhits);
+    writer.write(mutations);
+    writer.write(indels);
+    writer.write(a);
+    writer.write(rc1);
+}
+
+void look_align::readBinary( BinaryReader& reader )
+{
+    reader.read(&query_id);
+    reader.read(&target_id);
+    reader.read(&query_length);
+    reader.read(&target_length);
+    reader.read(&nhits);
+    reader.read(&mutations);
+    reader.read(&indels);
+    reader.read(&a);
+    reader.read(&rc1);
+}
+
 void look_align_plus::WriteParseable( ostream& out ) const
 {
   out << QUERY << "\t" << query_id << "\t" << a.pos1( ) << "\t"
@@ -728,161 +753,6 @@ void look_align_plus::WriteParseable( ostream& out ) const
   }
   out << "\n";
 }
-
-off_t look_align_plus::BinaryWrite(int fd) const {
-  int bytes= look_align::BinaryWritePortable(fd);
-  int size = mutations_by_block.size();
-  bytes+= SafeWrite(fd, &size, sizeof(size));
-  bytes += SafeWrite(fd, &mutations_by_block[0],
-		     size * sizeof(mutations_by_block[0]));
-  return bytes;
-}
-
-off_t look_align_plus::BinaryRead(int fd) {
-  int bytes= look_align::BinaryReadPortable(fd);
-  int size = 0;
-  bytes+= read(fd, &size, sizeof(size));
-  ForceAssert(0<=size && size<=100000);
-  mutations_by_block.resize(size);
-  bytes += read(fd, &mutations_by_block[0],
-		size * sizeof(mutations_by_block[0]));
-  return bytes;
-}
-
-
-/// Load look_aligns from a binary file.
-///  q_ids: if not null, load only hits with given query_id (must be sorted)
-///  t_ids: if not null, load only hits with given target_id (must be sorted)
-void LoadLookAlignBinary( const String &filename,
-			  vec<look_align> &hits,
-			  const set<int> *q_ids,
-			  const set<int> *t_ids ) {
-  int fd = OpenForRead(filename);
-  int size;
-  ReadBytes(fd, &size, sizeof(int));
-  ForceAssert( size>=0 && size < 100000000 );
-  hits.clear();
-  look_align la;
-  for (int i=0; i !=size; ++i) {
-    la.BinaryReadPortable(fd);
-    if (q_ids && q_ids->find(la.query_id) == q_ids->end()) continue;
-    if (t_ids && t_ids->find(la.target_id) == t_ids->end()) continue;
-    hits.push_back(la);
-  }
-  Close(fd);
-}
-
-/// Load look_align_plusses from a binary file.
-///  q_ids: if not null, load only hits with given query_id (must be sorted)
-///  t_ids: if not null, load only hits with given target_id (must be sorted)
-void LoadLookAlignPlusBinary( const String &filename,
-			  vec<look_align_plus> &hits,
-			  const set<int> *q_ids,
-			  const set<int> *t_ids ) {
-  int fd = OpenForRead(filename);
-  LoadLookAlignPlusBinary(fd, hits, q_ids, t_ids);
-  Close(fd);
-}
-
-
-/// Write look_aligns to a binary file.
-///  q_ids: if not null, load only hits with given query_id
-///  t_ids: if not null, load only hits with given target_id
-void WriteLookAlignBinary( const String &filename,
-			   const vec<look_align> &hits,
-			   const set<int> *q_ids,
-			   const set<int> *t_ids ) {
-  int fd = OpenForWrite(filename);
-  int size = hits.size();
-  WriteBytes(fd, &size, sizeof(int));
-  for (int i=0; i !=size; ++i) {
-    if (q_ids && q_ids->find(hits[i].query_id) == q_ids->end()) continue;
-    if (t_ids && t_ids->find(hits[i].target_id) == t_ids->end()) continue;
-    hits[i].BinaryWritePortable(fd);
-  }
-  Close(fd);
-}
-
-/// Write look_align_plusses to a binary file.
-///  q_ids: if not null, load only hits with given query_id
-///  t_ids: if not null, load only hits with given target_id
-void WriteLookAlignPlusBinary( const String &filename,
-			   const vec<look_align_plus> &hits,
-			   const set<int> *q_ids,
-			   const set<int> *t_ids ) {
-  int fd = OpenForWrite(filename);
-  WriteLookAlignPlusBinary( fd, hits, q_ids, t_ids );
-  Close(fd);
-}
-
-
-/// Write look_align_plusses to an open binary file.
-///
-/// Parameters:
-///  fd - a file descriptor, open for writing
-///  q_ids - if not null, load only hits with given query_id
-///  t_ids - if not null, load only hits with given target_id
-void WriteLookAlignPlusBinary( int fd,
-			       const vec<look_align_plus> &hits,
-			       const set<int> *q_ids,
-			       const set<int> *t_ids ) {
-  int size = hits.size();
-  WriteBytes(fd, &size, sizeof(int));
-  for (int i=0; i !=size; ++i) {
-    if (q_ids && q_ids->find(hits[i].query_id) == q_ids->end()) continue;
-    if (t_ids && t_ids->find(hits[i].target_id) == t_ids->end()) continue;
-    hits[i].BinaryWrite(fd);
-  }
-}
-
-/// Load look_align_plusses from an open binary file.
-///  q_ids: if not null, load only hits with given query_id (must be sorted)
-///  t_ids: if not null, load only hits with given target_id (must be sorted)
-void LoadLookAlignPlusBinary( int fd,
-			      vec<look_align_plus> &hits,
-			      const set<int> *q_ids,
-			      const set<int> *t_ids ) {
-  int size;
-  ReadBytes(fd, &size, sizeof(int));
-  ForceAssert(size>=0 && size < 10000000);
-  hits.clear();
-  look_align_plus la;
-  for (int i=0; i !=size; ++i) {
-    la.BinaryRead(fd);
-    if (q_ids && q_ids->find(la.query_id) == q_ids->end()) continue;
-    if (t_ids && t_ids->find(la.target_id) == t_ids->end()) continue;
-    hits.push_back(la);
-  }
-}
-
-
-/**
-   Write a vector of vectors of <look_align_pluses> to a binary file.
-*/
-void WriteVecLookAlignPlusVec( const String& file_name,
-			       const vec_look_align_plus_vec& vecLookAlignPlusVec ) {
-  int fd = OpenForWrite(file_name);
-  for (int i=0; i < vecLookAlignPlusVec.isize(); i++) {
-    WriteLookAlignPlusBinary( fd, vecLookAlignPlusVec[i] );
-  }
-  Close(fd);
-}
-
-
-/**
-   Load a vector of vectors of <look_align_pluses> from a binary file.
-*/
-void LoadVecLookAlignPlusVec( const String& file_name,
-			      vec_look_align_plus_vec& vecLookAlignPlusVec ) {
-  int fd = OpenForWrite(file_name);
-  for (int i=0; i < vecLookAlignPlusVec.isize(); i++) {
-    look_align_plus_vec oneVec;
-    LoadLookAlignPlusBinary( fd, oneVec );
-    vecLookAlignPlusVec.push_back( oneVec );
-  }
-  Close(fd);
-}
-
 
 /*
  * LoadLookAlignPlus
@@ -922,6 +792,7 @@ void LoadLookAlignPlus( const String &file_name,
     hits.push_back( hit );
   }
 }
+
 
 int LookAlignOffset( const look_align_plus &hit )
 {
@@ -1299,6 +1170,17 @@ ofstream & operator << (ofstream & os, const look_align & la)
   return os;
 }
 
+void LoadLookAlignBinary( String const& file_name,
+                                vec<look_align>& hits,
+                                std::set<int> const& readNumberSet )
+{
+    std::set<int>::iterator notFound = readNumberSet.end();
+    BinaryIteratingReader< vec<look_align> > br(file_name);
+    typedef BinaryIteratingReader< vec<look_align> >::iterator Itr;
+    for ( Itr itr(br.begin()), end(br.end()); itr != end; ++itr )
+        if ( readNumberSet.find(itr->query_id) != notFound )
+            hits.push_back(*itr);
+}
 
 void BuildLookAlignsIndex( const vec<look_align>& aligns,
 			   vec< vec<align_id_t> >& aligns_index, int nqueries ) {
@@ -1398,12 +1280,3 @@ void GetBestAligns
       best[id] = minerr[ ( minerr.solo( ) ? 0 : ( randomx( ) % minerr.size( ) ) ) ];
   }
 }
-
-template<int> void BinaryWrite3( const String& filename, const vec<int>& v );
-template<int> void BinaryRead3( const String& filename, vec<int>& v, bool strict = false );
-
-
-BINARY2_DEF(GaplessAlign);
-BINARY3_DEF(GaplessAlign);
-
-

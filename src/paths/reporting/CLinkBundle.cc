@@ -13,13 +13,9 @@
 /**
  * Template initializations
  */
-template void BinaryWrite( int, const digraphE<CLinkBundle>& );
-
-template void BinaryRead( int, digraphE<CLinkBundle>& );
-
 template const CLinkBundle& digraphE<CLinkBundle>::EdgeObject( int ) const;
-
 template vec<int> digraphE<CLinkBundle>::EdgesBetween( int, int ) const;
+template void digraphE<CLinkBundle>::readBinary( BinaryReader& );
 
 /**
  * CLinkBundle
@@ -107,18 +103,3 @@ double CLinkBundle::CombinedScore( ) const
   double sig = ( score_ - CENTER ) * ( score_ - CENTER );
   return sqrt( N ) * exp( - N * sig / DAMPING );
 }
-
-/**
- * BinaryWrite
- */
-void BinaryWrite( int fd, const CLinkBundle &bundle ) {
-  WriteBytes( fd, &bundle, sizeof( bundle ) );
-}
-
-/**
- * BinaryRead
- */
-void BinaryRead( int fd, CLinkBundle &bundle ) {
-  ReadBytes( fd, &bundle, sizeof( bundle ) );
-}
-

@@ -82,8 +82,6 @@ class uniseq {
      void ReverseMe( const vec<int>& to_rc );
      uniseq Reverse( const vec<int>& to_rc ) const;
 
-     Bool Contains( const uniseq& x ) const;
-
      friend ostream& operator<<( ostream& out, const uniseq& q );
 
      void Print( ostream& out, const int K ) const;
@@ -95,6 +93,20 @@ class uniseq {
 
      friend uniseq Cat( const uniseq& s1, const uniseq& s2 );
      friend uniseq Cat( const uniseq& u1, const uniseq& u2, const uniseq& u3 );
+
+     Bool Contains( const uniseq& x ) const;
+
+     // Contains( x, p ).  You must have either p = 0 or p = -1.  If p = 0,
+     // return True if *this contains x at its beginning.  If p = -1, return True
+     // if *this contains x at its end.
+
+     Bool Contains( const uniseq& x, int p ) const
+     {    ForceAssert( p == 0 || p == -1 );
+          if ( p == 0 )
+               return U( ).Contains( x.U( ), 0 ) && Over( ).Contains( x.Over( ), 0 );
+          else
+          {    if ( !U( ).Contains( x.U( ), N( ) - x.N( ) ) ) return False;
+               return Over( ).Contains( x.Over( ), N( ) - x.N( ) );    }    }
 
      friend vec<int> Common( const vec<uniseq>& v );
 
@@ -108,6 +120,9 @@ class uniseq {
           if ( u1.U( ) > u2.U( ) ) return False;
           return u1.Over( ) < u2.Over( );    }
 
+     void writeBinary( BinaryWriter& writer ) const;
+     void readBinary( BinaryReader& reader );
+
      private:
 
      vec<int> u_;       // unibases ids
@@ -115,6 +130,8 @@ class uniseq {
      const static vecbasevector* unibases_;
 
 };
+
+template<> struct Serializability<uniseq> { typedef SelfSerializable type; }; 
 
 class gapster {
   
@@ -162,6 +179,14 @@ class gapster {
      {    Assert( Closed( ) );
           return closures_[n];    }      
 
+     friend Bool operator==( const gapster& g1, const gapster& g2 )
+     {    if ( g1.open_ != g2.open_ ) return False;
+          if ( g1.open_ ) return g1.sep_ == g2.sep_ && g1.dev_ == g2.dev_;
+          else return g1.closures_ == g2.closures_;    }
+
+     void writeBinary( BinaryWriter& writer ) const;
+     void readBinary( BinaryReader& reader );
+
      private:
 
      Bool open_;
@@ -170,6 +195,8 @@ class gapster {
      vec<uniseq> closures_;
 
 };
+
+template<> struct Serializability<gapster> { typedef SelfSerializable type; }; 
 
 class snark {
 
@@ -237,7 +264,12 @@ class snark {
      int64_t EstimatedGenomeSize( ) const;
 
      // Compute scaffolds
-     void ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, digraphE<sepdev>& SG ) const;
+
+     void ComputeScaffolds( vec<superb>& superbs, vec<efasta>& econtigs, 
+          digraphE<sepdev>& SG ) const;
+
+     void writeBinary( BinaryWriter& writer ) const;
+     void readBinary( BinaryReader& reader );
 
      private:
 
@@ -247,6 +279,8 @@ class snark {
      const static vec<int>* to_rc_;
 
 };
+
+template<> struct Serializability<snark> { typedef SelfSerializable type; }; 
 
 // A placement_on describes the position of read on a snark.  When placed on a
 // closed edge object, we do not track the closure that the read lies on, and thus

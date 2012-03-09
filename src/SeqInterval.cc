@@ -7,10 +7,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "SeqInterval.h"
-#include "VecTemplate.h"
-
-BINARY2_DEF(seq_interval);
-
+#include "Vec.h"
 
 
 /*

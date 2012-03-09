@@ -48,7 +48,7 @@ int main( int argc, char** argv )
         PathCollection<K>::create(readsFile,GRAPHINFO,VALIDATE,NUM_THREADS);
     else
     {
-        size_t nKmers = 4 * MasterVec<bvec>::MastervecFileRawCount(readsFile) /
+        size_t nKmers = 4 * vecbvec::MastervecFileRawCount(readsFile) /
                             COVERAGE_ESTIMATE;
         PathCollection<K>::create(readsFile,VALIDATE,NUM_THREADS,nKmers,
                                 WRITE_KMER_COUNTS);

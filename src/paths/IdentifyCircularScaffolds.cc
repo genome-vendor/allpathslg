@@ -207,7 +207,7 @@ void IdentifyCircularScaffolds( const PairsManager &pairs,
 	<< " is circular (" << bundles[bid].size( )
 	<< " links found, implying a gap of " 
 	<< ToString( nd_gap.mu_, 0 ) << " +/- "
-	<< ToString( nd_gap.sigma_, 0 ) << ")\n";
+	<< ToString( nd_gap.sigma_, 0 ) << ")" << endl;
 
     // Nothing else to do.
     if ( VERBOSE < 2 ) continue;
@@ -233,8 +233,7 @@ void IdentifyCircularScaffolds( const PairsManager &pairs,
       out << "   link: s" << super_id << "_" << ii << "." << winner.size( ) - 1
 	  << "\tgap: " << gap << " +/- " << lib_dev
 	  << "\tlib: " << pairs.libraryName( pair_id )
-	  << "\tdist: " << dist1 << " . " << dist2
-	  << "\n";
+	  << "\tdist: " << dist1 << " . " << dist2 << endl;
     }
   }
 
@@ -401,7 +400,7 @@ void IdentifyCircularScaffolds( const vec<PairsManager> &pairs,
 	<< " (" << super_len[super_id] << " bases)"
 	<< " is circular (" << n_links
 	<< " links found, implying a gap of " 
-	<< circ_gap << " +/- " << circ_dev << ")\n";
+	<< circ_gap << " +/- " << circ_dev << ")" << endl;
   }
   
   // Sort answer and leave.

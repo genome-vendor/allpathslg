@@ -31,11 +31,18 @@ void CompressedSequence::ReverseComplement()
     }
 }
 
-void CompressedSequence::asBasevector( basevector &bv ) const
+void CompressedSequence::asBasevector( basevector &bv, bool allow_x ) const
 {
     bv.clear().reserve(size());
-    for ( const_iterator itr(begin()), stop(end()); itr != stop; ++itr )
-        bv.push_back(GeneralizedBase::bits2Val(*itr));
+    for ( const_iterator itr(begin()), stop(end()); itr != stop; ++itr ) {
+	if ( ! allow_x )
+	    bv.push_back(GeneralizedBase::bits2Val(*itr));
+	else {
+	    // Treat 'X' as 'N' to prevent crash
+	    GeneralizedBase const& gb = GeneralizedBase::fromBits(*itr);
+	    bv.push_back( gb ==  GeneralizedBase::X ? GeneralizedBase::N.random() : gb.random() );
+	}
+    }
 }
 
 void CompressedSequence::getAmbBases( bitvector &bitv ) const

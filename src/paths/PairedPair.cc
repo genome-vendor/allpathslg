@@ -998,18 +998,6 @@ ostream& operator<<( ostream& o, const istring& x )
           count += BaseAlpha( x[i] ).size( );    }
      return o;    }
 
-void BinaryWrite( int fd, const pp_pair& p )
-{    BinaryWrite( fd, p.Left( ) );
-     BinaryWrite( fd, p.Right( ) );
-     WriteBytes( fd, &p.gap_, sizeof(p.gap_) );
-     WriteBytes( fd, &p.dev_, sizeof(p.dev_) );    }
-
-void BinaryRead( int fd, pp_pair& p )
-{    BinaryRead( fd, p.LeftMutable( ) );
-     BinaryRead( fd, p.RightMutable( ) );
-     ReadBytes( fd, &p.gap_, sizeof(p.gap_) );
-     ReadBytes( fd, &p.dev_, sizeof(p.dev_) );    }
-
 ostream& operator<<( ostream& o, const pp_pair& p )
 {    o << p.Left( ) << " --- ";
      if ( p.Dev( ) == 0 && double( int( floor( p.Gap( ) ) ) ) == p.Gap( ) )

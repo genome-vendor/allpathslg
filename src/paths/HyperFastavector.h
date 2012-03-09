@@ -16,6 +16,7 @@
 #include "Superb.h"
 #include "graph/Digraph.h"
 #include "paths/HyperBasevector.h"
+#include "feudal/BinaryStream.h"
 
 // HyperFastavector.  Like a HyperBasevector, but allows ambiguous base codes.
 
@@ -112,13 +113,10 @@ class HyperFastavector : public digraphE<fastavector> {
 			     const vec<String> *label_edges_extra = NULL,
 			     const vec<String> *label_contigs_extra = NULL,
 			     const vec<int> *verticesToPrint = NULL ) const;
-     friend void BinaryWrite( int fd, const HyperFastavector& h );
-     friend void BinaryRead( int fd, HyperFastavector& h );
 
-     friend void BinaryWrite( int fd, const vec<HyperFastavector>& h )
-     {    BinaryWriteComplex( fd, h );    }
-     friend void BinaryRead( int fd, vec<HyperFastavector>& h )
-     {    BinaryReadComplex( fd, h );    }
+     void writeBinary( BinaryWriter& writer ) const;
+     void readBinary( BinaryReader& reader );
+     static size_t externalSizeof() { return 0; }
 
      friend Bool operator==( const HyperFastavector& h1, 
           const HyperFastavector& h2 );
@@ -138,6 +136,7 @@ class HyperFastavector : public digraphE<fastavector> {
      int K_;
 
 };
+SELF_SERIALIZABLE(HyperFastavector);
 
 // Semantic type: edgeName_t
 // Alphanumeric name of an assembly edge, obtained as

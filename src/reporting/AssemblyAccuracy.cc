@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                   SOFTWARE COPYRIGHT NOTICE AGREEMENT                     //
-//       This software and its documentation are copyright (2011) by the     //
+//       This software and its documentation are copyright (2012) by the     //
 //   Broad Institute.  All rights are reserved.  This software is supplied   //
 //   without any warranty or guaranteed support whatsoever. The Broad        //
 //   Institute is not responsible for its use, misuse, or functionality.     //
@@ -422,6 +422,7 @@ int main(int argc, char **argv)
      CommandArgument_Int_OrDefault(CHUNK_ID, -1);
      CommandArgument_UnsignedInt_OrDefault_Doc(NUM_THREADS, 0, 
 	   "Number of threads to use (use all available processors if set to 0)");
+     CommandArgument_Bool_OrDefault(VISUAL_ABBR, True);
 
      EndCommandArguments;
 
@@ -1269,7 +1270,8 @@ int main(int argc, char **argv)
                {    out << "\n\naligns " << ( rc ? "rc" : "fw" ) << " to reference "
                          << "contig " << t_best << " (" << refnames[t_best] 
                          << ") starting at " << start_best + a_best.pos2( ) << "\n";
-                    PrintVisualAlignment( True, out, c_best, r_best, a_best );    }
+                    PrintVisualAlignment( VISUAL_ABBR, out, c_best, 
+                         r_best, a_best );    }
                chunk_reports[i] = out.str( );    }
           #pragma omp critical
           {    total += n;

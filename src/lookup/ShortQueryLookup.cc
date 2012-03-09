@@ -27,6 +27,7 @@ queries (SEQS) against a lookup table (L), fairly quickly.
 #include "system/ParsedArgs.h"
 #include "FastaFileset.h"
 #include "MainTools.h"
+#include "feudal/BinaryStream.h"
 #include "lookup/HitReceiver.h"
 #include "lookup/AlignCollector.h"
 #include "lookup/ImperfectLookup.h"
@@ -258,7 +259,7 @@ int main( int argc, char *argv[] )
       
   vec<int> ambReads;
   if ( !AMB_READS_FILE.empty() ) {
-    BinaryRead3(AMB_READS_FILE,ambReads);
+    BinaryReader::readFile(AMB_READS_FILE,&ambReads);
     sort(ambReads.begin(),ambReads.end());
     look.SetAmbiguousReads(ambReads);
   }

@@ -19,6 +19,7 @@
 #include "FeudalMimic.h"
 #include "MainTools.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "graph/Digraph.h"
 #include "graph/DigraphTemplate.h"
 #include "lookup/LookAlign.h"
@@ -364,7 +365,7 @@ int main( int argc, char *argv[] )
      {    HyperKmerPath hkp;
           {    vecKmerPath unipaths( reads_head + ".unipaths.k" + ToString(K) );
                digraph A;
-               BinaryRead( reads_head + ".unipath_adjgraph.k" + ToString(K), A );
+               BinaryReader::readFile( reads_head + ".unipath_adjgraph.k" + ToString(K), &A );
                cout << Date( ) << ": building unipath adjacency HyperKmerPath" 
                     << endl;
                BuildUnipathAdjacencyHyperKmerPath( K, A, unipaths, hkp );    }
@@ -504,14 +505,14 @@ int main( int argc, char *argv[] )
                spaths_rc.WriteAll( wrun_out_dir + "/reads.paths_rc.k" + KS );
                vec<tagged_rpint> spathsdb;
                CreateDatabase( spaths, spaths_rc, spathsdb );
-               BinaryWrite2( wrun_out_dir + "/reads.pathsdb.k" + KS, spathsdb );    }
+               BinaryWriter::writeFile( wrun_out_dir + "/reads.pathsdb.k" + KS, spathsdb );    }
 	  
 	  cout << Date( ) << ": writing " << HYPER_OUT << " and auxiliary files" 
                << endl;
 	  vec<KmerPath> pathsx = VecOfKmerPath( spaths );
 	  HyperKmerPath hplus( K, hbplus, pathsx );
 	  String out_head = sub_dir + "/" + HYPER_OUT;
-	  BinaryOverwrite( out_head, hplus );
+	  BinaryWriter::writeFile( out_head, hplus );
 	  
 	  KmerBaseBroker kbb2( wrun_out_dir, K );
 	  hplus.DumpFasta( out_head + ".fasta", kbb2 );

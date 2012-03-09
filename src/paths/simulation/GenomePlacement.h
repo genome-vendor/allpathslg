@@ -12,7 +12,7 @@
 
 #include "system/Types.h"
 #include "SemanticTypes.h"
-
+#include "feudal/BinaryStreamTraits.h"
 #include <iostream>
 #include <iomanip>
 
@@ -150,7 +150,7 @@ class genome_placement {
      int nplaces_;
 
 };
-
+TRIVIALLY_SERIALIZABLE(genome_placement);
 
 // Semantic type: genome_placement_id_t
 // Represents the id of a genome_placement

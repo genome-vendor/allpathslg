@@ -89,8 +89,6 @@
 #define GARBAGE 0
 #define GARBAGESTRING String("Unreachable")
 
-#include <stdio.h>
-
 #include <fstream>
 
 #include "String.h"

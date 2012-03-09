@@ -39,11 +39,11 @@
 #define ALIGN_HYPER_KMER_PATH_H
 
 #include "CoreTools.h"
-#include "BinaryIO.h"
 #include "lookup/LookAlign.h"
 #include "graph/DotUtils.h"
 #include "paths/HyperKmerPath.h"
 #include "paths/SeqOnHyper.h"
+#include "feudal/BinaryStream.h"
 
 #include <map>
 
@@ -164,9 +164,6 @@ class TrustedPath {
   bool IsFw() const { return GetRc() == 0; }
   bool IsRc() const { return GetRc() == 1; }
 
-  DEFINE_BINARY_IO_5( TrustedPath, m_contig, m_vertexIds, m_aligns,
-		      m_fractionEdgeLengthAligned, m_uniquePerfectEdgeIds );
-  
   const look_align& 
   GetAlign( int i ) const { return m_aligns[i]; }
 
@@ -186,6 +183,10 @@ class TrustedPath {
 
   void TestValid( ) const;
   void TestValid( const HyperKmerPath& ) const;
+
+  void writeBinary( BinaryWriter& writer ) const;
+  void readBinary( BinaryReader& reader );
+  static size_t externalSizeof() { return 0; }
 
  private:
   // Private field: m_contig
@@ -212,6 +213,7 @@ class TrustedPath {
 
   mutable vec<int> m_uniquePerfectEdgeIds;
 };  // class TrustedPath
+SELF_SERIALIZABLE(TrustedPath);
 
 ostream& operator<< ( ostream& out, const TrustedPath& path );
 

@@ -21,6 +21,7 @@
 #include "math/Functions.h"
 #include "math/HoInterval.h"
 #include "system/file/FileReader.h"
+#include "feudal/BinaryStream.h"
 
 #include <set>
 
@@ -66,7 +67,6 @@ class alignment_plus;
   2.1. Binary methods
 
   - LoadLookAlignBinary/WriteLookAlignBinary: read/write a binary vec<look_align>
-  - LoadLookAlignPlusBinary/WriteLookAlignPlus Binary: read/write a binary
     vec<look_align_plus>, preserving the mutations_by_block information.
 
 
@@ -187,96 +187,6 @@ class look_align {
 
   /// Returns true if alignment is proper.
   Bool IsProper( ) const { return Proper( this->a, (int)this->query_length, (int)this->target_length ); }
-
-  off_t BinaryWrite( int fd ) const
-  {
-    off_t bytes_written = 0;
-
-    // First write all the "int" or "unsigned int" members of this class,
-    // together with the three int members of class align.
-
-    bytes_written += SafeWrite( fd, &query_id,
-				sizeof(query_id) + sizeof(target_id)
-				+ sizeof(query_length) + sizeof(target_length) + sizeof(nhits)
-				+ sizeof(mutations) + sizeof(indels) + 3 * sizeof(int) );
-
-    // Write the number of blocks in the alignment, followed by the gaps
-    // and lengths elements of the alignments.
-
-    int nblocks = a.Nblocks( );
-    bytes_written += SafeWrite( fd, &nblocks, sizeof(nblocks) );
-    bytes_written += SafeWrite( fd, &(a.Gaps( )(0)), nblocks * sizeof(int) );
-    bytes_written += SafeWrite( fd, &(a.Lengths( )(0)),
-				nblocks * sizeof(int) );
-
-    // Finally, write rc1.
-
-    bytes_written += SafeWrite( fd, &rc1, sizeof(rc1) );
-    return bytes_written;    }
-
-
-  ///This method produces the same files under i386 and ia64.
-  ///BinaryRead and BinaryWrite operate differently on i386 and ia64.
-  off_t BinaryWritePortable( int fd ) const
-  {
-    off_t bytes_written = 0;
-
-    // First write all the "int" or "unsigned int" members of this class,
-
-    bytes_written += SafeWrite( fd, &query_id, sizeof(query_id));
-    bytes_written += SafeWrite( fd, &target_id, sizeof(target_id));
-    bytes_written += SafeWrite( fd, &query_length, sizeof(query_length));
-    bytes_written += SafeWrite( fd, &target_length, sizeof(target_length));
-    bytes_written += SafeWrite( fd, &nhits, sizeof(nhits));
-    bytes_written += SafeWrite( fd, &mutations, sizeof(mutations));
-    bytes_written += SafeWrite( fd, &indels, sizeof(indels));
-    bytes_written += a.BinaryWrite(fd);
-
-    // Finally, write rc1.
-    bytes_written += SafeWrite( fd, &rc1, sizeof(rc1) );
-    return bytes_written;
-  }
-
-  ///This method produces the same files under i386 and ia64.
-  ///BinaryRead and BinaryWrite operate differently on i386 and ia64.
-  off_t BinaryReadPortable( int fd )
-  {
-    off_t bytes_read = 0;
-
-    // First read all the "int" or "unsigned int" members of this class,
-
-    bytes_read += read( fd, &query_id, sizeof(query_id));
-    bytes_read += read( fd, &target_id, sizeof(target_id));
-    bytes_read += read( fd, &query_length, sizeof(query_length));
-    bytes_read += read( fd, &target_length, sizeof(target_length));
-    bytes_read += read( fd, &nhits, sizeof(nhits));
-    bytes_read += read( fd, &mutations, sizeof(mutations));
-    bytes_read += read( fd, &indels, sizeof(indels));
-    bytes_read += a.BinaryRead(fd);
-    // Finally, read rc1.
-    bytes_read += read( fd, &rc1, sizeof(rc1) );
-    return bytes_read;
-  }
-
-  void BinaryRead( int fd )
-  {
-    read( fd, &query_id, sizeof(query_id) + sizeof(target_id)
-          + sizeof(query_length) + sizeof(target_length) + sizeof(nhits)
-          + sizeof(mutations) + sizeof(indels) + 3 * sizeof(int) );
-    int nblocks;
-    read( fd, &nblocks, sizeof(nblocks) );
-    a.SetNblocks(nblocks);
-    vec<int> gaps, lengths;
-    gaps.resize(nblocks), lengths.resize(nblocks);
-    read( fd, &gaps[0], nblocks * sizeof(int) );
-    read( fd, &lengths[0], nblocks * sizeof(int) );
-    for ( int i = 0; i < nblocks; i++ )
-    {
-      a.SetGap( i, gaps[i] );
-      a.SetLength( i, lengths[i] );
-    }
-    read( fd, &rc1, sizeof(rc1) );
-  }
 
   Bool FullLength( ) const
   {    return a.StartOnQuery( ) == 0 && a.EndOnQuery( ) == (int) query_length;    }
@@ -480,29 +390,30 @@ class look_align {
                     const Bool abbr = True,
                     const Bool reverse_display = False ) const;
 
+  void writeBinary( BinaryWriter& writer ) const;
+  void readBinary( BinaryReader& reader );
+  static size_t externalSizeof() { return 0; }
+
 };  // class look_align
-
-
-inline void BinaryWrite( int fd, const look_align& a ) { a.BinaryWritePortable( fd ); }
-inline void BinaryRead( int fd, look_align& a ) { a.BinaryReadPortable( fd ); }
-inline void BinaryWrite( int fd, const vec<look_align>& v ) { BinaryWriteComplex( fd, v ); }
-inline void BinaryRead( int fd, vec<look_align>& v ) { BinaryReadComplex( fd, v ); }
+SELF_SERIALIZABLE(look_align);
 
 /// Load look_aligns from a binary file.
 ///  q_ids: if not null, load only hits with given query_id (must be sorted)
 ///  t_ids: if not null, load only hits with given target_id (must be sorted)
-void LoadLookAlignBinary( const String &file_name,
-			  vec<look_align> &hits,
-			  const set<int> *q_ids = 0,
-			  const set<int> *t_ids = 0 );
+inline void LoadLookAlignBinary( const String &file_name,
+                                        vec<look_align> &hits )
+{ BinaryReader::readFile(file_name,&hits); }
+
+void LoadLookAlignBinary( String const& file_name,
+                                vec<look_align>& hits,
+                                std::set<int> const& readNumberSet );
 
 /// Write look_aligns to a binary file.
 ///  q_ids: if not null, load only hits with given query_id
 ///  t_ids: if not null, load only hits with given target_id
-void WriteLookAlignBinary( const String &file_name,
-			   const vec<look_align> &hits,
-			   const set<int> *q_ids = 0,
-			   const set<int> *t_ids = 0 );
+inline void WriteLookAlignBinary( const String &file_name,
+                                const vec<look_align> &hits )
+{ BinaryWriter::writeFile(file_name,hits); }
 
 /// Return true if the pair of look_aligns best, secondBest represent
 /// ambiguous alignments of a read.  Two tests are supported: by
@@ -538,12 +449,6 @@ class look_align_plus : public look_align {
   void ReadParseable( const String& in );
 
   void WriteParseable( ostream& out ) const;
-
-  ///Write a complete look_align_plus portably, matches BinaryRead().
-  off_t BinaryWrite(int fd) const;
-
-  ///Read a complete look_align_plus portably, matches BinaryWrite().
-  off_t BinaryRead(int fd);
 };
 
 /// Load look_aligns from a file, and generate an index to them.
@@ -567,46 +472,6 @@ void LoadLookAlignPlus( const String &file_name,
 			vec<look_align_plus> &hits,
 			const vec<int> *q_ids = 0,
 			const vec<int> *t_ids = 0 );
-
-/// Load look_align_pluses from a binary file.
-///  q_ids: if not null, load only hits with given query_id (must be sorted)
-///  t_ids: if not null, load only hits with given target_id (must be sorted)
-void LoadLookAlignPlusBinary( const String &file_name,
-                              vec<look_align_plus> &hits,
-                              const set<int> *q_ids = NULL,
-                              const set<int> *t_ids = NULL );
-
-/// Write look_align_pluses to a binary file.
-///  q_ids: if not null, load only hits with given query_id
-///  t_ids: if not null, load only hits with given target_id
-void WriteLookAlignPlusBinary( const String &file_name,
-                               const vec<look_align_plus> &hits,
-                               const set<int> *q_ids = NULL,
-                               const set<int> *t_ids = NULL );
-
-
-/// Function: LoadLookAlignPlusBinary
-///
-/// Load look_align_pluses from an open binary file.
-///  q_ids: if not null, load only hits with given query_id (must be sorted)
-///  t_ids: if not null, load only hits with given target_id (must be sorted)
-void LoadLookAlignPlusBinary( int fd,
-                              vec<look_align_plus> &hits,
-                              const set<int> *q_ids = NULL,
-                              const set<int> *t_ids = NULL );
-
-/// Function: WriteLookAlignPlusBinary
-///
-/// Write look_align_plusses to an open binary file.
-///
-/// Parameters:
-///  fd - a file descriptor, open for writing
-///  q_ids - if not null, load only hits with given query_id
-///  t_ids - if not null, load only hits with given target_id
-void WriteLookAlignPlusBinary( int fd,
-			       const vec<look_align_plus> &hits,
-			       const set<int> *q_ids = NULL,
-			       const set<int> *t_ids = NULL );
 
 /**
    Class: GaplessAlign
@@ -659,7 +524,7 @@ class GaplessAlign {
   Bool IsQueryFW( ) const { return Fw1(); }
 
 };  // class GaplessAlign
-
+TRIVIALLY_SERIALIZABLE(GaplessAlign);
 
 class genome_pos {
 
@@ -1164,26 +1029,6 @@ typedef vec< look_align_plus_vec > vec_look_align_plus_vec;
    as <look_align_pluses>.
 */
 typedef vec_look_align_plus_vec read_aligns_plus_t;
-
-
-/**
-   Function: WriteVecLookAlignPlusVec
-
-   Write a vector of vectors of <look_align_pluses> to a binary file.
-*/
-void WriteVecLookAlignPlusVec( const String& file_name,
-			       const vec_look_align_plus_vec& vecLookAlignPlusVec );
-
-/**
-   Function: LoadVecLookAlignPlusVec
-
-   Load a vector of vectors of <look_align_pluses> from a binary file.
-*/
-void LoadVecLookAlignPlusVec( const String& file_name,
-			      vec_look_align_plus_vec& vecLookAlignPlusVec );
-
-
-
 
 
 

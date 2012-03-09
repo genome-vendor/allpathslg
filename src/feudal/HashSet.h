@@ -249,10 +249,10 @@ public:
     { size_type idx = pBkt - mBuckets;
       return idx < capacity() && mBktInfo[idx].getStatus()==BktStatus::EMPTY; }
 
-    size_t writeBinary( BinaryWriter& writer ) const
-    { size_t len = writer.write(mSize);
-      len += writer.write(mBktInfo,mBktInfo+mCapacity);
-      return len+writer.write(mBuckets,mBuckets+mCapacity); }
+    void writeBinary( BinaryWriter& writer ) const
+    { writer.write(mSize);
+      writer.write(mBktInfo,mBktInfo+mCapacity);
+      writer.write(mBuckets,mBuckets+mCapacity); }
 
     void readBinary( BinaryReader& reader )
     { reader.read(&mSize);
@@ -480,7 +480,7 @@ private:
 
 template <class T, class H, class C, class F>
 struct Serializability< HopscotchHashSet<T,H,C,F> >
-: public SelfSerializable {};
+{ typedef SelfSerializable type; };
 
 /// A gracefully-growable HashSet.
 /// Splits fixed-size hopscotch hash sets as it grows.  This means that only a
@@ -693,15 +693,14 @@ public:
     { size_type idx = ppHHS - mppHHS;
       return idx < mCapacity && !*ppHHS; }
 
-    size_t writeBinary( BinaryWriter& writer ) const
+    void writeBinary( BinaryWriter& writer ) const
     { size_type cap = mCapacity;
-      size_t len = writer.write(cap);
-      len += writer.write(mInnerCapacity);
+      writer.write(cap);
+      writer.write(mInnerCapacity);
       PPHHS end = mppHHS + mCapacity;
       for ( PPHHS itr = mppHHS; itr != end; ++itr )
-      { if ( !*itr ) len += writer.write(false);
-        else { len += writer.write(true); len += writer.write(**itr); } }
-      return len; }
+      { if ( !*itr ) writer.write(false);
+        else { writer.write(true); writer.write(**itr); } } }
 
     void readBinary( BinaryReader& reader )
     { destroy();
@@ -829,6 +828,7 @@ private:
 };
 
 template <class T, class H, class C, class F>
-struct Serializability< HashSet<T,H,C,F> > : public SelfSerializable {};
+struct Serializability< HashSet<T,H,C,F> >
+{ typedef SelfSerializable type; };
 
 #endif /* FEUDAL_HASHSET_H */

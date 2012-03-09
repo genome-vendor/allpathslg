@@ -12,6 +12,7 @@
 #include "Equiv.h"
 #include "FetchReads.h"
 #include "FetchReadsAmb.h"
+#include "feudal/BinaryStream.h"
 #include "lookup/LookAlign.h"
 #include "math/Functions.h"
 #include "math/HoInterval.h"
@@ -370,7 +371,7 @@ void EvaluateAssembly( HyperKmerPath& h, const KmerBaseBroker* kbb,
                cout << TimeSince(writeclock) 
                     << " used writing aligns." << endl;    }
 
-          BinaryWrite( sub_dir + "/" + HYPER + ".trusted_paths", trusted_paths );
+          BinaryWriter::writeFile( sub_dir + "/" + HYPER + ".trusted_paths", trusted_paths );
      }
 
      int K = h.K( );
@@ -638,7 +639,7 @@ void EvaluateAssembly( HyperKmerPath& h, const KmerBaseBroker* kbb,
           spaths_rc.WriteAll( wrun_dir + "/2/reads.paths_rc.k" + KS );
           vec<tagged_rpint> spathsdb;
           CreateDatabase( spaths, spaths_rc, spathsdb );
-          BinaryWrite2( wrun_dir + "/2/reads.pathsdb.k" + KS, spathsdb );
+          BinaryWriter::writeFile( wrun_dir + "/2/reads.pathsdb.k" + KS, spathsdb );
           KmerBaseBroker* kbb2 = new KmerBaseBroker( wrun_dir + "/2", K );
           vec<KmerPath> these_paths;
           for ( int j = 0; j < hb.EdgeObjectCount( ); j++ )

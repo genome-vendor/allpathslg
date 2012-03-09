@@ -23,7 +23,6 @@
 #include "feudal/SmallVec.h"
 #include <algorithm>
 #include <cstddef>
-#include <cstdio>
 #include <iterator>
 #include <limits>
 #include <string>
@@ -241,7 +240,12 @@ public:
     { return FeudalString(*this,pos,n); }
 
     /// Return a compatible c string of *this
-    const_pointer c_str() const;
+    const_pointer c_str() const
+    { if (empty()) return EmptyString;
+      container &vec = const_cast<container&>(mContainer);
+      vec.reserve(size() + 1);
+      *vec.dataEnd() = charT();
+      return data(); }
 
     /// data
     const_pointer data() const
@@ -460,11 +464,11 @@ public:
     { return std::basic_string<charT, Traits>(c_str()); }
 
     /// Feudal File methods
-    size_t writeBinary(BinaryWriter& writer) const
+    void writeBinary(BinaryWriter& writer) const
     { size_type len = size()+1;
       const_pointer ppp = empty() ? EmptyString : data();
-      size_t result = writer.write(len);
-      return result+writer.write(ppp,ppp+len); }
+      writer.write(len);
+      writer.write(ppp,ppp+len); }
 
     void readBinary(BinaryReader& reader)
     { size_type len; reader.read(&len); resize(len-1);
@@ -473,10 +477,10 @@ public:
 
     static size_t externalSizeof() { return 0; }
 
-    size_t writeFeudal(BinaryWriter& writer, void const** ppFixed) const
+    void writeFeudal(BinaryWriter& writer, void const** ppFixed) const
     { *ppFixed = 0;
       const_pointer ppp = empty() ? EmptyString : data();
-      return writer.write(ppp,ppp+size()+1); }
+      writer.write(ppp,ppp+size()+1); }
 
     /// Feudal BinaryReader constructor
     void readFeudal(BinaryReader& reader, unsigned long dataLen, void*/*fixed*/)
@@ -622,10 +626,19 @@ public:
 
     /// return string trimmed of all initial and final chars that occur in cstr
     FeudalString Trim(const_pointer cstr) const
-    { FeudalString trimstr = *this; trimstr.TrimInPlace(cstr); return trimstr; }
+    { return FeudalString(*this).TrimInPlace(cstr); }
+
+    /// trim all initial chars that occur in cstr
+    FeudalString& LTrim(const_pointer cstr)
+    { erase(0,find_first_not_of(cstr)); return *this; }
+
+    /// trim all final chars that occur in cstr
+    FeudalString& RTrim(const_pointer cstr)
+    { resize(find_last_not_of(cstr)+1); return *this; } // npos trick
 
     /// trim all initial and final chars that occur in cstr
-    FeudalString& TrimInPlace(const_pointer cstr);
+    FeudalString& TrimInPlace(const_pointer cstr)
+    { return LTrim(cstr).RTrim(cstr); }
 
     // ReplaceExtension()
     FeudalString ReplaceExtension(FeudalString const& ext,
@@ -641,8 +654,6 @@ private:
     size_type lenLimit(size_type pos, size_type len) const
     { AssertLe(pos,size());
       using std::min; return min(len,size()-min(size(),pos)); }
-
-    static double getMultiplier( const_pointer cstr );
 
     pointer data() { return mContainer.data(); }
 
@@ -781,6 +792,7 @@ void swap(FeudalString<charT, Traits>& v1, FeudalString<charT, Traits>& v2)
 { v1.swap(v2); }
 
 template <class T, class Tr>
-struct Serializability< FeudalString<T,Tr> > : public SelfSerializable {};
+struct Serializability< FeudalString<T,Tr> >
+{ typedef SelfSerializable type; };
 
 #endif /* FEUDAL_STRING_H_ */

@@ -4,6 +4,7 @@
 #define PATHS_MUX_H
 
 #include "paths/OrientedKmerPathId.h"
+#include "feudal/BinaryStreamTraits.h"
 
 /// A Mux represents one (identified) path extending past the end of
 /// another (anonymous) one.  (That is, a Mux can tell you who is
@@ -69,6 +70,7 @@ private:
   int m_numKmers;
 
 };
+TRIVIALLY_SERIALIZABLE(Mux);
 
 inline
 void

@@ -18,15 +18,15 @@
 #include "feudal/OuterVecDefs.h"
 
 template class SmallVec< char, MempoolAllocator<char> >;
-template class OuterVec<charvector>;
+template class OuterVec<CharVec>;
 template class SmallVec< unsigned char, MempoolAllocator<unsigned char> >;
-template class OuterVec<ucharvector>;
+template class OuterVec<UCharVec>;
 
-void StripNewlines( const charvector &in, charvector &out )
+void StripNewlines( const CharVec &in, CharVec &out )
 {
     out.reserve(in.size()).clear();
-    charvector::const_iterator end(in.end());
-    for ( charvector::const_iterator itr(in.begin()); itr != end; ++itr )
+    CharVec::const_iterator end(in.end());
+    for ( CharVec::const_iterator itr(in.begin()); itr != end; ++itr )
     {
         char val = *itr;
         if ( val != '\n' )

@@ -18,27 +18,16 @@
 #define FEUDAL_STRING_DEF_H_
 
 #include "feudal/FeudalString.h"
-#include "feudal/SmallVecDefs.h"
-#include "feudal/OuterVecDefs.h"
 #include "system/Assert.h"
 #include "system/System.h"
 #include <cctype>
 #include <cstddef>
 #include <cstring>
+#include <sstream>
 
 template <class charT, class Traits>
 const charT FeudalString<charT, Traits>::EmptyString[] = "";
 
-
-// c_str()
-template <class charT, class Traits>
-typename FeudalString<charT, Traits>::const_pointer
-FeudalString<charT, Traits>::c_str() const
-{ if (empty()) return EmptyString;
-  container &vec = const_cast<container&>(mContainer);
-  vec.reserve(size() + 1);
-  *vec.dataEnd() = charT();
-  return data(); }
 
 // find()
 template <class charT, class Traits>
@@ -266,13 +255,19 @@ FeudalString<charT, Traits>::compare(
 template <class charT, class Traits>
 bool
 FeudalString<charT, Traits>::IsInt( long* pVal ) const
-{ char const* cstr = c_str();
-  char* ptr;
-  long val = strtol(cstr,&ptr,10);
-  double multiplier = getMultiplier(ptr);
-  if ( multiplier )
-  { if ( pVal ) *pVal = val*multiplier; return true; }
-  return false; }
+{ std::istringstream iss(String(c_str(),size()));
+  long val;
+  if ( !(iss >> val) ) return false; // can't extract long
+  char c1, c2;
+  if ( (iss >> c1) )
+  { if ( (iss >> c2) ) return false; // two trailing non-numeric characters
+    if ( c1 == 'K' ) val *= 1000L;
+    else if ( c1 == 'M' ) val *= 1000000L;
+    else if ( c1 == 'G' ) val *= 1000000000L;
+    else if ( c1 == '%' ) val /= 100L;
+    else return false; } // can't interpret trailing char as multiplier
+  if ( pVal ) *pVal = val;
+  return true; }
 
 // Int()
 template <class charT, class Traits>
@@ -287,13 +282,19 @@ FeudalString<charT, Traits>::Int() const
 template <class charT, class Traits>
 bool
 FeudalString<charT, Traits>::IsDouble( double* pVal ) const
-{ char const* cstr = c_str();
-  char* ptr;
-  double val = strtod(cstr,&ptr);
-  double multiplier = getMultiplier(ptr);
-  if ( multiplier )
-  { if ( pVal ) *pVal = val*multiplier; return true; }
-  return false; }
+{ std::istringstream iss(String(c_str(),size()));
+  double val;
+  if ( !(iss >> val) ) return false; // can't extract double
+  char c1, c2;
+  if ( (iss >> c1) )
+  { if ( (iss >> c2) ) return false; // two trailing non-double characters
+    if ( c1 == 'K' ) val *= 1000.;
+    else if ( c1 == 'M' ) val *= 1000000.;
+    else if ( c1 == 'G' ) val *= 1000000000.;
+    else if ( c1 == '%' ) val /= 100.;
+    else return false; } // can't interpret trailing char as multiplier
+  if ( pVal ) *pVal = val;
+  return true; }
 
 // Double()
 template <class charT, class Traits>
@@ -454,19 +455,6 @@ FeudalString<charT, Traits>::Freq(const FeudalString<charT, Traits>& str) const
   while ( (idx = find(str,++idx)) != npos ) result += 1;
   return result; }
 
-// TrimInPlace()
-template <class charT, class Traits>
-FeudalString<charT, Traits>&
-FeudalString<charT, Traits>::TrimInPlace(typename FeudalString<charT, Traits>::const_pointer cstr)
-{ size_type pos = find_last_not_of(cstr);
-  if ( pos == npos ) clear();
-  else
-  { if ( ++pos < size() ) resize(pos);
-    pos = find_first_not_of(cstr);
-    Assert(pos != npos);
-    if ( pos > 0 ) erase(begin(),begin(pos)); }
-  return *this; }
-
 // ReplaceExtension()
 template <class charT, class Traits>
 FeudalString<charT, Traits>
@@ -477,21 +465,6 @@ FeudalString<charT, Traits>::ReplaceExtension(FeudalString<charT, Traits> const&
   if ( len >= extLen && !Traits::compare(me+len-extLen,ext.data(),extLen) )
       len -= extLen;
   return String().reserve(len+newext.size()).assign(me,me+len).append(newext); }
-
-// getMultiplier()
-template <class charT, class Traits>
-double
-FeudalString<charT, Traits>::getMultiplier( charT const* ptr )
-{ double multiplier = 0.;
-  switch ( *ptr )
-  {
-  case 'K': if ( !ptr[1] ) multiplier = 1e3; break;
-  case 'M': if ( !ptr[1] ) multiplier = 1e6; break;
-  case 'G': if ( !ptr[1] ) multiplier = 1e9; break;
-  case '%': if ( !ptr[1] ) multiplier = .01; break;
-  case '\0': multiplier = 1.; break;
-  }
-  return multiplier; }
 
 template <class charT, class Traits>
 void FeudalString<charT,Traits>::tooBigForInts() const

@@ -62,17 +62,6 @@ void FieldVec<N,A>::realloc( size_t nElements )
     mCapacity = logicalSize(newSize);
 }
 
-template <int N, class A>
-void FieldVec<N,A>::realign( size_type src,
-                             size_type dest )
-{
-    size_type end = size();
-    while ( src != end )
-    {
-        setValue(dest++, getValue(src++));
-    }
-}
-
 // called to accomplish a swap when allocators are unequal
 template <int N, class A>
 void FieldVec<N,A>::exchange( FieldVec& that )

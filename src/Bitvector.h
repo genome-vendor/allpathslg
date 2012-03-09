@@ -11,6 +11,6 @@
 
 #include "feudal/BitVec.h"
 typedef BitVec bitvector;
-typedef vecbitvector BitVecVec;
+typedef vecbitvector VecBitVec;
 
 #endif /* BITVECTOR_H_ */

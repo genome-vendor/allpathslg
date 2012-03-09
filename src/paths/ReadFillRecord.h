@@ -4,6 +4,7 @@
 #define READ_FILL_RECORD
 
 #include "system/System.h"
+#include "feudal/BinaryStreamTraits.h"
 
 /// The file reads.filled_fillrecords.k48 in the run_dir is a 
 /// vec<ReadFillRecord> (one entry per read) created by CloseAllReadGaps.
@@ -58,6 +59,6 @@ private:
   Bool exploded;
   Bool merger_limit;
 };
-
+TRIVIALLY_SERIALIZABLE(ReadFillRecord);
 
 #endif

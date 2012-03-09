@@ -126,6 +126,26 @@ template<int K> void MakeKmerLookup( const vecbasevector& tigs,
                     kmers_plus[r].third = ( fw ? j : -j-1 );    }    }    }
      ParallelSort(kmers_plus);    }
 
+template<int K> void MakeKmerLookup0( const vecbasevector& unibases,
+     vec< triple<kmer<K>,int,int> >& kmers_plus )
+{    vec<int64_t> starts;
+     starts.push_back(0);
+     for ( size_t i = 0; i < unibases.size( ); i++ )
+     {    const basevector& u = unibases[i];
+          starts.push_back( starts.back( ) + u.isize( ) - K + 1 );    }
+     kmers_plus.resize( starts.back( ) );
+     #pragma omp parallel for
+     for ( size_t i = 0; i < unibases.size( ); i++ )
+     {    const basevector& u = unibases[i];
+          kmer<K> x;
+          for ( int j = 0; j <= u.isize( ) - K; j++ )
+          {    int64_t r = starts[i] + j;
+               x.SetToSubOf( u, j ); 
+               kmers_plus[r].first = x;
+               kmers_plus[r].second = i; 
+               kmers_plus[r].third = j;    }    }
+     ParallelSort(kmers_plus);    }
+
 template void MakeKmerLookup( const vecbasevector& tigs,
      vec< triple< kmer<20>,int,int> >& kmers_plus );
 
@@ -140,6 +160,12 @@ template void MakeKmerLookup( const vecbasevector& tigs,
 
 template void MakeKmerLookup( const vecbasevector& tigs,
      vec< triple< kmer<100>,int,int> >& kmers_plus );
+
+template void MakeKmerLookup0( const vecbasevector& tigs,
+     vec< triple< kmer<20>,int,int> >& kmers_plus );
+
+template void MakeKmerLookup0( const vecbasevector& tigs,
+     vec< triple< kmer<96>,int,int> >& kmers_plus );
 
 void FindTrueGaps( 
      // inputs:
@@ -375,8 +401,9 @@ template<int K> void PredictGap(
      int step = 5;
      int mlow = -(max_overlap+step)/step * step;
      int top = 0;
-     for ( int l = 0; l < nlibs; l++ )
-          top = Max( top, DISTS[l].back( ) );
+     for ( int l = 0; l < nlibs; l++ ) 
+          if (DISTS[l].size() > 0)
+               top = Max( top, DISTS[l].back( ) );
      top = (top+step-1)/step * step;
      for ( int g = mlow; g <= top; g += step )
           gaps.push_back(g);

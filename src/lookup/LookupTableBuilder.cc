@@ -98,7 +98,6 @@ void LookupTableBuilder(const vecbasevector& source, // contigs to build the ref
 
   // Create Lookup file
   Remove( table_name );
-  int fd = Open( table_name, O_WRONLY | O_CREAT );
 
   // Count number of bases.
   const longlong max_bases(4000000000u);
@@ -112,7 +111,7 @@ void LookupTableBuilder(const vecbasevector& source, // contigs to build the ref
   }
 
   // Set up lookup table.
-  lookup_table look(fd);
+  lookup_table look(table_name,false);
   look.SetK(K);
   look.SetChunkParams( CHUNK_SIZE, CHUNK_OVERLAP );
 

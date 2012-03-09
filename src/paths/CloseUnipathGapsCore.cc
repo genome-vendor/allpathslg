@@ -44,7 +44,7 @@
 
 
 #include "paths/CloseUnipathGapsCore.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "kmers/KmerParcels.h"      // KmerParcelsCoupledBuilder
 #include "kmers/KmerParcelsTools.h" // GetNextMatchingKmerBatches
 #include "math/Functions.h"

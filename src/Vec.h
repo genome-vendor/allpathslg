@@ -48,26 +48,6 @@
 #include "Compare.h"
 #include "system/file/FileReader.h"
 
-// Size checker: identity operation unless it FatalErr's and never returns.
-template <class T>
-inline size_type ValidatedSize(ulonglong i)
-{
-  //  PRINT(i);
-#ifndef NDEBUG
-  static const ulonglong TOO_BIG = (4 == sizeof(char *)) 
-    ? (ulonglong)(INT_MAX) // 2 GB
-    : ULLCONST(1000 * 1000) * ULLCONST(1000 * 1000); // ~1TB
-
-  if ( ulonglong(i) * ulonglong(sizeof(T)) > TOO_BIG ) {
-    FatalErr( "Attempt to resize vec<T> object to " << i 
-	      << ", where sizeof(T) = " << sizeof(T) << "."
-	      << "\nTOO_BIG=" << TOO_BIG 
-	      << ", request=" << i << " T's" );
-  }
-#endif
-  return i;
-}
-
 /////////////////////////////////////////////////////////////////////////////
 //
 //  vec Class Declaration and Template Definitions
@@ -86,14 +66,14 @@ template <class T> class vec : public vector<T> {
 
   vec()            : vector< T >() {}
   
-  explicit vec(size_type n) : vector< T >(ValidatedSize<T>(n)) {}
+  explicit vec(size_type n) : vector< T >(ValidatedSize(n)) {}
   
-  vec(size_type n, const T& value) : vector< T >( ValidatedSize<T>(n), value ) {}
+  vec(size_type n, const T& value) : vector< T >( ValidatedSize(n), value ) {}
 
   enum ConstructorBehavior { IDENTITY };
 
   vec( size_type n, const ConstructorBehavior constructor_type  ) : 
-    vector<T>(ValidatedSize<T>(n))
+    vector<T>(ValidatedSize(n))
   {    ForceAssert( constructor_type == IDENTITY );
        for ( size_type i = 0; i < n; i++ )
             (*this)[i] = i;    }
@@ -121,10 +101,10 @@ template <class T> class vec : public vector<T> {
   }
 
   void resize( size_type i, T c = T( ) ) { 
-    vector<T>::resize( ValidatedSize<T>(i), c ); 
+    vector<T>::resize( ValidatedSize(i), c );
   }
 
-  void reserve( size_type i ) { vector<T>::reserve(ValidatedSize<T>(i)); }
+  void reserve( size_type i ) { vector<T>::reserve(ValidatedSize(i)); }
 
   typename vector<T>::reference front( ) {
     AssertGt( vector<T>::size( ), 0u ); // Asserts index within bounds
@@ -282,6 +262,12 @@ template <class T> class vec : public vector<T> {
       (*this)[ n + j ] = y[ entries[j] ];
   }
 
+  void appendFromBinaryFile( String const& filename )
+  { BinaryIteratingReader< vec<T> > rdr(filename.c_str());
+    reserve(this->size()+rdr.remaining());
+    T tmp;
+    while ( rdr.next(&tmp) ) push_back(tmp); }
+
 // ===========================================================================
 //
 // FUNCTIONS TO TEST IF VECTOR HAS AN ATTRIBUTE
@@ -398,7 +384,7 @@ template <class T> class vec : public vector<T> {
   }
 
   Bool Contains( const vec<T>& v, size_type pos ) const {
-    if ( v.size( ) > this->size( ) )
+    if ( v.size( ) + pos > this->size( ) )
       return False;
     size_type j;
     for ( j = 0; j < v.size( ); j++ )
@@ -406,7 +392,13 @@ template <class T> class vec : public vector<T> {
 	break;
     return j == v.size( );
   }
-  
+
+
+  /// CountValue: count all entries having the given value.
+  size_type CountValue( const T& x ) const {
+    return count(this->begin(), this->end(), x);
+  }
+
 // ===========================================================================
 //
 // FUNCTIONS TO ERASE ELEMENTS FROM VECTORS - PART 1 (MEMBER FUNCTIONS)
@@ -445,10 +437,45 @@ template <class T> class vec : public vector<T> {
     }
   }
 
-  /// CountValue: count all entries having the given value.
-  size_type CountValue( const T& x ) const {
-    return count(this->begin(), this->end(), x);
-  }
+  /// ReadSubset: read selected entries from file written with BinaryWrite.
+  /// The type T must have a fixed external size.
+  void ReadSubset( String const& filename, vec<int> const& ids,
+                          bool append = false )
+  { BinaryReader br(filename.c_str());
+    size_t nnn;
+    br.read(&nnn);
+    size_t sz = br.externalSizeof( static_cast<T*>(0) );
+    if ( !sz )
+    { FatalErr("Can't randomly access the binary file " << filename
+                << " which contains variable-sized elements."); }
+    if ( !append ) this->clear();
+    reserve(this->size()+ids.size());
+    T tmp;
+    typedef vec<int>::const_iterator Itr;
+    for ( Itr itr(ids.begin()), end(ids.end()); itr != end; ++itr )
+    { br.seekAndFill( *itr*sz + br.tell(), sz );
+      br.read(&tmp);
+      push_back(tmp); }  }
+
+  /// ReadRange: read selected entries from file written with BinaryWrite.
+  /// The type T must have a fixed external size.
+  void ReadRange( String const& filename, size_t from, size_t to )
+  { BinaryReader br(filename.c_str());
+    size_t nnn;
+    br.read(&nnn);
+    ForceAssertLe(to,nnn);
+    ForceAssertLe(from,to);
+    size_t sz = br.externalSizeof( static_cast<T*>(0) );
+    if ( !sz )
+    { FatalErr("Can't randomly access the binary file " << filename
+                << " which contains variable-sized elements."); }
+    br.seek( from*sz + br.tell() );
+    this->clear();
+    reserve(to-from);
+    T tmp;
+    for ( size_t idx = from; idx != to; ++idx )
+    { br.read(&tmp);
+      push_back(tmp); }  }
 
 
 // ===========================================================================
@@ -535,10 +562,22 @@ template <class T> class vec : public vector<T> {
       if ( !result ) result = ::compare(v1.size(),v2.size());
       return result;
   }
+
+ private:
+  static size_t ValidatedSize( size_t nnn )
+  {
+#ifndef NDEBUG
+      if ( nnn > 1000ul*1000ul*1000ul*1000ul/sizeof(T) )
+          FatalErr( "Vector too big: Attempt to resize vec<T> object to " << nnn
+                      << ", where sizeof(T) = " << sizeof(T) << ".");
+#endif
+      return nnn;
+  }
 };
 
 template <class T>
-struct Serializability< vec<T> > : public ExternallySerializable {};
+struct Serializability< vec<T> >
+{ typedef ExternallySerializable type; };
 
 //
 //  End of vec Class Declaration and Template Definitions
@@ -592,13 +631,13 @@ inline typename vec<T>::difference_type Position( const vector<T>& v, const T& x
   if (pos != v.end())
     return (pos - v.begin());
   else
-    return -1;
+    return -1L;
 }
 
 /// BinPosition.  Return the position of an element in a sorted vector, else -1.
 /// If the element appears more than once, the position of one of its instances
 /// is returned.
-template<class T, class U> 
+template<class T, class U>
 inline typename vec<T>::difference_type BinPosition( const vector<T>& v, const U& x1 )
 {    if ( v.size( ) == 0 ) return -1;
      T const& x(x1);
@@ -611,9 +650,8 @@ inline typename vec<T>::difference_type BinPosition( const vector<T>& v, const U
           else return next;    }    }
 
 template<class T, class U>
-inline Bool BinMember( const vector<T>& v, const U& x ) {
-  return BinPosition( v, x ) >= 0;
-}
+inline Bool BinMember( const vector<T>& v, const U& x )
+{ return std::binary_search(v.begin(),v.end(),x); }
 
 /// BinSubset: determine if v is a subset of w; assumes w only is sorted and that there
 /// is no repetition.
@@ -830,267 +868,45 @@ template<class T, typename IDX> void EraseTheseIndices( vec<T>& v, const vec<IDX
 /// ASCII representation of a number.  If it encounters a non-digit,
 /// non-whitespace character before it finds a newline, it returns
 /// false.  Otherwise, it returns true.
-
 bool IsAsciiVec( const String &filename );
 
-/// Get the number of elements in saved vec in either ASCII or
-/// Binary0 format.
-longlong AsciiOrBinary0VecSize( const String& filename );
+/// Get the number of elements in saved ASCII vec.
+longlong AsciiVecSize( const String& filename );
 
-/// ***** The following is outmoded: please use BinaryRead2, *****
-/// ***** etc. (below) except for backward compatibility.    *****
-///
-/// BinaryRead and BinaryWrite allow one to efficiently read and write a vector
-/// of simple objects.  
-/// WARNING: This will not work if members of the objects are discontiguous in 
-/// memory, as can happen if members are forcibly aligned to word boundaries.
-/// WARNING: this format is limited to vectors of size INT_MAX or less
-
-template<class T> void BinaryWrite( int fd, const vec<T>& v ) {    
-  ForceAssertLe(v.size(), static_cast<unsigned>(INT_MAX));
-  int n = v.size( );
-  WriteBytes( fd, &n, sizeof(int) );
-  if ( n > 0 ) WriteBytes( fd, &v[0], (longlong) sizeof(T) * (longlong) n );    
-}
-
-/// BinaryWriteComplex is a different version of BinaryWrite.  The intention 
-/// is that it not be called directly from a .cc file, but instead that the 
-/// relevant .h file define BinaryWrite for a given class to be 
-/// BinaryWriteComplex.  Ditto for BinaryReadComplex.
-/// WARNING: this format is limited to vectors of size INT_MAX or less
-template<class T> void BinaryWriteComplex( int fd, const vec<T>& v )
-{    ForceAssertLe(v.size(), static_cast<unsigned>(INT_MAX));
-     int n = v.size( );
-     WriteBytes( fd, &n, sizeof(int) );
-     for ( int i = 0; i < n; i++ )
-          BinaryWrite( fd, v[i] );    }
-
-template<class T> void BinaryRead( int fd, vec<T>& v ) {    
-  int n;
-  ReadBytes( fd, &n, sizeof(int) );
-  v.resize(n);
-  if ( n > 0 ) ReadBytes( fd, &v[0], (longlong) sizeof(T) * (longlong) n );    
-}
-
-template<class T> void BinaryReadComplex( int fd, vec<T>& v )
-{    int n;
-     ReadBytes( fd, &n, sizeof(int) );
-     v.resize(n);
-     for ( int i = 0; i < n; i++ )
-          BinaryRead( fd, v[i] );    }
-
-/// BinaryReadSubset: read selected entries from file written with BinaryWrite.
-template<class T> void BinaryReadSubset( const String& filename, 
-     const vec<int>& ids, vec<T>& v )
-{    FileReader fr(filename.c_str());
-     v.resize( ids.size( ) );
-     for ( int i = 0; i < ids.isize( ); i++ )
-     {    fr.seek( sizeof(int) + ids[i] * sizeof(T) );
-          fr.read( &v[i], sizeof(T) );    }   }
-
-/// ***** The following is outmoded: please use BinaryRead2, *****
-/// ***** etc. (below) except for backward compatibility.    *****
-
-template<class T> void BinaryWrite0( const String& filename, const vec<T>& v )
-{    int fd = OpenForWrite(filename);
-     longlong n = v.size( );
-     String length = ToString(n) + "\n";
-     int k = length.size( );
-     WriteBytes( fd, length.c_str( ), k );
-     if ( n > 0 ) WriteBytes( fd, &v[0], (longlong) sizeof(T) * (longlong) n );
-     close(fd);    }
-
-template<class T> void BinaryRead0( const String& filename, vec<T>& v )
+inline void AsciiBoolVecReadSubset( const String& filename,
+                                         const vec<int>& ids,
+                                         vec<Bool>& v )
 {    String ns;
      {    Ifstream( in, filename );
           in >> ns;    }
-     ForceAssert( ns.IsInt( ) );
-     longlong n = ns.Int( );
-     FileReader fr(filename.c_str());
-     fr.seek( ns.size( ) + 1 );
-     v.resize(n);
-     if ( n > 0 ) fr.read( &v[0], sizeof(T)*n );    }
-
-template<class T> void BinaryReadSubset0( const String& filename, 
-     const vec<int>& ids, vec<T>& v )
-{    String ns;
-     {    Ifstream( in, filename );
-          in >> ns;    }
-     ForceAssert( ns.IsInt( ) );
-     longlong n = ns.Int( );
-     int k = ns.size( );
+     ForceAssert( ns.IsInt() );
+     longlong n = ns.Int();
+     int k = ns.size()+1;
      FileReader fr(filename.c_str());
      v.resize( ids.size( ) );
      for ( int i = 0; i < ids.isize( ); i++ )
      {    ForceAssertGe( ids[i], 0 );
           ForceAssertLt( ids[i], n );
-          fr.seek( k + 1 + ids[i] * sizeof(T) );
-          fr.read( &v[i], sizeof(T) );    }    }
+          fr.seek( k + ids[i] );
+          fr.read( &v[i], 1 );    }    }
 
-//=============================================================================
-//=============================================================================
+/// Return number of elements in binary file of a vec<T> of some sort.
+inline size_t BinaryVecNumElements( const String & filename )
+{   BinaryReader br(filename.c_str());
+    size_t nnn;
+    br.read(&nnn);
+    return nnn; }
 
-/// BinaryRead2, BinaryWrite2, BinaryReadSubset2: same as above, but smarter:
-///
-/// - first 34 bytes = "binary format 2, header = 3 lines\n";
-/// - next  13 bytes = number of entries, as ascii, left justified and blank-padded;
-/// - next  15 bytes = "\nlittle endian\n" or "\nbig endian   \n";
-/// - the objects.
-///
-/// This format should NOT be modified.  If we ever have need to modify it, we 
-/// should create BinaryRead3, etc.
-///
-/// BREAD2 and BREADX2 mirror READ and READX in System.h.
+inline size_t BinaryVecElementSize( String const& filename )
+{    BinaryReader br(filename.c_str());
+     size_t nnn;
+     br.read(&nnn);
+     size_t dataLen = br.getFilesize() - br.tell();
+     ForceAssertEq(dataLen%nnn,0ul);
+     return dataLen / nnn; }
 
-template<class T> void BinaryWrite2( const String& filename, const vec<T>& v );
-template<class T> void BinaryRead2( const String& filename, vec<T>& v,
-     bool strict = false, const Bool append = false );
-template<class T> void BinaryReadSubset2( const String& filename,
-     const vec<int>& ids, vec<T>& v, Bool append = False, bool strict = false );
-template<class T> void BinaryReadRange2( const String& filename,
-     longlong from, longlong to, vec<T>& v, bool strict = false );
-template<class T> longlong BinarySize2( const String& filename, bool strict = false );
-
-
-///Append source to target.
-void BinaryCat2(const String & target, const String & source);
-
-/** Get the size of the data in a Binary2 file, return -1 if fail.
-  That is, it will return 1 for a vec<char> file and 4 for a vec<int> file.
- Will return -1 but will not fail if the file is not in Binary2 format,
- so it can be used to test the format of a file.
-*/
-int GetBinary2ElementSize(const String & filename, bool strict = false);
-
-#define BREAD2( FILE, TYPE, DATA )   \
-     TYPE DATA;                      \
-     BinaryRead2( FILE, DATA );
-
-#define BREADX2( FILE, DATA )    \
-     BinaryRead2( FILE, DATA );
-
-//=============================================================================
-//=============================================================================
-
-/// BinaryRead3, BinaryWrite3, BinaryReadSubset3: same as above, but even smarter:
-///
-/// - first 34 bytes = "binary format 3, header = 4 lines\n";
-/// - next  13 bytes = number of entries, as ascii, left justified and blank-padded;
-/// - next  15 bytes = "\nlittle endian\n" or "\nbig endian   \n";
-/// - next  34 bytes = "padding to make long word aligned\n";
-/// - the objects.
-///
-/// This format should NOT be modified.  If we ever have need to modify it, we 
-/// should create BinaryRead4, etc.
-///
-/// BREAD3 and BREADX3 mirror READ and READX in System.h.
-
-template<class T> void BinaryWrite3( const String& filename, const vec<T>& v );
-template<class T> void BinaryRead3( const String& filename, vec<T>& v, 
-     bool strict = false, const Bool append = False );
-template<class T> void BinaryReadSubset3( const String& filename,
-     const vec<int>& ids, vec<T>& v, Bool append = False, bool strict = false );
-template<class T> void BinaryReadRange3( const String& filename,
-     longlong from, longlong to, vec<T>& v, bool strict = false );
-template<class T> longlong BinarySize3( const String& filename, bool strict = false );
-int GetBinary3ElementSize(const String & filename, bool strict = false );
-
-///Append source to target.
-void BinaryCat3(const String & target, const String & source);
-
-#define BREAD3( FILE, TYPE, DATA )   \
-     TYPE DATA;                      \
-     BinaryRead3( FILE, DATA );
-
-#define BREADX3( FILE, DATA )    \
-     BinaryRead3( FILE, DATA );
-
-
-/// This class allows the progressive writing of a binary format 3
-/// file.  Implemented in VecTemplate.h.
-///
-/// If you want a lot of these at the same time, set the optional arg
-/// keep_open to false, so that you don't run out of file descriptors.
-///
-/// Objects to be written should be simple objects that can be written
-/// directly with WriteBytes.  Otherwise bad things will happen.
-
-template <typename T> 
-class Binary3Writer {
- public:
-  Binary3Writer( ) : m_fd (-1) {}
-  Binary3Writer( const String& filename, bool keep_open = true )
-  { this->Open( filename, keep_open ); }
-  ~Binary3Writer();
-
-  void Write( const T& object );
-  void WriteMultiple( const vec<T>& objects );
-
-  void Open( const String& filename, bool keep_open = true );
-  void Close();
-
-  const String& Filename() { return m_filename; }
-  // This will return the filename, even if the file has been Close()d.
-
- private:
-  // Disallow copy constructor and assignment operator.  Not implemented.
-  Binary3Writer( const Binary3Writer<T>& );
-  Binary3Writer<T>& operator=( const Binary3Writer<T>& );
-
-  int m_fd;           // used if m_keep_open
-  String m_filename;  // used if ! m_keep_open
-  longlong m_objectCount;
-  bool m_keep_open;
-};
-
-
-/// \class Binary3Iter
-/// This class lets you iterate through a binary format 3 vector file
-/// stored on disk.  Use this if you just want to handle each element,
-/// in order, in one pass through a loop.  This is more efficient in
-/// terms of both time and memory (!) than loading the whole vector.
-///
-/// Usage for, eg, a vec<int>:
-///
-///   int s;
-///   for( Binary3Iter<int> iter(filename, &s); iter.More(); iter.Next(&s) )
-///
-/// The constructor and each call to Next fill v with the next item.
-/// Also, iter.N() = size of vector, and iter.I() = current index.
-
-template <typename T>
-class Binary3Iter {
-public:
-  Binary3Iter( const String& filename, T* p_to_fill, 
-	       longlong max_memory = 128 * 1024 /* empirically good */ );
-
-  void Next( T* p_to_fill );
-  bool More() const { return m_globalIndex < m_globalSize; }
-  longlong N() const { return m_globalSize; }
-  longlong I() const { return m_globalIndex; }
-
-private:
-  void FillBuffer();
-
-  FileReader mFR;
-  longlong m_globalSize, m_globalIndex;
-  unsigned int m_localIndex, m_maxsize;
-  vec<T> m_data;
-};
-
-
-
-// ============================================================================
-// ========================================================================
-
-/// Helper for functions that load Binary format 2 or 3, whichever the file is.
-int WhichBinaryFormat( const String& filename );
-
-/// Return the number of elements of a binary format 2 or 3 file. 
-/// Assert if file is not binary 2 or 3 format.
-/// Note that this is not templatized, unlike the BinarySize*** functions.
-longlong BinaryNumElements( const String & filename);
-
+#define BREAD2( FILE, TYPE, DATA ) \
+    TYPE DATA; BinaryReader::readFile( FILE, &DATA )
 
 
 
@@ -1124,33 +940,24 @@ template<class T> void CompactPrint( ostream& out, const vec<T>& v,
 
 template<class T> void WriteAppend( const String& f, const vec<T>& v )
 {    ForceAssert( !IsRegularFile( f + ".gz" ) );
-     static longlong max_size_bound = longlong(10000000) * longlong(100000000);
      if ( !IsRegularFile(f) )
-     {    ForceAssertLt( (longlong) v.size( ), max_size_bound );
-          Ofstream( out, f );
-          out << setfill( '0' ) << setw(15) << v.size( ) << "\n";
+     {    std::ofstream out(f.c_str());
+          out << setfill('0') << setw(15) << v.size() << setfill(' ') << '\n';
           for ( typename vec<T>::size_type i = 0; i <  v.size( ); i++ )
-               out << v[i];    }
+               out << v[i];
+          out.close();   }
      else
-     {    longlong n;
-          {    Ifstream( in, f );
-               in >> n;    }
-          ForceAssertLt( n + (longlong) v.size( ), max_size_bound );
-          /* TODO:
-           * All this crap with the deprecated ostrstream class could be simply:
-           * char buf[17]; sprintf(buf,"%015ld\n",n+v.size());
-           * Unfortunately, killing the strstream include in this file breaks a
-           * dozen cc files that refer to strstreams without doing their
-           * own include. Note that osize is not unfrozen, so there's a memory
-           * leak here, as well. */
-          ostrstream osize;
-          osize << setfill( '0' ) << setw(15) << n + v.size( ) << "\n";
-          int fd = Open( f, O_WRONLY );
-          WriteBytes( fd, osize.str( ), 16 );
-          close(fd);
-          ofstream out( f.c_str( ), ios::app );
+     {    std::fstream out(f.c_str(),std::ios_base::in|std::ios_base::out);
+          size_t n;
+          out >> n;
+          size_t const max_size_bound = 10000000ul * 100000000ul;
+          ForceAssertLt( n+v.size(), max_size_bound );
+          out.seekp( 0, std::ios_base::beg );
+          out << setfill('0') << setw(15) << n+v.size( ) << setfill(' ') << '\n';
+          out.seekp( 0, std::ios_base::end );
           for ( typename vec<T>::size_type i = 0; i <  v.size( ); i++ )
-               out << v[i];    }    }
+               out << v[i];
+          out.close(); }    }
 
 /// a specialized version of WriteAppend for String
 
@@ -1203,9 +1010,6 @@ void PrintTabular( ostream& out, const vec< vec<String> >& rows, int sep,
 
 void PrintCSV(ostream& out, const vec< vec<String> >& rows);
 
-
-void BinaryWrite( int fd, const vec< String >& v );
-void BinaryRead( int fd, vec< String >& v );
 
 #define For_(T,x,v) for( vec< T >::const_iterator x = v.begin(); x != v.end(); ++x )
 #define ForMut_(T,x,v) for( vec< T >::iterator x = v.begin(); x != v.end(); ++x )

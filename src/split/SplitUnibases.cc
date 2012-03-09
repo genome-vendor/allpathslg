@@ -1,14 +1,21 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                   SOFTWARE COPYRIGHT NOTICE AGREEMENT                     //
-//       This software and its documentation are copyright (2010) by the     //
+//       This software and its documentation are copyright (2012) by the     //
 //   Broad Institute.  All rights are reserved.  This software is supplied   //
 //   without any warranty or guaranteed support whatsoever. The Broad        //
 //   Institute is not responsible for its use, misuse, or functionality.     //
 ///////////////////////////////////////////////////////////////////////////////
 
+const char *DOC =
+  "Split the given fastb into overlapping chunks, with some rules:\n"
+  "  1. bvec's are assumed to have length >= K\n"
+  "  2. consecutive chunks overlap by exactly K bases\n"
+  "  3. bvec's are broken into chunks CHUNK_LEN long (or less)";
+
 #include "MainTools.h"
 #include "Basevector.h"
 #include "graph/Digraph.h"
+#include "feudal/BinaryStream.h"
 #include "feudal/IncrementalWriter.h"
 #include "paths/GetNexts.h"
 #include "paths/KmerPath.h"
@@ -16,11 +23,6 @@
 
 /**
  * SplitUnibases
- *
- * Split the given fastb into overlapping chunks, with some rules:
- *   1. bvec's are assumed to have length >= K
- *   2. consecutive chunks overlap by exactly K bases
- *   3. bvec's are broken into chunks CHUNK_LEN long (or less)
  *
  * Input files:
  *   <IN_HEAD>.unibases.k<K>
@@ -43,11 +45,14 @@ int main( int argc, char *argv[] )
   RunTime( );
 
   BeginCommandArguments;
+  CommandDoc(DOC);
   CommandArgument_Int( K );
   CommandArgument_String( IN_HEAD );
   CommandArgument_String( OUT_HEAD );
   CommandArgument_Bool_OrDefault_Doc( USE_ADJ_GRAPH, True,
     "Use pre-computed adj graph or else try K-1 base overlaps." );
+  CommandArgument_Bool_OrDefault_Doc( WRITE_LOG, False,
+    "Write a detailed log containing the location of every read on the unibases" );
   CommandArgument_Int_OrDefault( CHUNK_LEN, 180 );
   EndCommandArguments;
 
@@ -75,7 +80,7 @@ int main( int argc, char *argv[] )
   if (USE_ADJ_GRAPH) {
     cout << Date( ) << ": loading unipath adj graph" << endl;
     digraph unigraph;
-    BinaryRead( in_adj_graph, unigraph );
+    BinaryReader::readFile( in_adj_graph, &unigraph );
 
     cout << Date( ) << ": adding unipath links" << endl;
     int nuni = bases.size( );
@@ -122,7 +127,8 @@ int main( int argc, char *argv[] )
   }
   // Open streams.
 
-  ofstream log( out_log.c_str( ) );
+  ofstream log;
+  if (WRITE_LOG) log.open( out_log.c_str( ) );
   IncrementalWriter<bvec> bases_out( out_bases.c_str( ) );
   IncrementalWriter<KmerPath> paths_out( out_paths.c_str( ) );
 
@@ -155,7 +161,8 @@ int main( int argc, char *argv[] )
       n_reads++;
       int end = Min( cursor + (unsigned int)CHUNK_LEN, read.size( ) );
       bvec chunk( read, cursor, end - cursor );
-      log << "r_" << read_id << " [" << cursor << ", " << end << ")\n";
+      if (WRITE_LOG) 
+	log << "r_" << read_id << " [" << cursor << ", " << end << ")\n";
 
       // Bases.
       bases_out.add( chunk );
@@ -179,7 +186,7 @@ int main( int argc, char *argv[] )
   cout << Date( ) << ": closing streams" << endl;
   bases_out.close( );
   paths_out.close( );
-  log.close( );
+  if (WRITE_LOG) log.close( );
 
   // Save empty pairs file.
   cout << Date( ) << ": saving (empty) pairs file" << endl;

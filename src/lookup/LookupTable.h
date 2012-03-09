@@ -112,7 +112,7 @@ public:
   /// This constructor is used for reading an existing lookup table
   /// from disk.  The file is closed by the destructor.
   lookup_table( const String & lookup_file ) :
-    fd_(OpenForRead(lookup_file)),
+    fw_(lookup_file,true),
     control_(256, 0),
     control2_( 256, 0 ),
     chunk_(-1)
@@ -124,6 +124,7 @@ public:
   /// chunk to -1, so you must next load in a chunk to process
   /// The file is closed by the destructor.
   lookup_table( const lookup_table & table,  const String & lookup_file ) :
+    fw_(lookup_file,true),
     control_(table.control_), control2_(table.control2_),
     K_(table.K_), four_to_K_(table.four_to_K_), Kmask_(table.Kmask_),
     nchunks_(table.nchunks_),
@@ -140,9 +141,8 @@ public:
     start_read_(table.start_read_)
   {
     ForceAssertNe(table.fd_, -1);
-    fd_ = OpenForRead(lookup_file);
     chunk_= -1;
-    lseek( fd_, chunk_start_[0], SEEK_SET);
+    fw_.seek(chunk_start_[0]);
   }
 
   /// The K value.  You need this to compute kmer numbers using
@@ -442,11 +442,10 @@ public:
   //////////////////////////////////////////////////////////////////////
 
   /// This constructor is used for creating a new lookup table.
-  lookup_table( int fd ) : chunk_(-1)
+  lookup_table( String const& filename, bool ) : fw_(filename), chunk_(-1)
   {
     STATIC_ASSERT_M(sizeof(unsigned int) == 4 , bad_uint_size );
     STATIC_ASSERT_M( sizeof(off_t) == 8, bad_off_t_size );
-    fd_ = fd;
     control_.resize( 256, 0 ), control2_.resize( 256, 0 );
   }
 
@@ -631,26 +630,12 @@ public:
   { control_[3] = chunk_size; control_[4] = chunk_overlap; }
 
   /////////////////////////////////////////////////////////////////////////////
-  /// Destructor closes the open file fd_.
+  /// Destructor closes the open file.
   /////////////////////////////////////////////////////////////////////////////
-  ~lookup_table() { if (-1!=fd_) Close(fd_); }
+  ~lookup_table() { fw_.close(); }
 
   /// Other odd stuff
   /////////////////////////////////////////////////////////////////////////
-
-  /** \brief Reads in the lookup table header from disk and initializes
-   *  associated data structures (K, number, names and sizes of contigs,
-   *  number of chunks, etc).
-   *
-   *  This method is intended for use in constructor only. The data stored in
-   *  the file header are read in, and additional data maintained by the lookup
-   *  table are initialized (such as chunk start offsets in the file,
-   *  absolute positions of the contig starts in the full concatenated
-   *  reference sequence, etc). All accessor
-   *  methods defined in this class should return correct values after this
-   *  method is executed.
-   */
-  void ReadHeader( );
 
   /// Make sure the lookup table is not holding any significant amount of memory
   void DestroyStuff( )
@@ -671,8 +656,8 @@ public:
   //////////////////////////////////////////////////////////////////////
 private:
 
-
   /// Control information
+  FileWriter fw_;
   int fd_;
   vec<unsigned int> control_, control2_;
   unsigned int K_, four_to_K_, Kmask_;
@@ -709,6 +694,20 @@ private:
   //////////////////////////////////////////////////////////////////////
   //// Private methods
   //////////////////////////////////////////////////////////////////////
+
+  /** \brief Reads in the lookup table header from disk and initializes
+   *  associated data structures (K, number, names and sizes of contigs,
+   *  number of chunks, etc).
+   *
+   *  This method is intended for use in constructor only. The data stored in
+   *  the file header are read in, and additional data maintained by the lookup
+   *  table are initialized (such as chunk start offsets in the file,
+   *  absolute positions of the contig starts in the full concatenated
+   *  reference sequence, etc). All accessor
+   *  methods defined in this class should return correct values after this
+   *  method is executed.
+   */
+  void ReadHeader( );
 
   /// Turn a single basevector into a lookup table
   void InitializeFromContig( const String &name, const basevector &b );

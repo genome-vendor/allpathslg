@@ -31,7 +31,7 @@ class SharedMem {
           {    int fstatus = ftruncate( fd, len );
                ForceAssertEq( fstatus, 0 );    }
           void* pa = mmap( 0, len, PROT_READ ^ PROT_WRITE, MAP_SHARED, fd, 0 );
-          Close(fd);
+          close(fd);
           loc_ = reinterpret_cast<unsigned char*>(pa);    }
 
      SharedMem( const String& sharename, const int len = 0, 
@@ -45,7 +45,7 @@ class SharedMem {
           ForceAssertEq( fstatus, 0 );
           void* pa = mmap( 0, len, PROT_READ ^ PROT_WRITE, MAP_SHARED, fd, 0 );
           loc_ = reinterpret_cast<unsigned char*>(pa);
-          Close(fd);
+          close(fd);
           len_ = len;    }
 
      void SetLen( const int len )

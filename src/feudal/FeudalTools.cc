@@ -68,13 +68,6 @@ bool IsGoodFeudalFile( const String& filename, bool verbose )
     return FeudalControlBlock::isGoodFeudalFile(filename.c_str(),verbose);
 }
 
-void RemoveMastervecFiles(const String& filename) {
-  Remove( filename );
-  Remove( filename + ".gz" );
-  Remove( filename + "..offsets" );
-  Remove( filename + "..static" );
-}
-
 void MergeMastervecs( const String& dstFile, std::vector<String> const& inputs )
 {
     if ( inputs.size() < 2 )

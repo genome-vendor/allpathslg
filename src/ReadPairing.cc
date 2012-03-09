@@ -61,16 +61,16 @@ void ReadPairsFile( const String &strTextFilename, vec<read_pairing> &vecPairs )
 {    String strBinaryFilename( strTextFilename  + "b" );
      if ( IsRegularFile( strBinaryFilename ) &&
           IsOlder( strTextFilename, strBinaryFilename ) )
-     {    BinaryRead0( strBinaryFilename, vecPairs );    }
+     {    BinaryReader::readFile( strBinaryFilename, &vecPairs );    }
      else READX( strTextFilename, vecPairs );    }
 
 int PairsFileSize( const String &strTextFilename ) {
      String strBinaryFilename( strTextFilename  + "b" );
      if ( IsRegularFile( strBinaryFilename ) &&
           IsOlder( strTextFilename, strBinaryFilename ) )
-       return AsciiOrBinary0VecSize( strBinaryFilename );
+       return BinaryVecNumElements( strBinaryFilename );
      else
-       return AsciiOrBinary0VecSize( strTextFilename );
+       return AsciiVecSize( strTextFilename );
 }
 
 void WritePairs( const String& dir, const vec<read_pairing>& pairs, size_t nreads,
@@ -85,30 +85,26 @@ void WritePairs( const vec<read_pairing>& pairs, size_t nreads, const String& fi
           outp << pairs.size( ) << "\n";
           for ( size_t i = 0; i < pairs.size(); i++ ) 
                outp << pairs[i] << "\n";    }
-     BinaryWrite0( file_head + ".pairtob", pairs );
+     BinaryWriter::writeFile( file_head + ".pairtob", pairs );
      vec<int> pairs_index( nreads, -1 );
      for ( size_t i = 0; i < pairs.size(); i++ )
      {    ForceAssertLt( static_cast<size_t>(pairs[i].id1), nreads );
           ForceAssertLt( static_cast<size_t>(pairs[i].id2), nreads );
           pairs_index[ pairs[i].id1 ] = i;
           pairs_index[ pairs[i].id2 ] = i;    }
-     BinaryWrite( file_head + ".pairto_index", pairs_index );    }
+     BinaryWriter::writeFile( file_head + ".pairto_index", pairs_index );    }
 
 void ReadsToPairs( const String& dir, const vec<int>& ids,
-     vec<read_pairing>& pairs, const String& reads_name )
-{    pairs.resize( ids.size( ) );
-     String file_head = dir + "/" + reads_name;
-     vec<int> ps;
-     BinaryReadSubset( file_head + ".pairto_index", ids, ps );
-     String npairs;
-     {    Ifstream( in, file_head + ".pairtob" );
-          in >> npairs;    }
-     int head = npairs.size( ) + 1;
-     FileReader fr( (file_head + ".pairtob").c_str() );
-     for ( size_t i = 0; i < ids.size(); i++ )
-     {    if ( ps[i] < 0 ) pairs[i].Kill( );
-          else
-          {    fr.seek( head + ps[i] * sizeof(read_pairing) );
-               fr.read( &pairs[i], sizeof(read_pairing) );
-               ForceAssert( ids[i] == pairs[i].id1 
-                    || ids[i] == pairs[i].id2 );    }    }    }
+                        vec<read_pairing>& pairs, const String& reads_name )
+{
+    pairs.resize(ids.size());
+    String file_head = dir + "/" + reads_name;
+    vec<int> ps;
+    ps.ReadSubset(file_head + ".pairto_index", ids);
+    ps.EraseValue(-1);
+    pairs.ReadSubset(file_head + ".pairtob", ps);
+    typedef vec<int>::iterator Itr;
+    vec<read_pairing>::iterator pairsItr(pairs.begin());
+    for ( Itr itr(ps.begin()), end(ps.end()); itr != end; ++itr, ++pairsItr )
+        ForceAssert( *itr == pairsItr->id1 || *itr == pairsItr->id2 );
+}

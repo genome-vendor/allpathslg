@@ -38,12 +38,13 @@ void ReportExtension( const int l, const vec<int>& x, const int K,
      const vecbasevector& unibases, const int VALIDATION, const int LG, 
      const vecbasevector& genome2, const vec< vec< pair<int,int> > >& Glocs,
      const String& data_dir, vec<placementy>& PLACES, vecbasevector& all,
-     vec< vec<int> >& exts_all )
+     vec< vec<int> >& exts_all, const Bool VERBOSE )
 {    exts_all.push_back(x);
-     cout << "[" << l+1 << "]";
-     for ( int m = 0; m < x.isize( ); m++ )
-          cout << " " << x[m];
-     cout << "\n";
+     if (VERBOSE)
+     {    cout << "[" << l+1 << "]";
+          for ( int m = 0; m < x.isize( ); m++ )
+               cout << " " << x[m];
+          cout << "\n";    }
      vec<basevector> B;
      basevector b;
 
@@ -117,6 +118,10 @@ int main(int argc, char *argv[])
           "Number of threads to use (use all available processors if set to 0)");
      CommandArgument_String_OrDefault(DOT, "");
      CommandArgument_Bool_OrDefault(CIRCO, True);
+     CommandArgument_Bool_OrDefault(USE_ALL, True);
+     CommandArgument_Bool_OrDefault(USE_UNI, False);
+     CommandArgument_Bool_OrDefault(VERBOSE, False);
+     CommandArgument_Int_OrDefault(MIN_SAFE_CN1, 0);
      EndCommandArguments;
 
      // Heuristics.
@@ -137,15 +142,27 @@ int main(int argc, char *argv[])
      NUM_THREADS = configNumThreads(NUM_THREADS);
      omp_set_num_threads(NUM_THREADS);
 
-     // Load data.
+     // Load unibases.
 
-     vec< vec<int> > right_exts;
-     BinaryReader::readFile( ( run_dir + "/extended.long.right_exts" ).c_str( ),
-          &right_exts );
      vecbasevector unibases( run_dir + "/" + IN_HEAD + ".unibases.k" + ToString(K) );
      int nuni = unibases.size( );
      vec<int> to_rc;
      UnibaseInvolution( unibases, to_rc, K );
+
+     // Load right_exts.
+
+     vec< vec<int> > right_exts;
+     BinaryReader::readFile( ( run_dir + "/extended.long.right_exts" ).c_str( ),
+          &right_exts );
+     cout << Date( ) << ": found " << right_exts.size( ) << " right exts" << endl;
+     if ( MIN_SAFE_CN1 > 0 )
+     {    vec<Bool> to_delete( right_exts.size( ), False );
+          for ( int i = 0; i < right_exts.isize( ); i++ )
+          {    int u = right_exts[i][0];
+               if ( unibases[u].isize( ) < MIN_SAFE_CN1 ) to_delete[i] = True;    }
+          EraseIf( right_exts, to_delete );
+          cout << Date( ) << ": now have " << right_exts.size( ) << " right exts"
+               << endl;    }
 
      // Load predicted gaps and use them to make a digraph.
 
@@ -248,48 +265,57 @@ int main(int argc, char *argv[])
                for ( int m = 1; m < x.isize( ); m++ )
                {    if ( unibases[ x[m] ].isize( ) >= min_seed ) 
                     {    self = True;
-                         cout << "\nextensions of " << u << "." << zz-i+1 << ":\n";
+                         if (VERBOSE)
+                         {    cout << "\nextensions of " << u << "." 
+                                   << zz-i+1 << ":\n";    }
                          vec<int> x2(x);
                          x2.resize(m+1);
                          ReportExtension( 0, x2, K, unibases, VALIDATION, LG, 
-                              genome2, Glocs, data_dir, PLACES, all, exts_all );
+                              genome2, Glocs, data_dir, PLACES, all, exts_all,
+                              VERBOSE );
                          break;    }    }
                if (self) continue;
 
                // Incrementally builds extensions of x.
 
-               vec< pair< int, vec<int> > > exts, exts_done; // (minimum overlap, x')
+               map< vec<int>, int > exts, exts_done; // x' --> minimum overlap
                const int infinity = 1000000000;
-               exts.push( infinity, x );
+               exts[x] = infinity;
                set< vec<int> > elides;
-               while( exts.nonempty( ) )
+               typedef map< vec<int>, int >::iterator emapit;
+               while( exts.size( ) > 0 )
                {    
                     // Test for blowup.
      
-                    if ( exts.isize( ) + exts_done.isize( ) > max_pile )
+                    if ( (int) ( exts.size( ) + exts_done.size( ) ) > max_pile )
                     {    int m = 1000000000;
-                         for ( int r = 0; r < exts.isize( ); r++ )
-                              m = Min( m, exts[r].first );
-                         for ( int r = 0; r < exts_done.isize( ); r++ )
-                              m = Min( m, exts_done[r].first );
+                         for ( emapit r = exts.begin( ); r != exts.end( ); r++ )
+                              m = Min( m, r->second );
+                         for ( emapit r = exts_done.begin( ); 
+                              r != exts_done.end( ); r++ )
+                         {    m = Min( m, r->second );    }
                          min_overlap = m + 1;
                          // cout << "raising min overlap to " << m+1 << endl; // XXX
-                         vec<Bool> to_delete( exts.size( ), False );
-                         for ( int r = 0; r < exts.isize( ); r++ )
-                              if ( exts[r].first < min_overlap ) to_delete[r] = True;
-                         EraseIf( exts, to_delete );
-                         vec<Bool> to_delete_done( exts_done.size( ), False );
-                         for ( int r = 0; r < exts_done.isize( ); r++ )
-                         {    if ( exts_done[r].first < min_overlap ) 
-                                   to_delete_done[r] = True;    }
-                         EraseIf( exts_done, to_delete_done );
-                         if ( exts.empty( ) ) break;    }
+
+                         vec<emapit> erase_exts, erase_exts_done;
+                         for ( emapit r = exts.begin( ); r != exts.end( ); r++ )
+                         {    if ( r->second < min_overlap ) 
+                                   erase_exts.push_back(r);    }
+                         for ( int j = 0; j < erase_exts.isize( ); j++ )
+                              exts.erase( erase_exts[j] );
+                         for ( emapit r = exts_done.begin( ); 
+                              r != exts_done.end( ); r++ )
+                         {    if ( r->second < min_overlap ) 
+                                   erase_exts_done.push_back(r);    }
+                         for ( int j = 0; j < erase_exts_done.isize( ); j++ )
+                              exts_done.erase( erase_exts_done[j] );
+                         if ( exts.size( ) == 0 ) break;    }
      
                     // Pop an extension.
      
-                    vec<int> y = exts.back( ).second;
-                    int over = exts.back( ).first;
-                    exts.pop_back( );
+                    vec<int> y = exts.begin( )->first;
+                    int over = exts.begin( )->second;
+                    exts.erase( exts.begin( ) );
      
                     /*
                     cout << "\nexamining";
@@ -400,43 +426,43 @@ int main(int argc, char *argv[])
                                    over2 += unibases[ y[s] ].isize( );
                               if ( over2 < min_overlap ) continue;
                               int new_over = Min( over, over2 );
-                              vec< pair< int, vec<int> > >&
+                              map< vec<int>, int >&
                                    target = ( terminal ? exts_done : exts );
-                              Bool found = False;
-                              for ( int r = 0; r < target.isize( ); r++ )
-                              {    if ( target[r].second == ynew )
-                                   {    target[r].first 
-                                             = Max( target[r].first, new_over );
-                                        found = True;
-                                        break;    }    }
-                              if ( !found ) 
-                                   target.push( new_over, ynew );    }    }    }
-               ReverseSort(exts_done);
-               cout << "\nextensions of " << u << "." << zz-i+1 << ":\n";
-               for ( int l = 0; l < exts_done.isize( ); l++ )
-               {    if ( exts_done[l].first < exts_done[0].first - max_overlap_diff )
-                         break;
-                    const vec<int>& x = exts_done[l].second;
+                              target[ynew] 
+                                   = Max( target[ynew], new_over );    }    }    }
+
+               vec< pair< int, vec<int> > > exts_donev;
+               for ( emapit r = exts_done.begin( ); r != exts_done.end( ); r++ )
+                    exts_donev.push( r->second, r->first );
+               ReverseSort(exts_donev);
+               if (VERBOSE)
+                    cout << "\nextensions of " << u << "." << zz-i+1 << ":\n";
+               for ( int l = 0; l < exts_donev.isize( ); l++ )
+               {    if ( exts_donev[l].first 
+                         < exts_donev[0].first - max_overlap_diff )
+                    {    break;     }
+                    const vec<int>& x = exts_donev[l].second;
                     int places0 = PLACES.size( );
                     ReportExtension( l, x, K, unibases, VALIDATION, LG, genome2, 
-                         Glocs, data_dir, PLACES, all, exts_all );    
+                         Glocs, data_dir, PLACES, all, exts_all, VERBOSE );    
                     int nplaces = PLACES.isize( ) - places0;
                     int elide_count = 0, nlinks = 0, v = x.back( ), dist = 0;
                     for ( set< vec<int> >::iterator ei = elides.begin( );
                          ei != elides.end( ); ei++ )
                     {    const vec<int>& e = *ei;
                          if ( x.Contains(e) )
-                         {    cout << "Warning: contains elided repeat";
-                              for ( int m = 0; m < e.isize( ); m++ )
-                                   cout << " " << e[m];
-                              cout << "\n";
+                         {    if (VERBOSE)
+                              {    cout << "Warning: contains elided repeat";
+                                   for ( int m = 0; m < e.isize( ); m++ )
+                                        cout << " " << e[m];
+                                   cout << "\n";    }
                               elide_count++;    }    }
                     for ( int m = 0; m < H.From(u).isize( ); m++ )
                     {    if ( H.From(u)[m] == v )
                               nlinks = H.EdgeObjectByIndexFrom( u, m ).nlinks;    }
                     for ( int m = 1; m < x.isize( ) - 1; m++ )
                          dist += unibases[ x[m] ].isize( ) - (K-1);
-                    PRINT3( elide_count, dist, nlinks );    
+                    if (VERBOSE) PRINT3( elide_count, dist, nlinks );    
                     if ( VALIDATION >= 1 && nlinks == 0 && nplaces > 0 )
                     {    cout << "Ouch!  Placed without links.\n";    }    }    }
           i = j - 1;    }
@@ -534,7 +560,8 @@ int main(int argc, char *argv[])
 
      S.SwallowSimpleGaps( );
      S.BringOutTheDead( );
-     cout << "\nassembly has " << S.EdgeN( ) << " edges" << endl;
+     if (VERBOSE) cout << "\n";
+     cout << Date( ) << ": assembly has " << S.EdgeN( ) << " edges" << endl;
 
      // Generate dot file.
 
@@ -599,7 +626,8 @@ int main(int argc, char *argv[])
                
      if (WRITE) 
      {    cout << Date( ) << ": building output" << endl;
-          all.resize(0);
+          if ( !USE_ALL ) all.resize(0);
+          if (USE_UNI) all.Append(unibases);
           for ( int i = 0; i < seqs.isize( ); i++ )
           {    const vec<int>& x = seqs[i];
                basevector b;
@@ -623,7 +651,7 @@ int main(int argc, char *argv[])
           cout << Date( ) << ": writing output files" << endl;
           String KBIGS = ToString(KBIG);
           newunipaths.WriteAll( outhead + ".unipaths.k" + KBIGS );
-          BinaryWrite3( outhead + ".unipathsdb.k" + KBIGS, newunipathsdb );
-	  BinaryWrite( outhead + ".unipath_adjgraph.k" + KBIGS, A );
+          BinaryWriter::writeFile( outhead + ".unipathsdb.k" + KBIGS, newunipathsdb );
+	  BinaryWriter::writeFile( outhead + ".unipath_adjgraph.k" + KBIGS, A );
           newunibases.WriteAll( outhead + ".unibases.k" + KBIGS );    }
      cout << Date( ) << ": done" << endl;    }

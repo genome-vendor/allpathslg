@@ -11,10 +11,11 @@
 #include "Fastavector.h"
 #include "PackAlign.h"
 #include "ShortVector.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "feudal/OuterVecDefs.h"
 #include "feudal/SmallVecDefs.h"
 #include "math/Functions.h"
+#include "system/Assert.h"
 
 int PosDel( int x )
 {
@@ -1699,6 +1700,38 @@ int align::Mutations( const basevector& rd1, const basevector& rd2,
   return answer;    
 }
 
+void align::PrintMutations( const basevector& rd1, const basevector& rd2, ostream& log) const
+{
+  int answer = 0, j, p1 = pos1( ), p2 = pos2( );
+  for ( j = 0; j < Nblocks( ); j++ )
+  {
+    if ( Gaps(j) > 0 ) {
+      log << p1 << " insertion " << p2 << " ";
+      for (int i = 0; i < Gaps(j); ++i)
+	log << Base::val2Char(rd2[p2+i]);
+      log << endl;
+      p2 += Gaps(j);
+    }
+    if ( Gaps(j) < 0 ) {
+      log << p1 << " ";
+      for (int i = 0; i < -Gaps(j); ++i)
+	log << Base::val2Char(rd1[p1+i]);
+      log << " "  << p2 << " deletion" << endl;
+      p1 -= Gaps(j);
+    }
+    for ( int x = 0; x < Lengths(j); x++ )
+    {
+      if ( rd1[p1] != rd2[p2] ) {
+	// base mismatch
+	log << p1 << " " << Base::val2Char(rd1[p1])
+	    << " " << p2 << " " << Base::val2Char(rd2[p2]) << endl;
+      }
+      ++p1; 
+      ++p2;    
+    }    
+  }
+}
+
 int align::MatchingBases( const basevector& rd1, const basevector& rd2 )
 {
   int answer = 0, j, p1 = pos1( ), p2 = pos2( );
@@ -1851,12 +1884,31 @@ void align::Write( ostream& out, int id1, int id2, Bool rc, int errors )
   BinWrite( out, rc );    
 }
 
+void align::writeBinary( BinaryWriter& writer ) const
+{
+    writer.write(pos1_);
+    writer.write(pos2_);
+    writer.write(nblocks_);
+    writer.write(gaps_.x,gaps_.x+nblocks_);
+    writer.write(lengths_.x,lengths_.x+nblocks_);
+}
+
+void align::readBinary( BinaryReader& reader )
+{
+    reader.read(&pos1_);
+    reader.read(&pos2_);
+    reader.read(&nblocks_);
+    gaps_.resize(nblocks_);
+    reader.read(gaps_.x,gaps_.x+nblocks_);
+    lengths_.resize(nblocks_);
+    reader.read(lengths_.x,lengths_.x+nblocks_);
+}
+
 ostream & operator<<(ostream & os, const align & a) {
   os << "startOn1: " << a.pos1() << ", startOn2: " << a.pos2()
      << ", Nblocks: " << a.Nblocks() << endl;
   return os;
 }
 
-BINARY3_DEF(placement_mark);
 template class SmallVec< placement_mark, MempoolAllocator<placement_mark> >;
 template class OuterVec<PlacementMarkVec>;

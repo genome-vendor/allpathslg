@@ -18,6 +18,7 @@
 #include "MainTools.h"
 #include "ReadLocationLG.h"
 #include "Set.h"
+#include "feudal/BinaryStream.h"
 #include "graph/FindCells.h"
 #include "paths/GetNexts.h"
 #include "paths/Unipath.h"
@@ -96,7 +97,7 @@ int main( int argc, char** argv ) {
     // Read in the unipaths.  We only need to know their lengths and their
     // rc mapping.
     vec<tagged_rpint> unipathsdb;
-    BinaryRead3( reads_head + ".unipathsdb.k" + KS, unipathsdb );
+    BinaryReader::readFile( reads_head + ".unipathsdb.k" + KS, &unipathsdb );
     vecKmerPath unipaths(reads_head + ".unipaths.k" + KS );
     nuni = unipaths.size( );
     UnipathInvolution( unipaths, unipathsdb, to_rc );
@@ -255,7 +256,7 @@ int main( int argc, char** argv ) {
   if (WRITE) {
     Mkdir777( run_dir + "/ASSEMBLIES" );
     Mkdir777( sub_dir );
-    BinaryWrite( graph_head + ".cloud.k" + KS, LG );
+    BinaryWriter::writeFile( graph_head + ".cloud.k" + KS, LG );
   }
   
   if (TRANSITIVE_FILL_IN) {
@@ -269,7 +270,7 @@ int main( int argc, char** argv ) {
   
   // Write the graph object (now with transitive edges) to unipathgraph_seeds
   if (WRITE)
-    BinaryWrite( graph_head + ".seeds.k" + KS, LG );
+    BinaryWriter::writeFile( graph_head + ".seeds.k" + KS, LG );
   
   
   if ( TRANSITIVE_FILL_IN )

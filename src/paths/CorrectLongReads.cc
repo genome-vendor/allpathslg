@@ -33,6 +33,7 @@
 
 #include "Basevector.h"
 #include "Equiv.h"
+#include "FastIfstream.h"
 #include "FetchReads.h"
 #include "MainTools.h"
 #include "PackAlign.h"
@@ -40,6 +41,7 @@
 #include "ParallelVecUtilities.h"
 #include "PrintAlignment.h"
 #include "Qualvector.h"
+#include "feudal/BinaryStream.h"
 #include "graph/Digraph.h"
 #include "graph/DigraphTemplate.h"
 #include "kmers/KmerRecord.h"
@@ -55,6 +57,7 @@
 #include "paths/ReadsToPathsCoreX.h"
 #include "paths/UnibaseUtils.h"
 #include "paths/Unipath.h"
+#include "paths/UnipathScaffold.h"
 #include "paths/Uniseq.h"
 
 int main(int argc, char *argv[])
@@ -84,11 +87,12 @@ int main(int argc, char *argv[])
      CommandArgument_Bool_OrDefault(CORRECT_PATCHES, False);
      CommandArgument_Bool_OrDefault(CORRECT_PATCHES_NEW, False);
      CommandArgument_Bool_OrDefault(USE_SHORTEST, False);
-     CommandArgument_Bool_OrDefault(CLUSTER_OLD, True);
      CommandArgument_Bool_OrDefault(CLUSTER_ALIGNS_NEW_CLEAN, False);
+     CommandArgument_Bool_OrDefault(BEST_ONLY, False);
      CommandArgument_Bool_OrDefault(NEW_FILTER, False);
+     CommandArgument_Bool_OrDefault(SCREEN_NEXTS, False);
      CommandArgument_Int_OrDefault(MIN_TO_PATCH, 5);
-     CommandArgument_Int_OrDefault(PATCH_MODE, 0);
+     CommandArgument_Bool_OrDefault(NEW_PLUS_RULE, False);
 
      // Diagnostic arguments.
 
@@ -125,21 +129,25 @@ int main(int argc, char *argv[])
      CommandArgument_Bool_OrDefault(ABBREVIATE_ALIGNMENTS, True);
      CommandArgument_Bool_OrDefault(PRINT_RAW_ALIGNS, False);
      CommandArgument_Bool_OrDefault(ANNOUNCE, False);
-     CommandArgument_Bool_OrDefault(PATCHES_ONLY, False);
-     CommandArgument_Bool_OrDefault(PATCHES_PLUS, False);
+     CommandArgument_Bool_OrDefault(PATCHES, False);
      CommandArgument_Int_OrDefault(MIN_PATCH1, 1000000000);
      CommandArgument_Int_OrDefault(MIN_PATCH2, 1000000000);
-     CommandArgument_Bool_OrDefault(TEST_READ_GAP, True);
      CommandArgument_Bool_OrDefault(STANDARD_ALIGNS, False);
+     CommandArgument_Bool_OrDefault(FILTER0, False);
      CommandArgument_Bool_OrDefault(FILTER, True);
+     CommandArgument_Bool_OrDefault(FILTER2, False);
      CommandArgument_Bool_OrDefault(CLEAN_GRAPH, False);
      CommandArgument_Bool_OrDefault(CORRECT_PATCHES_VERBOSE, False);
+     CommandArgument_Bool_OrDefault(ANNOUNCE_PATCH_CORRECTION, False);
      CommandArgument_Int_OrDefault(PATCH_U1, -1);
      CommandArgument_Int_OrDefault(PATCH_U2, -1);
      CommandArgument_Bool_OrDefault(DIRECT2, False);
      CommandArgument_Int_OrDefault(SUPER_VERBOSITY2, 0);
      CommandArgument_Bool_OrDefault(PRINT_BASES2, False);
-     CommandArgument_Bool_OrDefault(EXPERIMENTAL_DOT, False);
+     CommandArgument_Bool_OrDefault(CYCLIC_BAIL, True);
+     CommandArgument_Bool_OrDefault(KILL_INFERIOR_CLUSTERS_NEW, False);
+     CommandArgument_Int_OrDefault(MIN_SPREAD1, 10);
+     CommandArgument_Int_OrDefault(MIN_SPREAD2, 10);
 
      EndCommandArguments;
 
@@ -194,7 +202,7 @@ int main(int argc, char *argv[])
                else fn = dir + "/filtered_subreads.fasta";
 	       FetchReads( x, 0, fn );
 	       longreads.Append(x);    }    }
-     else longreads.ReadAll( data_dir + "/long_reads_orig.fastb" );
+     else longreads.ReadAll( run_dir + "/long_reads_orig.fastb" );
      int nreads = longreads.size( );
      cout << Date( ) << ": have " << ToStringAddCommas(nreads) << " reads" << endl;
 
@@ -205,6 +213,60 @@ int main(int argc, char *argv[])
      GetNexts( K, unibases, nexts );
      vec<int> to_rc;
      UnibaseInvolution( unibases, to_rc, K );
+
+     // Identify unipaths that may have copy number greater than one.
+
+     vec<Bool> cn_plus;
+     if (PATCHES)
+     {    cn_plus.resize( nuni, False );
+          String KS = ToString(K);
+          vec<double> CN_raw;
+          digraphE<linklet> G;
+          BinaryReader::readFile( run_dir + "/" + IN_HEAD
+               + ".unipaths.cn_raw.k" + KS, &CN_raw );
+          vec< vec<int> > from(nuni), to(nuni);
+          vec< vec<int> > from_edge_obj(nuni), to_edge_obj(nuni);
+          vec<linklet> edges;
+          String line;
+          fast_ifstream in( run_dir + "/" + IN_HEAD + ".unibases.k" 
+               + KS + ".predicted_gaps.txt" );
+          while(1)
+          {    getline( in, line );
+               if ( in.fail( ) ) break;
+               if ( line.Contains( "#", 0 ) ) continue;
+               int u1, u2, sep, dev, nlinks;
+               istringstream iline( line.c_str( ) );
+               iline >> u1 >> u2 >> sep >> dev >> nlinks;
+               if ( u2 == to_rc[u1] ) continue; 
+               from[u1].push_back(u2), to[u2].push_back(u1);
+               from_edge_obj[u1].push_back( edges.size( ) );
+               to_edge_obj[u2].push_back( edges.size( ) );
+               edges.push( sep, dev, nlinks, 0 );    }
+          for ( int u = 0; u < nuni; u++ )
+          {    SortSync( from[u], from_edge_obj[u] );
+               SortSync( to[u], to_edge_obj[u] );    }
+          G.Initialize( from, to, edges, to_edge_obj, from_edge_obj );
+          for ( int u = 0; u < nuni; u++ )
+          {    Bool first = True;
+               const int min_links = 3;
+               const double min_mult = 1.8;
+               for ( int j = 0; j < G.From(u).isize( ); j++ )
+               {    int v = G.From(u)[j];
+                    const linklet& l = G.EdgeObjectByIndexFrom( u, j );
+                    if ( l.nlinks < min_links ) continue;
+                    if ( unibases[v].size( ) < unibases[u].size( ) ) continue;
+                    if ( CN_raw[u] < min_mult * CN_raw[v] ) continue;
+                    cn_plus[u] = True;
+                    Bool cn_plus_verbose = False;
+                    if (cn_plus_verbose)
+                    {    if (first)
+                         {    cout << "\nu = " << u << "[kmers=" 
+                                   << unibases[u].isize( ) - (K-1) 
+                                   << ",cn=" << CN_raw[u] << "]" << endl;    }
+                         first = False;
+                         cout << "--(" << l.nlinks << ")--> " << v << "[kmers=" 
+                              << unibases[v].isize( ) - (K-1) << ",cn=" 
+                              << CN_raw[v] << "]" << endl;    }    }    }    }
 
      // Heuristics.
 
@@ -270,110 +332,173 @@ int main(int argc, char *argv[])
           ForceAssertLt( reads_to_use[i], (int) longreads.size( ) );    }
      ParseIntSet( READS_TO_TRACE, reads_to_trace );
 
-     // Map filled reads to unibases.  Turned off because we're not using this now.
-
-     /*
+     // Load filled fragments and map them back to the unibases.
+     
+     vec< vec<int> > fillseqs;
+     vec< vec<int> > nexts_count(nuni);
+     if (SCREEN_NEXTS)
+     {
+     const int K = 96;
      vecbasevector fills( run_dir + "/filled_reads.fastb" );
-     const int M = 96;
-     vec< triple< kmer<M>, int, int > > kmers;
+     vec< triple<kmer<K>,int,int> > kmers_plus;
      vec<int64_t> starts;
      starts.push_back(0);
      for ( size_t i = 0; i < unibases.size( ); i++ )
      {    const basevector& u = unibases[i];
-          starts.push_back( 
-               starts.back( ) + Max( 0, u.isize( ) - M + 1 ) );    }
-     kmers.resize( starts.back( ) );
+          starts.push_back( starts.back( ) + Max( 0, u.isize( ) - K + 1 ) );    }
+     kmers_plus.resize( starts.back( ) );
      #pragma omp parallel for
      for ( size_t i = 0; i < unibases.size( ); i++ )
      {    const basevector& u = unibases[i];
-          kmer<M> x, xrc;
-          for ( int j = 0; j <= u.isize( ) - M; j++ )
+          kmer<K> x;
+          for ( int j = 0; j <= u.isize( ) - K; j++ )
           {    int64_t r = starts[i] + j;
                x.SetToSubOf( u, j );
-               xrc = x;
-               xrc.ReverseComplement( );
-               kmers[r] = make_triple( ( x <= xrc ? x : xrc ), i, 0 );    }    }
-     cout << Date( ) << ": creating fill kmers" << endl;
-     starts.clear( );
-     starts.push_back(0);
-     for ( size_t i = 0; i < fills.size( ); i++ )
-     {    const basevector& u = fills[i];
-          starts.push_back( starts.back( ) + Max( 0, u.isize( ) - M + 1 ) );    }
-     int64_t nkmers = kmers.size( );
-     kmers.resize( nkmers + starts.back( ) );
-     #pragma omp parallel for
-     for ( size_t i = 0; i < fills.size( ); i++ )
-     {    const basevector& u = fills[i];
-          for ( int jz = 0; jz <= u.isize( ) - M; jz += 10000 )
-          {    kmer<M> x, xrc;
-               for ( int j = jz; j <= Min( u.isize( ) - M, jz + 10000 ); j++ )
-               {    int64_t r = nkmers + starts[i] + j;
-                    x.SetToSubOf( u, j );
-                    xrc = x;
-                    xrc.ReverseComplement( );
-                    kmers[r] = make_triple( 
-                         ( x <= xrc ? x : xrc ), i, 1 );    }    }    }
-     ParallelSort(kmers);
-     vec< vec<int> > uhits( unibases.size( ) );
+               kmers_plus[r].first = x;
+               kmers_plus[r].second = i;
+               kmers_plus[r].third = j;    }    }
+     ParallelSort(kmers_plus);
+     vec< kmer<K> > kmers( kmers_plus.size( ) );
      for ( size_t i = 0; i < kmers.size( ); i++ )
-     {    size_t j;
-          for ( j = i + 1; j < kmers.size( ); j++ )
-               if ( kmers[j].first != kmers[i].first ) break;
-          for ( size_t z1 = i; z1 < j; z1++ )
-          for ( size_t z2 = i; z2 < j; z2++ )
-          {    if ( kmers[z1].third != 1 ) continue;
-               if ( kmers[z2].third != 0 ) continue;
-               {    uhits[ kmers[z2].second ].push_back( 
-                         kmers[z1].second );    }    }
+          kmers[i] = kmers_plus[i].first;
+     vec< vec<int> > fillx( fills.size( ) );
+     PRINT( fills.size( ) );
+     #pragma omp parallel for
+     for ( size_t id = 0; id < fills.size( ); id++ )
+     {    const basevector& f = fills[id];
+          if ( f.isize( ) <= K ) continue;
+          kmer<K> x;
+          x.SetToSubOf( f, 0 );
+          int64_t p = BinPosition( kmers, x );
+          if ( p < 0 ) continue;
+          int u = kmers_plus[p].second, pos = kmers_plus[p].third;
+          if ( pos + f.isize( ) <= unibases[u].isize( ) ) continue;
+          vec< pair<int,int> > locs;
+          locs.push( u, pos );
+          for ( int j = 1; j <= f.isize( ) - K; j++ )
+          {    x.SetToSubOf( f, j );
+               p = BinPosition( kmers, x );
+               if ( p < 0 ) break;
+               u = kmers_plus[p].second, pos = kmers_plus[p].third;
+               locs.push( u, pos );    }
+          if ( locs.isize( ) < f.isize( ) - K + 1 ) continue;
+          vec<int> us;
+          Bool fail = False;
+          for ( int i = 0; i < locs.isize( ); i++ )
+          {    int j;
+               for ( j = i + 1; j < locs.isize( ); j++ )
+                    if ( locs[j].first != locs[i].first ) break;
+               if ( i > 0 && locs[i].second != 0 ) fail = True;
+               if ( i > 0 && locs[i-1].second
+                    != unibases[ locs[i-1].first ].isize( ) - K )
+               {    fail = True;    }
+               for ( int k = i+1; k < j; k++ )
+                    if ( locs[k].second != locs[k-1].second + 1 ) fail = True;
+               if (fail) break;
+               us.push_back( locs[i].first );
+               i = j - 1;    }
+          if (fail) continue;
+          #pragma omp critical
+          {    fillseqs.push_back(us);    }    }
+     int nf = fillseqs.size( );
+     for ( int i = 0; i < nf; i++ )
+     {    vec<int> x = fillseqs[i];
+          x.ReverseMe( );
+          for ( int j = 0; j < x.isize( ); j++ )
+               x[j] = to_rc[ x[j] ];
+          fillseqs.push_back(x);    }
+     PRINT( fillseqs.size( ) );
+     Bool fverbose = False;
+     if (fverbose)
+     {    for ( int j = 0; j < fillseqs.isize( ); j++ )
+          {    cout << "[" << j << " fill]";
+               const vec<int>& x = fillseqs[j];
+               for ( int i = 0; i < x.isize( ); i++ )
+                    cout << " " << x[i];
+               cout << "\n";    }    }
+
+     // Assess branches using filled fragments.
+
+     cout << Date( ) << ": creating ffpairs" << endl;
+     vec< pair<int,int> > ffpairs;
+     for ( int i = 0; i < fillseqs.isize( ); i++ )
+     {    const vec<int>& x = fillseqs[i];
+          for ( int j = 0; j < x.isize( ) - 1; j++ )
+               ffpairs.push( x[j], x[j+1] );    }
+     cout << Date( ) << ": sorting" << endl;
+     ParallelSort(ffpairs);
+     cout << Date( ) << ": cataloging" << endl;
+     for ( int u = 0; u < nuni; u++ )
+          nexts_count[u].resize( nexts[u].size( ), 0 );
+     for ( int i = 0; i < ffpairs.isize( ); i++ )
+     {    int j = ffpairs.NextDiff(i);
+          int u = ffpairs[i].first, v = ffpairs[i].second;
+          for ( int l = 0; l < nexts[u].isize( ); l++ )
+               if ( nexts[u][l] == v ) nexts_count[u][l] = j - i;
           i = j - 1;    }
-     */
+     }
 
      // Phase 1.  First go through the reads, running Phase1.  Then form
      // consensus patches.
 
      vec<uniseq> UNISEQ(nreads);
      vec< vec<int> > UNISEQ_ID(nreads);
+     vec< vec< vec<int> > > BESTS(nreads);
      vec<Bool> COMPUTED( nreads, False );
      vecbasevector all;
      vec<GapPatcher> patchers;
-     vec< digraphE<int> > Galt_all(nreads);
-     vec< vec<int> > Galt_U_all(nreads);
-     vec< vec< pair< int, vec< pair<int,int> > > > > ALIGNS_ALL(nreads);
      cout << "\n" << Date( ) << ": START PHASE 1, PASS 1" << endl;
-     Phase1( NUM_THREADS, unibases, to_rc, nexts, K, L, Ulocs, longreads, 
-          reads_to_use, heur, USE_SHORTEST, CLUSTER_OLD, CLUSTER_ALIGNS_NEW_CLEAN,
-          PATCHES_ONLY || PATCHES_PLUS, MIN_PATCH1, MIN_PATCH2, TEST_READ_GAP, 
-          STANDARD_ALIGNS, FILTER, CLEAN_GRAPH, reads_to_trace, VERBOSE1, 
-          SKIP_SILENT, DOT1, QLT1, data_dir, run_dir, ABBREVIATE_ALIGNMENTS, 
-          PRINT_RAW_ALIGNS, UNISEQ, UNISEQ_ID, COMPUTED, all, patchers, Galt_all, 
-          Galt_U_all, ALIGNS_ALL );
+     vec< digraphVE<int,int> > Hall(nreads);
+     vec< vec< pair< int, vec< pair<int,int> > > > > ALIGNS_ALL(nreads);
+     Phase1( NUM_THREADS, unibases, to_rc, nexts, nexts_count, K, L, Ulocs, 
+          longreads, reads_to_use, heur, USE_SHORTEST, CLUSTER_ALIGNS_NEW_CLEAN,
+          BEST_ONLY, PATCHES, MIN_PATCH1, MIN_PATCH2, STANDARD_ALIGNS, FILTER0, 
+          FILTER, FILTER2, CLEAN_GRAPH, CYCLIC_BAIL, KILL_INFERIOR_CLUSTERS_NEW, 
+          SCREEN_NEXTS, MIN_SPREAD1, reads_to_trace, 
+          VERBOSE1, SKIP_SILENT, DOT1, QLT1, data_dir, run_dir, 
+          ABBREVIATE_ALIGNMENTS, PRINT_RAW_ALIGNS, UNISEQ, UNISEQ_ID, BESTS, 
+          COMPUTED, all, patchers, Hall, ALIGNS_ALL );
+     if (WRITE)
+     {    cout << Date( ) << ": writing files" << endl;
+          vec< vec<int> > raw_longs(nreads);
+          for ( int id = 0; id < nreads; id++ )
+               raw_longs[id] = UNISEQ[id].U( );
+          BinaryWriter::writeFile( outhead + ".raw_longs", raw_longs );
+          BinaryWriter::writeFile( outhead + ".read_paths", BESTS );
+          BinaryWriter::writeFile( outhead + ".read_graph", Hall );
+          BinaryWriter::writeFile( outhead + ".read_aligns", ALIGNS_ALL );
+          cout << Date( ) << ": done writing files" << endl;    }
      if ( EARLY_EXIT == 1 ) return 0;
-     vec<Bool> to_delete( patchers.size( ) );
-     for ( int i = 0; i < patchers.isize( ); i++ )
-     {    if ( PATCH_U1 >= 0 && patchers[i].t1 != PATCH_U1 ) to_delete[i] = True;
-          if ( PATCH_U2 >= 0 && patchers[i].t2 != PATCH_U2 ) to_delete[i] = True;   }
-     EraseIf( patchers, to_delete );
-     vec<basevector> bpatches;
-     if ( K == 96 )
-     {    BuildPatches<96>( unibases, nexts, L, Ulocs, patchers, CORRECT_PATCHES, 
-               CORRECT_PATCHES_NEW, CORRECT_PATCHES_VERBOSE, genome2, 
-               PATCH_VERBOSITY, VALIDATE_PATCHES, PATCH_CORRECT_VERBOSITY, LG, 
-               Glocs, data_dir, run_dir, bpatches, MIN_TO_PATCH, PATCH_MODE,
-               fbases, fquals, fpairs, fheads, fids );    }
-     else if ( K == 640 )
-     {    BuildPatches<640>( unibases, nexts, L, Ulocs, patchers, CORRECT_PATCHES, 
-               CORRECT_PATCHES_NEW, CORRECT_PATCHES_VERBOSE, genome2,
-               PATCH_VERBOSITY, VALIDATE_PATCHES, PATCH_CORRECT_VERBOSITY, LG, 
-               Glocs, data_dir, run_dir, bpatches, MIN_TO_PATCH, PATCH_MODE,
-               fbases, fquals, fpairs, fheads, fids );    }
-     else ForceAssert( 0 == 1 );
-     if ( EARLY_EXIT == 2 || PATCHES_ONLY ) return 0;
-     Sort(bpatches);
+     if (PATCHES)
+     {     vec<Bool> to_delete( patchers.size( ) );
+          for ( int i = 0; i < patchers.isize( ); i++ )
+          {    if ( PATCH_U1 >= 0 && patchers[i].t1 != PATCH_U1 ) 
+                    to_delete[i] = True;
+               if ( PATCH_U2 >= 0 && patchers[i].t2 != PATCH_U2 ) 
+                    to_delete[i] = True;   }
+          EraseIf( patchers, to_delete );
+          vec<basevector> bpatches;
+          if ( K == 96 )
+          {    BuildPatches<96>( unibases, nexts, cn_plus, L, Ulocs, patchers, 
+                    CORRECT_PATCHES, CORRECT_PATCHES_NEW,
+                    CORRECT_PATCHES_VERBOSE, ANNOUNCE_PATCH_CORRECTION, genome2, 
+                    PATCH_VERBOSITY, VALIDATE_PATCHES, PATCH_CORRECT_VERBOSITY, LG, 
+                    Glocs, data_dir, run_dir, bpatches, MIN_TO_PATCH,
+                    fbases, fquals, fpairs, fheads, fids, NEW_PLUS_RULE );    }
+          else if ( K == 640 )
+          {    BuildPatches<640>( unibases, nexts, cn_plus, L, Ulocs, patchers, 
+                    CORRECT_PATCHES, CORRECT_PATCHES_NEW,
+                    CORRECT_PATCHES_VERBOSE, ANNOUNCE_PATCH_CORRECTION, genome2, 
+                    PATCH_VERBOSITY, VALIDATE_PATCHES, PATCH_CORRECT_VERBOSITY, LG, 
+                    Glocs, data_dir, run_dir, bpatches, MIN_TO_PATCH,
+                    fbases, fquals, fpairs, fheads, fids, NEW_PLUS_RULE );    }
+          else ForceAssert( 0 == 1 );
+          if ( EARLY_EXIT == 2 ) return 0;
+          Sort(bpatches);
 
-     // Merge patches into unibases.
+          // Merge patches into unibases.
 
-     if (PATCHES_PLUS)
-     {    vecbasevector growl(unibases);
+          vecbasevector growl(unibases);
           for ( int j = 0; j < bpatches.isize( ); j++ )
                growl.push_back_reserve( bpatches[j] );
           for ( int id1 = 0; id1 < nuni; id1++ ) 
@@ -466,13 +591,14 @@ int main(int argc, char *argv[])
           {
                #pragma omp critical
                {    clock2 = WallClockTime( );
-                    cout << Date( ) << ": begin " << u << endl;    }    }
+                    cout << Date( ) << ": begin " << u << " (bases=" 
+                         << unibases[u].size( ) << ")" << endl;    }    }
           ostringstream hout;
           Phase2( u, unibases, Ulocs, to_rc, longreads, K, hits, UNISEQ, UNISEQ_ID,
                ( DIRECT2 ? cout : hout ), DOT2, PRINT_MATCHES, PRINT_LM1, 
                DUMP_LOCAL, PRINT_DISCARDS, VALIDATE1, data_dir, genome2, Glocs, LG, 
                heur, new_stuff, right_exts, NEW_FILTER, ANNOUNCE, SUPER_VERBOSITY2,
-               PRINT_BASES2, EXPERIMENTAL_DOT, Galt_all, Galt_U_all, ALIGNS_ALL );
+               PRINT_BASES2, MIN_SPREAD2 );
           if (ANNOUNCE)
           {
                #pragma omp critical
@@ -512,43 +638,7 @@ int main(int argc, char *argv[])
      if (WRITE) 
      {    cout << Date( ) << ": writing right_exts" << endl;
           BinaryWriter::writeFile( ( outhead + ".right_exts" ).c_str( ), 
-               right_exts );
-          cout << Date( ) << ": building new unipaths" << endl;
-          vecbasevector all(unibases);
-          all.Append(new_stuff);
-          for ( size_t j = 0; j < new_stuff.size( ); j++ )
-          {    basevector b = new_stuff[j];
-               b.ReverseComplement( );
-               all.push_back_reserve(b);    }
-          for ( int j = 0; j < bpatches.isize( ); j++ )
-               all.push_back( bpatches[j] );
-          for ( int id1 = 0; id1 < nuni; id1++ ) 
-          {    for (int j = 0; j < nexts[id1].isize(); j++) 
-               {    int id2 = nexts[id1][j];
-	            basevector b = unibases[id1];
-	            b.resize( b.size( ) + 1 );
-	            b.Set( b.size( ) - 1, unibases[id2][K-1] );
-	            all.push_back_reserve(b);    }    }
-          vecKmerPath newpaths, newpathsrc, newunipaths;
-          vec<tagged_rpint> newpathsdb, newunipathsdb;
-          ReadsToPathsCoreY( all, KOUT, newpaths, newpathsrc, newpathsdb,
-               run_dir + "/CLR", NUM_THREADS );
-          Unipath( newpaths, newpathsrc, newpathsdb, newunipaths, newunipathsdb );
-	  digraph A;
-	  BuildUnipathAdjacencyGraph( newpaths, newpathsrc, newpathsdb, newunipaths, newunipathsdb, A);
-          KmerBaseBroker newkbb( KOUT, newpaths, newpathsrc, newpathsdb, all );
-          vecbasevector newunibases;
-          for ( size_t i = 0; i < newunipaths.size( ); i++ )
-               newunibases.push_back_reserve( newkbb.Seq( newunipaths[i] ) );
-
-          // Write output files.
-
-          cout << Date( ) << ": writing output files" << endl;
-          String KOUTS = ToString(KOUT);
-          newunipaths.WriteAll( outhead + ".unipaths.k" + KOUTS );
-          BinaryWrite3( outhead + ".unipathsdb.k" + KOUTS, newunipathsdb );
-	  BinaryWrite( outhead + ".unipath_adjgraph.k" + KOUTS, A );
-          newunibases.WriteAll( outhead + ".unibases.k" + KOUTS );    }
+               right_exts );    }
 
      // Done.
 

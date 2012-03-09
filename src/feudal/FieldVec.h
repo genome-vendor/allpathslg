@@ -574,9 +574,9 @@ public:
         return allocator();
     }
 
-    size_t writeFeudal( BinaryWriter& writer, void const** ppFixed ) const
+    void writeFeudal( BinaryWriter& writer, void const** ppFixed ) const
     { *ppFixed = &mSize;
-      return writer.write(data(),dataEnd()); }
+      writer.write(data(),dataEnd()); }
 
     void readFeudal( BinaryReader& rdr, size_t varDataLen, void* pFixed )
     { size_type sz; memcpy(&sz,pFixed,sizeof(sz));
@@ -584,9 +584,9 @@ public:
       resize(sz);
       rdr.read(data(),dataEnd()); }
 
-    size_t writeBinary( BinaryWriter& writer ) const
-    { size_t len = writer.write(mSize);
-      return len+writer.write(data(),dataEnd()); }
+    void writeBinary( BinaryWriter& writer ) const
+    { writer.write(mSize);
+      writer.write(data(),dataEnd()); }
 
     void readBinary( BinaryReader& reader )
     { size_type sz; reader.read(&sz); resize(sz);
@@ -733,7 +733,12 @@ private:
         return (data()[idx/VALS_PER_BYTE] >> idx%VALS_PER_BYTE*N) & VAL_MASK;
     }
 
-    void realign( size_type src, size_type dest );
+    void realign( size_type src, size_type dest )
+    {
+        size_type end = size();
+        while ( src != end )
+            setValue(dest++, getValue(src++));
+    }
 
     void deallocate()
     {
@@ -754,7 +759,8 @@ private:
 };
 
 template <int N, class A>
-struct Serializability<FieldVec<N,A> > : public SelfSerializable {};
+struct Serializability<FieldVec<N,A> >
+{ typedef SelfSerializable type; };
 
 template <int N, class A>
 bool operator==( FieldVec<N,A> const& v1, FieldVec<N,A> const& v2 )

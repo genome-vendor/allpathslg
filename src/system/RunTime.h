@@ -16,15 +16,11 @@
 typedef void ArachneSignalHandler(int, siginfo_t*, void*);
 
 void arachne_signal_handler( int signal_number, siginfo_t* info, void* context,
-    Bool no_ctrlc = False, Bool nonzero_child = False );
+    Bool no_ctrlc = False );
 void arachne_signal_handler_standard( int signal_number, siginfo_t* info,
     void* context );
 void arachne_signal_handler_no_ctrlc_traceback( int signal_number,
     siginfo_t* info, void* context );
-/* A version of the standard handler that will also stop the process if a
-   child process exits with a non-zero value. */
-void arachne_signal_handler_nonzero_child(int signal_number, siginfo_t* info,
-    void* context);
 void ArachneInterruptHandler(ArachneSignalHandler* func);
 
 void NoDump( ); // Turn off core dumps.

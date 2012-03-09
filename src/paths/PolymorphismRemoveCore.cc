@@ -189,39 +189,29 @@ bool Polymorphisms::_add_poly(const BaseVec           & bv_a,
                               const BaseVec           & bv_b,
                               const float               kf_a,
                               const float               kf_b,
+			      const BubbleValidator   & validator,
                               vec<KmerIPoly<Kmer_t> > * poly_a_vec_p,
                               vec<KmerIPoly<Kmer_t> > * poly_b_vec_p)
 {
-  // ---- polymorphism only if last K-1 bases are identical
-  
-  const unsigned nb_a = bv_a.size();
-  const unsigned nb_b = bv_b.size();
-  
-  bool is_poly = false;
-  
-  if (nb_a >= _K + 2 && nb_b >= _K + 2)
-    is_poly = true;
-  
-  if (is_poly) {
-    
-    // ---- verify that final K-1 bases are identical
+  bool a_is_strong = true;
+  if (validator(bv_a, bv_b, kf_a, kf_b, & a_is_strong)) {
 
-    for (unsigned i = 1; i < _K; i++)
-      if (bv_a[nb_a - i] != bv_b[nb_b - i]) 
-        is_poly = false;
-    
-    if (is_poly) {     // ---- add A and B poly entries 
+    _a_is_strong.push_back(a_is_strong); 
 
+    if (a_is_strong) {
       _add_single(bv_a, kf_a, & _bvv_a, & _kfv_a, poly_a_vec_p);
       _add_single(bv_b, kf_b, & _bvv_b, & _kfv_b, poly_b_vec_p);
-      
-      _a_is_strong.push_back(true); // ---- pick A as strong by default
-
       _stats.add(bv_a.size(), bv_b.size());
     }
+    else {
+      _add_single(bv_b, kf_b, & _bvv_a, & _kfv_a, poly_a_vec_p);
+      _add_single(bv_a, kf_a, & _bvv_b, & _kfv_b, poly_b_vec_p);
+      _stats.add(bv_a.size(), bv_b.size());
+    }
+    return true;
   }
-  
-  return is_poly;
+
+  return false;
 }
 
 
@@ -230,8 +220,7 @@ bool Polymorphisms::_add_poly(const BaseVec           & bv_a,
 // ---- kmap not a const because follow_kmers() needs to tag the visited.
 
 void Polymorphisms::build(KmerMap<KmerRec_t> & kmap,
-                          const size_t         kf_min,
-                          const size_t         kf_max)
+			  const BubbleValidator & validator)
 {
   bool verbose = false;
     
@@ -246,7 +235,7 @@ void Polymorphisms::build(KmerMap<KmerRec_t> & kmap,
   cout << Tag() << "Looking for polymorphisms." << endl;
   const size_t nh = kmap.size_hash();
   for (size_t ih = 0; ih != nh; dots_pct(ih++, nh)) {
-      
+    
     const KmerRec_t & krec0 = kmap[ih];
     if (krec0.is_valid_kmer() && 
         (krec0.n_suffixes() == 2 ||
@@ -260,8 +249,7 @@ void Polymorphisms::build(KmerMap<KmerRec_t> & kmap,
         follow_kmers(kmap, kmer0, 0, &bv_a, &kf_a);
         follow_kmers(kmap, kmer0, 1, &bv_b, &kf_b);
           
-        if (_kmer_frequency_valid(kf_a + kf_b, kf_min, kf_max))
-          _add_poly(bv_a, bv_b, kf_a, kf_b, & poly_a_vec, & poly_b_vec);
+        _add_poly(bv_a, bv_b, kf_a, kf_b, validator, & poly_a_vec, & poly_b_vec);
       }
 
       // ---- follow kmers backward
@@ -272,8 +260,7 @@ void Polymorphisms::build(KmerMap<KmerRec_t> & kmap,
         follow_kmers(kmap, kmer0, 0, &bv_a, &kf_a);
         follow_kmers(kmap, kmer0, 1, &bv_b, &kf_b);
           
-        if (_kmer_frequency_valid(kf_a + kf_b, kf_min, kf_max))
-          _add_poly(bv_a, bv_b, kf_a, kf_b, & poly_a_vec, & poly_b_vec);
+        _add_poly(bv_a, bv_b, kf_a, kf_b, validator, & poly_a_vec, & poly_b_vec);
       }
     }
   }
@@ -289,6 +276,13 @@ void Polymorphisms::build(KmerMap<KmerRec_t> & kmap,
   cout << Tag() << "mapB.size= " << _poly_b.num_recs() << endl;
 
 }
+
+
+
+
+
+
+
 
 
 
@@ -348,11 +342,12 @@ void polymorphisms_find_parallel(const unsigned K,
     cout << Tag() << setw(12) << kspec_p->kf_max2() << "  kmer frequency of mode." << endl;
     cout << Tag() << setw(12) << kf_max << "  kmer frequency upper cutoff for CN=1." << endl;
   
+    PolyBubbleValidator validator_bubble(K, kf_min, kf_max);
 
     // ---- find ambiguities
     
     cout << Tag() << "Finding polymorphisms." << endl;
-    polys_p->build(kmap, kf_min, kf_max);
+    polys_p->build(kmap, validator_bubble);
     
 
   }

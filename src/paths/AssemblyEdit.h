@@ -137,16 +137,14 @@ class assembly_edit {
 
      public:
 
-     size_t writeBinary(BinaryWriter& writer) const
-     {    size_t len = 0;
-          int et = etype_;
-          len += writer.write(et);
-          len += writer.write(tig_);
-          len += writer.write(tign_);
-          len += writer.write(start_);
-          len += writer.write(stop_);
-          len += writer.write(reps_);
-          return len;    }
+     void writeBinary(BinaryWriter& writer) const
+     {    int et = etype_;
+          writer.write(et);
+          writer.write(tig_);
+          writer.write(tign_);
+          writer.write(start_);
+          writer.write(stop_);
+          writer.write(reps_); }
 
      void readBinary(BinaryReader& reader)
      {    int et;

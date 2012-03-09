@@ -12,7 +12,7 @@
 #include "MainTools.h"
 #include "PairsManager.h"
 #include "Superb.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
 #include "math/Functions.h"
 #include "paths/Alignlet.h"
@@ -409,9 +409,9 @@ void PairDistCorrectionOld(const vec<T>& libDist, const PairsManager& pairs, con
 	  //sds[pairId] = std0new;
 	  counter2++;
 	}
-	//if (verbose) 
-	cout << "c"<< cg1 << "," << cg2 << ( fw1 ? '+':'-') <<  (fw2 ? '+' : '-')
-	  << " lib "<< libId << ", " << nLinks << " links, shift= " << shift << endl;
+	if (verbose) 
+	  cout << "c"<< cg1 << "," << cg2 << ( fw1 ? '+':'-') <<  (fw2 ? '+' : '-')
+	       << " lib "<< libId << ", " << nLinks << " links, shift= " << shift << endl;
       }
     }
   }

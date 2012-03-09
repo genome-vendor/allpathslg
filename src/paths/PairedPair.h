@@ -82,18 +82,7 @@ class istring : public vec<int> {
      static void UseSplitLineOutput() { s_displayMode = SPLIT; }
 
      friend ostream& operator<<( ostream& o, const istring& x );
-
-     friend void BinaryWrite( int fd, const istring& x )
-     {    BinaryWrite( fd, (const vec<int>&) x );    }
-     friend void BinaryRead( int fd, istring& x )
-     {    BinaryRead( fd, (vec<int>&) x );    }
-
 };
-
-inline void BinaryWrite( int fd, const vec<istring>& v )
-{    BinaryWriteComplex( fd, v );    }
-inline void BinaryRead( int fd, vec<istring>& v )
-{    BinaryReadComplex( fd, v );    }
 
 typedef istring pp_read;
 
@@ -129,9 +118,6 @@ class pp_pair {
      friend ostream& operator<<( ostream& o, const pp_pair& p );
      void Print( ostream& o, const vec<int>& L ) const;
 
-     friend void BinaryWrite( int fd, const pp_pair& p );
-     friend void BinaryRead( int fd, pp_pair& p );
-
      friend Bool operator<( const pp_pair& p1, const pp_pair& p2 )
      {    if ( p1.left_ < p2.left_ ) return True;
           if ( p1.left_ > p2.left_ ) return False;
@@ -154,11 +140,6 @@ class pp_pair {
      double gap_, dev_;
 
 };
-
-inline void BinaryWrite( int fd, const vec<pp_pair>& h )
-{    BinaryWriteComplex( fd, h );    }
-inline void BinaryRead( int fd, vec<pp_pair>& h )
-{    BinaryReadComplex( fd, h );    }
 
 class pp_mpair : public pp_pair {
 

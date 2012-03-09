@@ -6,6 +6,7 @@
 #include "system/System.h"
 #include "Vec.h"
 #include "paths/ReadFillRecord.h"
+#include "feudal/BinaryStream.h"
 
 /// The file reads.{PREFIX}_fillrecords.k48 in the run_dir is a 
 /// vec<ReadFillRecord> (one entry per read) created by CloseAllReadGaps,
@@ -124,7 +125,7 @@ private:
     void FillsFromFile( String filename ) {
       if( I_own_my_readfills ) delete mp_fills;
       vec<ReadFillRecord>* p_fills = new vec<ReadFillRecord>;
-      BinaryRead2( filename, *p_fills );
+      BinaryReader::readFile( filename, p_fills );
       mp_fills = p_fills;
       I_own_my_readfills = true;
       cached_read = 0;

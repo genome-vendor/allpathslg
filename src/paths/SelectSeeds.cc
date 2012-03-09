@@ -38,6 +38,7 @@
 #include "MainTools.h"
 #include "PairsManager.h"
 #include "ReadLocationLG.h"
+#include "feudal/BinaryStream.h"
 #include "graph/Digraph.h" // digraph
 #include "paths/PdfEntry.h" // pdf_entry
 #include "paths/KmerPath.h" // vecKmerPath
@@ -45,6 +46,7 @@
 #include "paths/UnipathNhoodLG.h" // sepdev, fsepdev
 #include "paths/FindUnipathSeedsLG.h" // FindUnipathSeeds, EvalUnipathSeeds
 #include "paths/simulation/Placement.h" // placement
+#include "feudal/BinaryStream.h"
 
 
 
@@ -110,7 +112,7 @@ int main( int argc, char *argv[] )
   vecKmerPath paths   ( file_head + ".paths" + kK );
   vecKmerPath paths_rc( file_head + ".paths_rc" + kK );
   vec<tagged_rpint> pathsdb;
-  BinaryRead3(file_head + ".pathsdb" + kK, pathsdb);
+  BinaryReader::readFile(file_head + ".pathsdb" + kK, &pathsdb);
   
   // Calculate read lengths
   vec<int> read_lengths = KmerPathSeqLength( paths, K );
@@ -118,12 +120,12 @@ int main( int argc, char *argv[] )
   // Unipaths [db]
   vecKmerPath unipaths( file_head + ".unipaths" + kK );
   vec<tagged_rpint> unipathsdb;
-  BinaryRead3(file_head + ".unipathsdb" + kK, unipathsdb);
+  BinaryReader::readFile(file_head + ".unipathsdb" + kK, &unipathsdb);
   
   // Unipath link graph
   String graph_file_infix = USE_THEO_GRAPHS ? ".theo" : "";
   digraphE<fsepdev> LG;
-  BinaryRead( sub_dir + "/" + GRAPH + graph_file_infix + ".cloud" + kK, LG );
+  BinaryReader::readFile( sub_dir + "/" + GRAPH + graph_file_infix + ".cloud" + kK, &LG );
   
   // Unipath copy numbers (predicted)
   VecPdfEntryVec CNs( (file_head + ".unipaths.predicted_count" + kK).c_str() );
@@ -192,7 +194,7 @@ int main( int argc, char *argv[] )
   // Unilocs (i.e., read locations on unipaths) and index.
 
   vec<ReadLocationLG> unilocs;
-  BinaryRead2( file_head + ".unilocs." + ToString( K ), unilocs );
+  BinaryReader::readFile( file_head + ".unilocs." + ToString( K ), &unilocs );
   vec<longlong> unilocs_index( n_unipaths + 1, -1 );
   unilocs_index[0] = 0;
   for ( int i = 0; i < unilocs.isize( ); i++ )

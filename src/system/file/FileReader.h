@@ -10,30 +10,37 @@
  * \author tsharpe
  * \date Jan 12, 2012
  *
- * \brief
+ * \brief Handle reading from a file descriptor.
  */
 #ifndef SYSTEM_FILE_FILEREADER_H_
 #define SYSTEM_FILE_FILEREADER_H_
 
 #include "system/file/File.h"
+#include <string>
 #include <cstddef>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
+/// Handle reading from a file descriptor.
 class FileReader
 {
 public:
+    FileReader() : mFD(-1), mMyFD(false) {}
+
     explicit FileReader( char const* path )
     : mPath(path) { doOpen(); }
 
-    explicit FileReader( File const& file )
-    : mPath(file.toString()) { doOpen(); }
+    /// Construct from something with a c_str() member (like string or String)
+    template <class C>
+    explicit FileReader( C const& path,
+                             char const* (C::*)() const = &C::c_str )
+    : mPath(path.c_str()) { doOpen(); }
 
+    /// NB: This is for situations where the fd isn't in the filesystem (e.g.,
+    /// pipes, sockets, etc.).  You still own the fd, and it will NOT be
+    /// automatically closed for you.
     FileReader( int fd, char const* pseudoFilename )
     : mFD(fd), mMyFD(false), mPath(pseudoFilename) {}
 
-    ~FileReader() { if ( mMyFD ) doClose(); }
+    ~FileReader() { close(); }
 
     std::string const& getFilename() const { return mPath; }
 
@@ -54,6 +61,11 @@ public:
     /// SEEK_CUR with this offset.
     FileReader const& seekRel( long off ) const;
 
+    /// SEEK_END with this offset.
+    FileReader const& seekEnd( long off = 0 ) const;
+
+    size_t tell() const;
+
     struct stat getStat() const;
 
     /// Return the file's size.
@@ -62,6 +74,11 @@ public:
     /// Memory-map the file.
     void* map( size_t offset, size_t len, bool readOnly=false );
 
+    bool isOpen() const { return mFD != -1; }
+    void close()
+    { if ( !mMyFD ) mFD = -1;
+      else if ( mFD != -1 ) doClose(); }
+
 private:
     FileReader( FileReader const& ); // not implemented -- no copying
     FileReader& operator=( FileReader const& ); // not implemented -- no copying
@@ -69,12 +86,15 @@ private:
 
     void doOpen();
     void doClose();
+    void wait() const;
 
     int mFD;
     bool mMyFD;
     std::string mPath;
 
-    static size_t const MAX_READ_LEN = (1ul<<31) - (1ul<<12);
+    static size_t const MAX_IO_LEN = (1ul<<31) - (1ul<<12);
+
+    friend class FileWriter;
 };
 
 #endif /* SYSTEM_FILE_FILEREADER_H_ */

@@ -3,7 +3,6 @@
 // #define USE_TIMERS
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <sys/types.h>
 
 #include <algorithm>

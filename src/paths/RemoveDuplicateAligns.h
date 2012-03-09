@@ -11,7 +11,7 @@
 
 #include "PairsManager.h"
 #include "SeqInterval.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "paths/Alignlet.h"
 
 /**

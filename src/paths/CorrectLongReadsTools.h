@@ -69,25 +69,23 @@ void Phase2( const int u, const vecbasevector& unibases,
      const int LG, const heuristics& heur, vecbasevector& new_stuff,
      vec< vec<int> >& right_exts,
      const Bool NEW_FILTER, const Bool ANNOUNCE, const int SUPER_VERBOSITY,
-     const Bool PRINT_BASES2, const Bool EXPERIMENTAL_DOT,
-     const vec< digraphE<int> >& Galt_all, const vec< vec<int> >& Galt_U_all,
-     const vec< vec< pair< int, vec< pair<int,int> > > > >& ALIGNS_ALL );
+     const Bool PRINT_BASES2, const int MIN_SPREAD2 );
 
 void Validate( vecbasevector all, const vecbasevector& unibases,
      const vecbasevector& genome, const int min_mult, 
      const Bool PRINT_MISSING_KMERS );
 
 template<int K> void BuildPatches( const vecbasevector& unibases, 
-     const vec< vec<int> >& nexts, const int L, 
+     const vec< vec<int> >& nexts, const vec<Bool>& cn_plus, const int L, 
      const vec< vec< pair<int,int> > >& Ulocs, vec<GapPatcher>& patchers, 
      const Bool CORRECT_PATCHES, const Bool CORRECT_PATCHES_NEW, 
-     const Bool CORRECT_PATCH_VERBOSE,
+     const Bool CORRECT_PATCH_VERBOSE, const Bool ANNOUNCE_PATCH_CORRECTION,
      const vecbasevector& genome2, const int PATCH_VERBOSITY, 
      const Bool VALIDATE_PATCHES, const int PATCH_CORRECT_VERBOSITY, const int LG, 
      const vec< vec< pair<int,int> > >& Glocs, const String& data_dir, 
      const String& run_dir, vec<basevector>& bpatches, const uint n_patchers_min,
-     const int patch_mode, const vecbasevector& fbases, const vecqualvector& fquals,
+     const vecbasevector& fbases, const vecqualvector& fquals,
      const PairsManager& fpairs, const vec< kmer<20> >& fheads, 
-     const vec<int64_t>& fids );
+     const vec<int64_t>& fids, const Bool NEW_PLUS_RULE );
 
 #endif

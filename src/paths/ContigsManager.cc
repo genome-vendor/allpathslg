@@ -115,14 +115,16 @@ vec<size_t> ContigsManager::SplitContig( size_t cg_id, size_t pos )
 
       // Read on the left half.
       if ( al.Pos2( ) < (int)pos ) {
-	cg2useqs_[cg_id].push_back( useq_id );
+	if ( ! Member( cg2useqs_[cg_id], useq_id ) ) // !!! Avoid duplication
+	  cg2useqs_[cg_id].push_back( useq_id );
 	alignlet new_al( al.pos2( ), al.Pos2( ), cg_id, tg0len, al.Fw1( ) );
 	ualigns0_[ ualigns0_index_[useq_id][ai] ] = new_al;
 	continue;
       }
       // Read on the right half.
       else if ( al.pos2( ) >= (int)pos ) {
-	cg2useqs_[new_cg_id].push_back( useq_id );
+	if ( ! Member( cg2useqs_[new_cg_id], useq_id ) ) // !!! Avoid duplication
+	  cg2useqs_[new_cg_id].push_back( useq_id );
 	int pos2 = al.pos2( ) - pos;
 	int Pos2 = al.Pos2( ) - pos;
 	alignlet new_al( pos2, Pos2, new_cg_id, tg1len, al.Fw1( ) );
@@ -207,7 +209,8 @@ void ContigsManager::CutHead( size_t cg_id, size_t pos )
 
       // Read on the right half.
       else {
-	cg2useqs_[cg_id].push_back( useq_id );
+	if ( ! Member( cg2useqs_[cg_id], useq_id ) ) // !!! Avoid duplication
+	  cg2useqs_[cg_id].push_back( useq_id );
 	int pos2 = al.pos2( ) - pos;
 	int Pos2 = al.Pos2( ) - pos;
 	alignlet new_al( pos2, Pos2, cg_id, tg0len, al.Fw1( ) );
@@ -278,7 +281,8 @@ void ContigsManager::CutTail( size_t cg_id, size_t pos )
 	if ( al.TargetId() != (int)cg_id ) continue;
 	// Seq on the left half.
 	if ( al.Pos2( ) <= (int)pos ) {
-	  cg2useqs_[cg_id].push_back( useq_id );
+	  if ( ! Member( cg2useqs_[cg_id], useq_id ) ) // !!! Avoid duplication
+	    cg2useqs_[cg_id].push_back( useq_id );
 	  alignlet new_al( al.pos2( ), al.Pos2( ), cg_id, tg0len, al.Fw1( ) );
 	  ualigns0_[ ualigns0_index_[useq_id][ai] ] = new_al;
 	  continue;
@@ -362,6 +366,12 @@ vec<size_t> ContigsManager::SlideSplitContig( size_t cg_id, const size_t pos1, c
 
   cg2useqs_.resize( 1 + contigs_.size( ) );
   vec<int> useq_set = cg2useqs_[cg_id];
+  // =======================================================
+  // Attention: Since unibases can be aligned multiple times to the same contigs. 
+  // we have to make sure that each unibase id is included only once in cg2useq list. 
+  // Multiple includsion will cause the same alignment to be modified multiple times, 
+  // which is incorrect.
+  // =======================================================
   
   // Rebuild cg2seqs for cg_id and for the last contig (the new one).
   cg2useqs_[cg_id].clear( );
@@ -374,13 +384,15 @@ vec<size_t> ContigsManager::SlideSplitContig( size_t cg_id, const size_t pos1, c
       
       // Seq on the left segment.
       if ( al.Pos2( ) < (int)pos2 ) {
-	cg2useqs_[cg_id].push_back( useq_id );
+	if ( ! Member( cg2useqs_[cg_id], useq_id ) ) // !!! Avoid duplication
+	  cg2useqs_[cg_id].push_back( useq_id );
 	alignlet new_al( al.pos2( ), al.Pos2( ), cg_id, tg0len, al.Fw1( ) );
 	ualigns0_[ ualigns0_index_[useq_id][ai] ] = new_al;
 	ForceAssert( new_al.pos2() >=0 && new_al.Pos2() <= tg0len );
       }else if ( al.pos2( ) >= (int)pos1 ) {
 	// Seq on the right segment half.
-	cg2useqs_[new_cg_id].push_back( useq_id );
+	if ( ! Member( cg2useqs_[new_cg_id], useq_id ) ) // !!! Avoid duplication
+	  cg2useqs_[new_cg_id].push_back( useq_id );
 	int pos2 = al.pos2( ) - pos1;
 	int Pos2 = al.Pos2( ) - pos1;
 	alignlet new_al( pos2, Pos2, new_cg_id, tg1len, al.Fw1( ) );

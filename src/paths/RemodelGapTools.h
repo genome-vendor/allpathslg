@@ -47,6 +47,9 @@ void AlignReads( const int K1, const int K2, const Bool use_tail,
 template<int K> void MakeKmerLookup( const vecbasevector& tigs,
      vec< triple<kmer<K>,int,int> >& kmers_plus );
 
+template<int K> void MakeKmerLookup0( const vecbasevector& tigs,
+     vec< triple<kmer<K>,int,int> >& kmers_plus );
+
 void FindTrueGaps(  
      // inputs:
      const vecbasevector& genome,

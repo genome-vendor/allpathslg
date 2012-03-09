@@ -11,6 +11,7 @@
 #include "FetchReads.h"
 #include "PairsManager.h"
 #include "Superb.h"
+#include "feudal/BinaryStream.h"
 #include "graph/Digraph.h"
 #include "math/NStatsTools.h"
 #include "paths/Alignlet.h"
@@ -213,22 +214,20 @@ void SaveInterimScaffolds( const String &data_dir,
   }
 
   BuildScaffoldGraph( pairs, sing, *aligns, *index, unused, &graph );
-  int fd = OpenForWrite( contig_graph_file );
-  BinaryWrite( fd, graph );
+  BinaryWriter::writeFile( contig_graph_file, graph );
 
   // The scaffold graph.
   digraphE<CLinkBundle> supergraph;
   BuildScaffoldGraph( pairs, supers, *aligns, *index, unused, &supergraph );
-  fd = OpenForWrite( super_graph_file );
-  BinaryWrite( fd, supergraph );	
+  BinaryWriter::writeFile( super_graph_file, supergraph );
   
   // Save the usual scaffold assembly files.
   SaveScaffoldAssembly( head_out, supers, contigs );
 
   // Save aligns and index (optional).
   if ( aligns && index ) {
-    BinaryWrite3( aligns_file, *aligns );
-    BinaryWrite3( index_file, *index );
+    BinaryWriter::writeFile( aligns_file, *aligns );
+    BinaryWriter::writeFile( index_file, *index );
   }  
 
   // Run eval scaffolds (optional).

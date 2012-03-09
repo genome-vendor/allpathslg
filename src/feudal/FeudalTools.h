@@ -29,7 +29,6 @@ void MergeMastervecs(const String& file1, const String& file2, const String& des
 size_t MastervecFileObjectCount(const String& filename);
 size_t MastervecFileRawCount( const String& filename, size_t dataSize=0 );
 bool IsGoodFeudalFile( const String& filename, bool verbose=false );
-void RemoveMastervecFiles(const String& filename);
 
 template<class SwappableVec>
 void PermuteSwappableVec(SwappableVec & v,

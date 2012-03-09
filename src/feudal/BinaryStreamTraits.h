@@ -16,8 +16,6 @@
 #ifndef FEUDAL_BINARYSTREAMTRAITS_H_
 #define FEUDAL_BINARYSTREAMTRAITS_H_
 
-#include <cstddef>
-
 /// This is a trait that describes how classes should be serialized.
 /// There are three categories:
 ///
@@ -39,7 +37,7 @@
 /// The next category is classes that take responsibility for their own
 /// serialization.  A class that is self-serializable implements the following
 /// three methods:
-///    size_t writeBinary( BinaryWriter& writer ) const;
+///    void writeBinary( BinaryWriter& writer ) const;
 ///    void readBinary( BinaryReader& reader );
 ///    static size_t externalSizeof();
 /// The last method is only used in reading feudal files (not binary streams),
@@ -50,26 +48,50 @@
 /// SELF_SERIALIZABLE(myClass);
 ///
 /// EXTERNALLY_SERIALIZABLE
-/// The last category, ExternallySerializable, is the default.  (So you needn't
-/// use a macro to indicate that your class should be handled this way.)
-/// Externally serializable classes rely on two helper functions:
-/// size_t writeBinary( BinaryWriter&, T const& );
+/// The last category is ExternallySerializable.  Externally serializable
+/// classes rely on three helper functions:
+/// void writeBinary( BinaryWriter&, T const& );
 /// void readBinary( T*, BinaryReader& );
+/// size_t serializedSizeof( T* );
 /// This is useful in the case where the class is some STL class, or something
 /// else you can't easily alter.  (Self serialization is a better choice for
 /// classes that you can alter.)  It provides for completely unintrusive
 /// serialization, but is obviously only useful if your class has methods that
 /// allow you to inspect its entire state from the "outside".
 ///
+/// If you fail to declare a Serializability trait for some class which you then
+/// try to serialize, you'll get a compile-time error like this:
+/// error: invalid use of incomplete type 'struct Serializability<someClass>'
+///
 struct TriviallySerializable {};
 struct SelfSerializable {};
 struct ExternallySerializable {};
 
-template <class T> struct Serializability {};
+template <class T> struct Serializability;
 
 #define TRIVIALLY_SERIALIZABLE(T) \
-    template <> struct Serializability<T> : public TriviallySerializable {}
+template <> struct Serializability<T> \
+{ typedef TriviallySerializable type; }
+
 #define SELF_SERIALIZABLE(T) \
-    template <> struct Serializability<T> : public SelfSerializable {}
+template <> struct Serializability<T> \
+{ typedef SelfSerializable type; }
+
+#define EXTERNALLY_SERIALIZABLE(T) \
+template <> struct Serializability<T> \
+{ typedef ExternallySerializable type; }
+
+TRIVIALLY_SERIALIZABLE(bool);
+TRIVIALLY_SERIALIZABLE(char);
+TRIVIALLY_SERIALIZABLE(signed char);
+TRIVIALLY_SERIALIZABLE(unsigned char);
+TRIVIALLY_SERIALIZABLE(short);
+TRIVIALLY_SERIALIZABLE(unsigned short);
+TRIVIALLY_SERIALIZABLE(int);
+TRIVIALLY_SERIALIZABLE(unsigned int);
+TRIVIALLY_SERIALIZABLE(long);
+TRIVIALLY_SERIALIZABLE(unsigned long);
+TRIVIALLY_SERIALIZABLE(float);
+TRIVIALLY_SERIALIZABLE(double);
 
 #endif /* FEUDAL_BINARYSTREAMTRAITS_H_ */

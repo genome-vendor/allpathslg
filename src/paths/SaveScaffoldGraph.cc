@@ -34,8 +34,7 @@ void SaveScaffoldGraph( const String &HEAD,
 
   out << Date( ) << ": saving graph" << endl;
   String graph_file = HEAD + ".graph";
-  int fd = OpenForWrite( graph_file );
-  BinaryWrite( fd, graph );
+  BinaryWriter::writeFile( graph_file, graph );
 
   String theCommand = "ScaffoldGraphToGnuplot HEAD=" + HEAD;
   RunCommandWithLog( theCommand, "/dev/null" );

@@ -44,9 +44,14 @@ class Assembly{
   void remove_small_contigs( const int MIN_CONTIG_SIZE_SOLO, const int MIN_CONTIG_SIZE_IN );
   void remove_unused_contigs();
   void dedup();
+  void dedup2();
+  void dedup_exact();
   void reorder();
   // renumber all the contigs sequentially according to the scaffold
   void renumber();
+
+  vec<String> getScaffMap() const { return scaffMap; }
+  vec<String> getTigMap() const { return tigMap; }
 
   void Write( const String head_out ) const;
   void WriteExtra( const String head_out ) const;

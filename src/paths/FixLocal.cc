@@ -71,6 +71,7 @@
 #include "feudal/QualNibbleVec.h"
 #include "Superb.h"
 #include "efasta/EfastaTools.h"
+#include "feudal/BinaryStream.h"
 #include "graph/DigraphTemplate.h"
 #include "kmers/KmerRecord.h"
 #include "lookup/LookAlign.h"
@@ -1272,8 +1273,8 @@ int main(int argc, char *argv[])
                          new_bases.push_back_reserve( 
                               bases[ rl.ReadId( ) ] );    }    }
                new_bases.WriteAll( head + "." + rhead + ".reorder.fastb" );
-               BinaryWrite3( head + "." + rhead + ".reorder.ids", new_id );     }
-          else BinaryRead3( head + "." + rhead + ".reorder.ids", new_id );
+               BinaryWriter::writeFile( head + "." + rhead + ".reorder.ids", new_id );     }
+          else BinaryReader::readFile( head + "." + rhead + ".reorder.ids", &new_id );
           if ( !RECYCLE || !IsRegularFile( head + "." + rhead + ".reorder.qualb" ) )
           {    cout << Date( ) << ": loading "
                     << ( pass == 1 ? "frag" : "jump" ) << " read qual files" << endl;

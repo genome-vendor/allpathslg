@@ -15,6 +15,7 @@
 #include "TokenizeString.h"
 #include "efasta/EfastaTools.h"
 #include "math/Functions.h"
+#include "dna/Bases.h"
 
 #define Err(message)                                      \
 {    cout << message << endl << "\nInvalid.\n" << endl;   \
@@ -314,6 +315,55 @@ int efasta::Index1Alt( const int n ) const
           while ( i < size( ) && (*this)[i] != '}' ) i++;    }
      return size( );    }
 
+
+int efasta::MinLength( ) const {
+  Bool amb = False;
+  vec<int> aLocLens;
+  int count = 0;
+  for ( size_t i = 0; i < size(); i++ ){
+    if ( (*this)[i] == '{' ){
+      amb = True;
+      aLocLens.resize(1);
+      aLocLens.back() = 0;
+    }else if ( (*this)[i] == '}' ){
+      amb = False;
+      count += Min( aLocLens );
+    }else if ( (*this)[i] == ',' ){
+      aLocLens.push_back(0);
+    }else{
+      if ( amb )
+	aLocLens.back()++;
+      else
+	count++;
+    }
+  }
+  return count;
+}
+
+int efasta::MaxLength( ) const {
+  Bool amb = False;
+  vec<int> aLocLens;
+  int count = 0;
+  for ( size_t i = 0; i < size(); i++ ){
+    if ( (*this)[i] == '{' ){
+      amb = True;
+      aLocLens.resize(1);
+      aLocLens.back() = 0;
+    }else if ( (*this)[i] == '}' ){
+      amb = False;
+      count += Max( aLocLens );
+    }else if ( (*this)[i] == ',' ){
+      aLocLens.push_back(0);
+    }else{
+      if ( amb )
+	aLocLens.back()++;
+      else
+	count++;
+    }
+  }
+  return count;
+}
+
 void SplitEfastaIntoContigs( const vec<efasta>& scaffolds,
      vec<efasta>& contigs, vec<superb>& scaffold_structure )
 {    contigs.clear( ), scaffold_structure.clear( );
@@ -405,6 +455,12 @@ int efasta::Ambiguities( ) const
           if ( (*this)[i] == ',' ) ++comma;
      return comma;    }
 
+int efasta::AmbEventCount( ) const
+{    int bra = 0;
+     for ( size_t i = 0; i < size( ); i++ )
+          if ( (*this)[i] == '{' ) ++bra;
+     return bra;    }
+
 int efasta::AmbCount( ) const
 {    int count = 0;
      for ( size_t i = 0; i < size( ); i++ )
@@ -420,6 +476,18 @@ int efasta::AmbCount( ) const
           mc = Max( mc, c );
           count += mc;    }
      return count;    }
+
+
+Bool efasta::IndexInAmbiguity( const longlong pos ) const {
+  ForceAssertLt( pos, size() );
+  ForceAssertGe( pos, 0 );
+  if ( (*this)[pos] == '}' || (*this)[pos] == '{' || (*this)[pos] == ',' )
+    return True;
+  if ( (*this).find("}",pos+1) < (*this).find("{",pos+1) )
+    return True;
+  return False;
+}
+
 
 // Return total ambiguous bases, plus count snp and indel events
 int efasta::AmbCount(int& snp_count, int& indel_count) const
@@ -603,7 +671,127 @@ void efasta::FlattenNMaxTo(fastavector & f) const
   }
 }
 
+void efasta::FlattenMaxTo(fastavector & f) const
+{
+  f.clear();
+  f.reserve(size());
+  vec<char> seps;
+  seps.push_back(',');
+  for (size_t i = 0; i < size(); i++) {
+    while(i < size() && (*this)[i] != '{') {
+      if ((*this)[i] == 'N') f.push_back('n');
+      else f.push_back((*this)[i]);
+      i++;
+    }
+    if (i < size()) {
 
+      size_t j = i + 1;
+      while (j < size() && (*this)[j] != '}') 
+        j++;
+      
+      String stuff;
+      for (size_t l = i + 1; l < j; l++)
+        stuff.push_back((*this)[l]);
+      
+      vec<String> parts;
+      TokenizeStrictly(stuff, seps, parts);
+     
+      int im = 0;
+      int vm = parts[im].size();
+      for ( int k = 0; k < parts.isize(); k++ )
+	if ( parts[k].isize() > vm ){
+	  im = k;
+	  vm = parts[k].size();
+	}
+      
+      for (size_t l = 0; l < parts[im].size(); l++)
+	f.push_back( parts[im][l] );
+      
+      i = j;
+    }
+  }
+}
+
+void efasta::FlattenMinTo(fastavector & f) const
+{
+  f.clear();
+  f.reserve(size());
+  vec<char> seps;
+  seps.push_back(',');
+  for (size_t i = 0; i < size(); i++) {
+    while(i < size() && (*this)[i] != '{') {
+      if ((*this)[i] == 'N') f.push_back('n');
+      else f.push_back((*this)[i]);
+      i++;
+    }
+    if (i < size()) {
+
+      size_t j = i + 1;
+      while (j < size() && (*this)[j] != '}') 
+        j++;
+      
+      String stuff;
+      for (size_t l = i + 1; l < j; l++)
+        stuff.push_back((*this)[l]);
+      
+      vec<String> parts;
+      TokenizeStrictly(stuff, seps, parts);
+     
+      int im = 0;
+      int vm = parts[im].size();
+      for ( int k = 0; k < parts.isize(); k++ )
+	if ( parts[k].isize() < vm ){
+	  im = k;
+	  vm = parts[k].size();
+	}
+      
+      for (size_t l = 0; l < parts[im].size(); l++)
+	f.push_back( parts[im][l] );
+      
+      i = j;
+    }
+  }
+}
+
+void efasta::ReverseComplement( )
+{
+  String reve = "";
+  vec<char> seps;
+  seps.push_back(',');
+  for ( String::reverse_iterator rit = rbegin(); rit != rend(); rit++) {
+    while( rit != rend() && *rit != '}') {
+      reve += GeneralizedBase::complementChar( *rit );
+      rit++;
+    }
+    if ( *rit == '}' ) reve += '{';
+    if (rit != rend()) {
+
+      String::reverse_iterator rjt = rit + 1;
+      while (rjt != rend() && *rjt != '{') 
+        rjt++;
+      
+      String stuff;
+      for (String::reverse_iterator rlt = rit + 1; rlt < rjt; rlt++)
+        stuff.push_back(*rlt);
+      
+
+      vec<String> parts;
+      TokenizeStrictly(stuff, seps, parts);
+      Reverse( parts );
+
+      for ( int k = 0; k < parts.isize(); k++ ){
+	for (size_t l = 0; l < parts[k].size(); l++)
+	  reve += GeneralizedBase::complementChar( parts[k][l] );
+	if ( k < parts.isize() -1 )
+	  reve += ",";
+      }
+      reve += '}';
+      rit = rjt;
+    }
+    if ( rit == rend() ) rit--;
+  }
+  (*this) = reve;
+}
 
 // ExpandTo.  Convert to a list of fastavectors.  This will find ambiguous
 // base codes.  Return False if max_count specified and the number of 

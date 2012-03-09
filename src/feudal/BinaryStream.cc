@@ -14,34 +14,7 @@
  * \brief
  */
 #include "feudal/BinaryStream.h"
-#include "system/ErrNo.h"
-#include "system/Exit.h"
-#include <iostream>
-
-void BinaryWriter::fail( char const* operation )
-{
-    ErrNo err;
-    std::cout << "BinaryWriter failed to " << operation << " the file "
-              << mFilename << err << std::endl;
-    CRD::exit(1);
-}
-
-void BinaryWriter::write( void const* buf, size_t len )
-{
-    do
-    {
-        using std::min;
-        ssize_t result = ::write(mFD, buf, min(len,1ul<<30));
-        if ( result > 0 )
-        {
-            len -= result;
-            buf = reinterpret_cast<char const*>(buf) + result;
-        }
-        else if ( result != -1 || errno != EINTR )
-            fail("write");
-    }
-    while ( len );
-}
+#include "system/System.h"
 
 void BinaryReader::readLoop( char* buf, size_t len )
 {
@@ -50,12 +23,9 @@ void BinaryReader::readLoop( char* buf, size_t len )
     {
         remain = fillBuf();
         if ( !remain )
-        {
-            std::cout
-               << "BinaryReader attempted to read past the end of file "
-               << mFR.getFilename() << std::endl;
-            CRD::exit(1);
-        }
+            FatalErr("BinaryReader attempted to read past the end of file "
+                      << mFR.getFilename());
+
         if ( remain > len )
             remain = len;
         memcpy(buf, mpBuf, remain);
@@ -69,9 +39,6 @@ void BinaryReader::testToken()
 {
     MagicToken tok;
     if ( !read(&tok).isValid() )
-    {
-        std::cout << "Reading binary file " << mFR.getFilename()
-                  << " failed: Initial token is invalid." << std::endl;
-        CRD::exit(1);
-    }
+        FatalErr("Reading binary file " << mFR.getFilename()
+                  << " failed: Initial token is invalid.");
 }

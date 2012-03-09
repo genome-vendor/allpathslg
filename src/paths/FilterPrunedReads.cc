@@ -45,6 +45,7 @@
 #include "paths/KmerPath.h"
 #include "util/ReadTracker.h"
 #include "graph/Digraph.h"
+#include "feudal/BinaryStream.h"
 
 
 
@@ -84,12 +85,12 @@ int main( int argc, char *argv[] )
   size_t n_reads = paths.size();
   
   vec<tagged_rpint> unipathsdb;
-  BinaryRead3( unipathsdb_file, unipathsdb );
+  BinaryReader::readFile( unipathsdb_file, &unipathsdb );
   
   digraph AG;
   if ( USE_GRAPH ){
     cout << Date() << ": reading adjacency graph" << endl;
-    BinaryRead( uadj_graph_file, AG );
+    BinaryReader::readFile( uadj_graph_file, &AG );
   }
 
   // Main algorithm!

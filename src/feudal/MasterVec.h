@@ -37,7 +37,7 @@
  * Additional requirements on T, the feudal type, in addition to those specified
  * by OuterVec:
  * Must have void readFeudal( BinaryReader& reader, unsigned long dataLen, void* fixed );
- * Must have size_t writeFeudal( BinaryWriter&, void const** ) const;
+ * Must have void writeFeudal( BinaryWriter&, void const** ) const;
  * Must have static unsigned int fixedDataLen();
  */
 template <class T>
@@ -286,12 +286,6 @@ public:
     // Sort this list, and remove all duplicate items.
     void UniqueSort() { Sort(); Unique(); }
 
-    /// Returns a very large number -- we don't really have a fixed raw
-    /// capacity any more.  This can go away when mastervec goes away, and
-    /// FeudalDataManagerTemplate.h can be adjusted accordingly.  It's the
-    /// only thing that refers to this useless method.
-    size_t rawcapacity() const { return ~0UL >> 1; }
-
 private:
     void preAlloc( FeudalFileReader const& rdr, size_type start, size_type end )
     { typename T::value_type* ppp = static_cast<typename T::value_type*>(0);
@@ -356,7 +350,8 @@ private:
 };
 
 template <class T>
-struct Serializability< MasterVec<T> > : public SelfSerializable {};
+struct Serializability< MasterVec<T> >
+{ typedef SelfSerializable type; };
 
 /// Deprecated:  Use v.clear().shrink_to_fit()
 template <class T>

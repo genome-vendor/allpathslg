@@ -374,17 +374,6 @@ Bool KmerPath::Proper( ) const
           if ( Segment(i).isGap( ) && Segment(i-1).isGap( ) ) return False;    }
      return True;    }
 
-void BinaryWrite( int fd, const KmerPath& p )
-{    int n = p.NSegments( );
-     WriteBytes( fd, &n, sizeof(int) );
-     WriteBytes( fd, &p.Segment(0), n * sizeof(KmerPathInterval) );    }
-
-void BinaryRead( int fd, KmerPath& p )
-{    int n;
-     ReadBytes( fd, &n, sizeof(int) );
-     p.SetNSegments(n);
-     ReadBytes( fd, &p.Segment(0), n * sizeof(KmerPathInterval) );    }
-  
 
 
 // Methods of class KmerPathLoc:

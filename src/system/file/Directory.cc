@@ -13,6 +13,7 @@
 #include "system/file/Directory.h"
 #include "system/ErrNo.h"
 #include "system/System.h"
+#include <cerrno>
 #include <sys/stat.h>
 #include <unistd.h>
 

@@ -140,12 +140,4 @@ void OuterVec<T,S,A>::exchange( OuterVec<T,S,A>& that )
     mpCurEnd = data() + siz;
 }
 
-#define INSTANTIATE_OUTERVEC_INTERNALS(T,S) \
-template T* OuterVec<T,S,std::allocator<T> >::init( T* last ); \
-template T* OuterVec<T,S,std::allocator<T> >::init( T* last, T const& exemplar ); \
-template T* OuterVec<T,S,std::allocator<T> >::destroy( T* first ); \
-template T* OuterVec<T,S,std::allocator<T> >::swap( T* first, T* dest ); \
-template void OuterVec<T,S,std::allocator<T> >::realloc( OuterVec<T,S,std::allocator<T> >::size_type nElements ); \
-template void OuterVec<T,S,std::allocator<T> >::exchange( OuterVec<T,S,std::allocator<T> >& that )
-
 #endif /* FEUDAL_OUTERVECDEFS_H_ */

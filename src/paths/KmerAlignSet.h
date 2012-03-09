@@ -55,12 +55,14 @@ class KmerAlignSet {
 
 };
 
-void ClusterAlignsNew( const KmerAlignSet& in, KmerAlignSet& out, const Bool clean );
+void ClusterAlignsNew( const KmerAlignSet& in, KmerAlignSet& out, const Bool clean,
+     const int min_spread );
 
 void ClusterAlignsOld( const KmerAlignSet& in, KmerAlignSet& out );
 
 void KillInferiorClusters( KmerAlignSet& x );
 
-void KillInferiorClustersNew( KmerAlignSet& x, const vecbasevector& unibases );
+void KillInferiorClustersNew( KmerAlignSet& x, const vecbasevector& unibases,
+     const double min_ratio_to_kill = 5.0 );
 
 #endif

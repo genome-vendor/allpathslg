@@ -90,6 +90,19 @@ void SeqOnHyper::PrintStats( ostream& out, const vecbasevector& reads,
      }
 }
 
+void SeqOnHyper::writeBinary( BinaryWriter& writer ) const
+{
+    writer.write(rc1_);
+    writer.write(id1_);
+    writer.write(parts_);
+}
+
+void SeqOnHyper::readBinary( BinaryReader& reader )
+{
+    reader.read(&rc1_);
+    reader.read(&id1_);
+    reader.read(&parts_);
+}
 
 
 // Stuff for CompressSeqOnHyper
@@ -264,47 +277,41 @@ void CompressedSeqOnHyper::DecompressInto( SeqOnHyper& salign,
 }
 
 
-void BinaryWrite( int fd, const SeqOnHyper& s )
-{    WriteBytes( fd, &s.rc1_, sizeof(s.rc1_) );
-     WriteBytes( fd, &s.id1_, sizeof(s.id1_) );
-     BinaryWrite( fd, s.parts_ );    }
-
-void BinaryRead( int fd, SeqOnHyper& s )
-{    ReadBytes( fd, &s.rc1_, sizeof(s.rc1_) );
-     ReadBytes( fd, &s.id1_, sizeof(s.id1_) );
-     BinaryRead( fd, s.parts_ );    }
-
-void BinaryWrite( const String& filename, const vec<CompressedSeqOnHyper>& csaligns,
-		  const HyperBasevector& hbv) {
-  int fd = OpenForWrite(filename);
-  int n = csaligns.size();
-  WriteBytes( fd, &n, sizeof(int) );
-  SeqOnHyper salign;
-  for (int i = 0; i < n; i++) {
-    csaligns[i].DecompressInto( salign, hbv);
-    BinaryWrite(fd, salign);
-  }
-  Close(fd);
+void BinaryWrite( const String& filename,
+                        const vec<CompressedSeqOnHyper>& csaligns,
+                        const HyperBasevector& hbv)
+{
+    BinaryWriter bw(filename);
+    bw.write(csaligns.size());
+    SeqOnHyper salign;
+    typedef vec<CompressedSeqOnHyper>::const_iterator Itr;
+    for ( Itr itr(csaligns.begin()), end(csaligns.end()); itr != end; ++itr )
+    {
+        itr->DecompressInto(salign, hbv);
+        bw.write(salign);
+    }
+    bw.close();
 }
 
   
 void BinaryRead( const String& filename, vec<CompressedSeqOnHyper>& csaligns,
 		 const HyperKmerPath& h, const HyperBasevector& hbv,
-		 const vecbasevector& reads ) {
+		 const vecbasevector& reads )
+{
+    vec<int> to_right_vertex(h.EdgeObjectCount());
+    h.ToRight(to_right_vertex);
 
-  csaligns.clear();
-  vec<int> to_right_vertex( h.EdgeObjectCount( ) );
-  h.ToRight(to_right_vertex);
-  
-  int fd = OpenForRead(filename);
-  int n;
-  ReadBytes( fd, &n, sizeof(int) );
-  csaligns.reserve(n);
-  SeqOnHyper salign;
-  for ( int i = 0; i < n; i++ ) {
-    BinaryRead(fd, salign);
-    csaligns.push_back(CompressedSeqOnHyper(salign, hbv, &reads[salign.Id1()],
-					    to_right_vertex)); 
-  }
-  close(fd);
+    BinaryReader br(filename);
+    vec<CompressedSeqOnHyper>::size_type nnn;
+    br.read(&nnn);
+    csaligns.clear();
+    csaligns.reserve(nnn);
+
+    SeqOnHyper salign;
+    while ( nnn-- )
+    {
+        br.read(&salign);
+        csaligns.push_back(CompressedSeqOnHyper(salign, hbv,
+                &reads[salign.Id1()], to_right_vertex));
+    }
 }

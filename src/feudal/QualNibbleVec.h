@@ -215,12 +215,12 @@ public:
   { BaseT::push_back(QualMapper::deflate(vvv)); return *this; }
   QualNibbleVec& reverse() { BaseT::reverse(); return *this; }
 
-  size_t writeFeudal( BinaryWriter& writer, void const** ppFixed ) const
-  { return BaseT::writeFeudal(writer,ppFixed); }
+  void writeFeudal( BinaryWriter& writer, void const** ppFixed ) const
+  { BaseT::writeFeudal(writer,ppFixed); }
   void readFeudal( BinaryReader& rdr, size_t varDataLen, void* pFixed )
   { BaseT::readFeudal(rdr,varDataLen,pFixed); }
-  size_t writeBinary( BinaryWriter& writer ) const
-  { return BaseT::writeBinary(writer); }
+  void writeBinary( BinaryWriter& writer ) const
+  { BaseT::writeBinary(writer); }
   void readBinary( BinaryReader& reader ) { BaseT::readBinary(reader); }
   static size_t externalSizeof() { return 0; }
   //

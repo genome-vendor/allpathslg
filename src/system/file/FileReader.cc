@@ -16,22 +16,28 @@
 #include "system/file/FileReader.h"
 #include "system/ErrNo.h"
 #include "system/System.h"
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <errno.h>
 #include <algorithm>
+#include <cerrno>
+#include <sys/mman.h>
+#include <sys/select.h>
+#include <sys/types.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-size_t const FileReader::MAX_READ_LEN;
+size_t const FileReader::MAX_IO_LEN;
 
 size_t FileReader::readOnce( void* voidbuf, size_t len ) const
 {
     char* buf = static_cast<char*>(voidbuf);
     ssize_t nRead;
-    while ( (nRead = ::read(mFD,buf,std::min(len,MAX_READ_LEN))) == -1 )
+    while ( (nRead = ::read(mFD,buf,std::min(len,MAX_IO_LEN))) == -1 )
     {
         ErrNo err;
-        if ( err.val() != EINTR )
+        if ( err.val() == EAGAIN )
+            wait();
+        else if ( err.val() != EINTR )
             FatalErr("Attempt to read " << len << " bytes from " << mPath <<
                         " failed" << err);
     }
@@ -45,15 +51,17 @@ size_t FileReader::readSome( void* voidbuf, size_t len ) const
 
     while ( nToGo )
     {
-        ssize_t nRead = ::read(mFD,buf,std::min(nToGo,MAX_READ_LEN));
+        ssize_t nRead = ::read(mFD,buf,std::min(nToGo,MAX_IO_LEN));
         if ( !nRead ) // at EOF
             break;
 
         if ( nRead == -1 ) // if an error occurred
         {
             ErrNo err;
-            if ( err.val() == EINTR )
-                continue; // just retry after an EINTR
+            if ( err.val() == EAGAIN )
+                wait();
+            else if ( err.val() == EINTR )
+                continue;
 
             FatalErr("Attempt to read " << len << " bytes from " << mPath <<
                      " failed after reading " << len-nToGo << " bytes" << err);
@@ -76,7 +84,7 @@ FileReader const& FileReader::read( void* buf, size_t len ) const
 
 FileReader const& FileReader::seek( size_t off ) const
 {
-    if ( ::lseek(mFD,off,SEEK_SET) == -1 )
+    if ( ::lseek(mFD,off,SEEK_SET) == -1L )
     {
         ErrNo err;
         FatalErr("Attempt to lseek " << mPath << " failed" << err);
@@ -86,12 +94,33 @@ FileReader const& FileReader::seek( size_t off ) const
 
 FileReader const& FileReader::seekRel( long off ) const
 {
-    if ( ::lseek(mFD,off,SEEK_CUR) == -1 )
+    if ( ::lseek(mFD,off,SEEK_CUR) == -1L )
     {
         ErrNo err;
         FatalErr("Attempt to lseek(SEEK_CUR) " << mPath << " failed" << err);
     }
     return *this;
+}
+
+FileReader const& FileReader::seekEnd( long off ) const
+{
+    if ( ::lseek(mFD,off,SEEK_END) == -1L )
+    {
+        ErrNo err;
+        FatalErr("Attempt to lseek(SEEK_END) " << mPath << " failed" << err);
+    }
+    return *this;
+}
+
+size_t FileReader::tell() const
+{
+    long result = ::lseek(mFD,0,SEEK_CUR);
+    if ( result == -1L )
+    {
+        ErrNo err;
+        FatalErr("Attempt to lseek(SEEK_CUR) " << mPath << " failed" << err);
+    }
+    return result;
 }
 
 struct stat FileReader::getStat() const
@@ -131,9 +160,24 @@ void FileReader::doOpen()
 
 void FileReader::doClose()
 {
-    if ( ::close(mFD) == -1 )
+    while ( ::close(mFD) == -1 )
     {
         ErrNo err;
-        FatalErr("Attempt to close " << mPath << " failed" << err);
+        if ( err.val() != EINTR )
+            FatalErr("Attempt to close " << mPath << " failed" << err);
+    }
+    mFD = -1;
+}
+
+void FileReader::wait() const
+{
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(mFD,&fds);
+    while ( select(mFD+1,&fds,0,0,0) == -1 )
+    {
+        ErrNo err;
+        if ( err.val() != EINTR )
+            FatalErr("Select failed on a non-blocking read" << err);
     }
 }

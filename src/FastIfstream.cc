@@ -199,17 +199,15 @@ Bool get_to( fast_ifstream& in, String& s, const String& tail )
      goto restart;    }
 
 fast_pipe_ifstream::fast_pipe_ifstream( String command )
-{    command_ = command;
-     file_ = popen( command.c_str( ), "r" );
-     if ( file_ == 0 )
-          FatalErr( "Couldn't open pipe for command \" << command << \"." );
-     buf_ptr_ = 0;
-     buf_top_ = 0;
-     fail_ = False;    }
+: command_(command), procbuf_(command.c_str(),std::ios_base::in),
+  buf_ptr_(0), buf_top_(0), fail_(False)
+{
+}
 
 fast_pipe_ifstream::~fast_pipe_ifstream( )
-{    if ( pclose(file_) < 0 )
-          FatalErr( "Attempt to close " << command_ << " failed." );    }
+{
+    procbuf_.close();
+}
 
 void fast_pipe_ifstream::get( char& c, Bool advance )
 {    if (fail_) 
@@ -217,7 +215,7 @@ void fast_pipe_ifstream::get( char& c, Bool advance )
                << command_ << "." );
      if ( buf_ptr_ == buf_top_ )
      {    buf_ptr_ = 0;
-          buf_top_ = fread( buf_, 1, BUFFER_SIZE, file_ );
+          buf_top_ = procbuf_.read(buf_,BUFFER_SIZE);
           if ( buf_top_ < 0 )
                FatalErr( "Attempt to read " << command_ << " failed." );
           if ( buf_top_ == 0 ) 
@@ -329,13 +327,11 @@ void fast_pipe_ifstream::fill_buffer( )
                buf_[ i - buf_ptr_ ] = buf_[i];    }
      buf_top_ -= buf_ptr_;
      buf_ptr_ = 0;
-     int answer = fread( buf_ + buf_top_, 1, BUFFER_SIZE - buf_top_, file_ );
-     if ( answer < 0 ) FatalErr( "Attempt to read " << command_ << " failed." );
+     int answer = procbuf_.read(buf_ + buf_top_, BUFFER_SIZE - buf_top_);
      if ( answer == 0 )
      {    fail_ = True;
           return;    }
-     buf_top_ += answer;
-     return;    }
+     buf_top_ += answer;  }
 
 Bool get_to( fast_pipe_ifstream& in, String& s, const String& tail )
 {    

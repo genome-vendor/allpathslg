@@ -72,7 +72,6 @@ int main(int argc, char *argv[])
   CommandArgument_Bool_OrDefault_Doc(G_ESTIMATE, False, "When true compute genome size estimate.");
   CommandArgument_Bool_OrDefault_Doc(G_ESTIMATE_ONLY, False, "When true don't compute spectrum but load it from '<HEAD>.<K>mer.kspec' and compute genome size estimate.");
   CommandArgument_UnsignedInt_OrDefault_Doc(KF_LOW, 10, "Under-estimate of kmer frequency for local kmer spectrum minimum (for genome size estimate).");
-  CommandArgument_LongLong_OrDefault_Doc(N_READS, 0, "Optional number of reads in data (for genome size estimate).");
   CommandArgument_UnsignedInt_OrDefault_Doc(READ_LEN, 0, "Optional read length in data (for genome size estimate).");
 
   CommandArgument_UnsignedInt_OrDefault_Doc(PLOIDY, 1, "If 2 will estimate SNP rate.");
@@ -146,41 +145,38 @@ int main(int argc, char *argv[])
       
       cout << Tag() << "Writing kmer affixes spectra." << endl;
       
-      {
-        const KmerSpectrum kspec_all = kspecs.all();
-        kspec_all.to_text_file(HEAD);
-        cout << Tag() << "nk(all)= " << kspec_all.sum() << endl;
-      }
+      const KmerSpectrum kspec_all = kspecs.all();
+      kspec_all.to_text_file(HEAD);
+      cout << Tag() << "nk(all)= " << kspec_all.sum() << endl;
       for (unsigned n_pre = 0; n_pre <= 4; n_pre++) {
         for (unsigned n_suf = n_pre; n_suf <= 4; n_suf++) {
           const KmerSpectrum & kspec = kspecs(n_pre, n_suf);
-          kspec.to_text_file(HEAD + "." + ToString(n_pre) + "-" + ToString(n_suf));
-          cout << Tag() << "nk(" << n_pre << "-" << n_suf << ")= " << kspec.sum() << endl;
+          kspec.to_text_file(HEAD + "." + ToString(n_pre) + "-" + ToString(n_suf), 0);
+          cout << Tag() << "nk(" << n_pre << "-" << n_suf << ")= " 
+	       << setw(12) << kspec.sum() << endl;
         }
       }
-
     }
 
     // ---- do just plain kmer spectrum
 
     else {
       KmerSpectrum kspec(K);
-      size_t nr;
-      size_t nb;
+      size_t read_len = 0;
 
       if (G_ESTIMATE_ONLY) {
         
         // ---- get number of bases
 
-        if (N_READS && READ_LEN) {
-          nr = N_READS;
-          nb = N_READS * READ_LEN;
+        if (READ_LEN) {
+          read_len = READ_LEN;
         } 
         else {
           cout << Tag() << "Counting reads in '" << fn_fastb << "'." << endl;
-          nr = MastervecFileObjectCount(fn_fastb);
+          size_t nr = MastervecFileObjectCount(fn_fastb);
           cout << Tag() << "Estimating number of bases." << endl;
-          nb = number_of_bases_sample(fn_fastb);
+          size_t nb = number_of_bases_sample(fn_fastb);
+          read_len = nb / nr;
         }
 
         // ---- read kmer spectrum from text file
@@ -201,16 +197,17 @@ int main(int argc, char *argv[])
         kspec.to_text_file(HEAD);
         
         // ---- compute number of bases
-        nr = bvv.size();
-        nb = 0;
+        size_t nr = bvv.size();
+        size_t nb = 0;
         for (size_t ir = 0; ir != nr; ir++) 
           nb += bvv[ir].size();
+        read_len = nb / nr;
       }
 
       // ---- estimate genome size
       
       if (G_ESTIMATE || G_ESTIMATE_ONLY)
-        genome_analysis_report(kspec, nb/nr, PLOIDY, KF_LOW, VERBOSITY);
+        genome_analysis_report(kspec, read_len, PLOIDY, KF_LOW, VERBOSITY);
       
     }
   }

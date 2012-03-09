@@ -11,14 +11,12 @@
 #include "math/Matrix.h"
 #include "math/MatrixTemplate.h"
 
-MATRIX_DEF(float)
-MATRIX_DEF(double)
-MATRIX_DEF(Bool)
+MATRIX_DEF(float);
+MATRIX_DEF(double);
+MATRIX_DEF(Bool);
+MATRIX_DEF(char);
 
-template matrix<char>::matrix( int r, int c );
-template matrix<char>::matrix( int r, int c, const char& t );
-
-template< > void matrix<char>::Print( ostream& out ) const
+template<> void matrix<char>::Print( ostream& out ) const
 {    for ( int i = 0; i < Nrows( ); i++ )
      {    for ( int j = 0; j < Ncols( ); j++ )
                out << (*this)(i, j);

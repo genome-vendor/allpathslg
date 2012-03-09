@@ -172,7 +172,7 @@ public:
   
   // Write a PairsManager to a stream, using BinaryWriter class in BinaryStream.h.
   // By convention, these files usually have the extension '.pairs'.
-  size_t writeBinary( BinaryWriter& writer ) const;
+  void writeBinary( BinaryWriter& writer ) const;
 
   // Read a PairsManager from a stream, using the BinaryReader class in BinaryStream.h.
   // By convention, these files usually have the extension '.pairs'.

@@ -22,8 +22,9 @@
 #include "MainTools.h"
 #include "Qualvector.h"
 #include "PairsManager.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "lookup/FirstLookup.h"
 #include "lookup/LookAlign.h"
 #include "math/Functions.h"
@@ -580,8 +581,8 @@ int main(int argc, char *argv[])
     // Write output files.
     cout << Date() << ": Writing output files" << endl;
     newunipaths.WriteAll(outhead + ".unipaths.k" + KS2);
-    BinaryWrite( outhead + ".unipath_adjgraph.k" + KS2, unigraph );
-    BinaryWrite3(outhead + ".unipathsdb.k" + KS2, newunipathsdb);
+    BinaryWriter::writeFile( outhead + ".unipath_adjgraph.k" + KS2, unigraph );
+    BinaryWriter::writeFile(outhead + ".unipathsdb.k" + KS2, newunipathsdb);
     newunibases.WriteAll(outhead + ".unibases.k" + KS2);
 
     /*

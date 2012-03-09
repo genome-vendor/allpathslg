@@ -24,17 +24,17 @@ static inline
 String Tag(String S = "MAPPX") { return Date() + " (" + S + "): "; } 
 
 
-class BitVecVecLocked : private LockedData
+class VecBitVecLocked : private LockedData
 {
 private:
-  BitVecVec & _data;
+  VecBitVec & _data;
 
 public:
-  BitVecVecLocked(BitVecVec & data) : _data(data) {}
+  VecBitVecLocked(VecBitVec & data) : _data(data) {}
 
   // copy constructor and = not defined because of LockedData 
-  BitVecVecLocked(const BitVecVecLocked & a);
-  BitVecVecLocked & operator=(const BitVecVecLocked & a);
+  VecBitVecLocked(const VecBitVecLocked & a);
+  VecBitVecLocked & operator=(const VecBitVecLocked & a);
 
   void SetLocked(const KmerLoc & kmer_loc, 
                  const bool val) 
@@ -64,7 +64,7 @@ private:
   const BaseVecVec       & _bases;
   const KmerParcelsStore & _parcels;
   // Outputs
-  BitVecVecLocked        * _kmer_chosen;
+  VecBitVecLocked        * _kmer_chosen;
   BMG<I>                 * _bmg;
     
   
@@ -72,7 +72,7 @@ public:
   
   PathingProcessor(const BaseVecVec       & bases, 
                    const KmerParcelsStore & parcels,
-                   BitVecVecLocked        * kmer_chosen, 
+                   VecBitVecLocked        * kmer_chosen,
                    BMG<I>                 * bmg)
     : _bases(bases),
       _parcels(parcels),
@@ -142,11 +142,11 @@ public:
 
 
 // Output: a BMG (Balanced Mutmer Graph) and a 'kmer_chosen'
-// BitVecVec indicating which kmers are canonical.
+// VecBitVec indicating which kmers are canonical.
 template<size_t I>
 void MakeAlignsPathsParallelX(const size_t       K,
                               const BaseVecVec & bases, 
-                              BitVecVec        * kmer_chosen, 
+                              VecBitVec        * kmer_chosen,
                               BMG<I>           * bmg, 
                               const String     & PARCEL_HEAD,
                               const size_t       NUM_THREADS,
@@ -231,7 +231,7 @@ void MakeAlignsPathsParallelX(const size_t       K,
     
     //cout << Date() << ": MemUsage before parallel runs: " << MemUsage( )/1000.0 << "Mb" << endl;
     {
-      BitVecVecLocked kmer_chosen_locked(*kmer_chosen);
+      VecBitVecLocked kmer_chosen_locked(*kmer_chosen);
       
       PathingProcessor<I> processor(bases, *parcels, &kmer_chosen_locked, bmg);
       Worklist< size_t, PathingProcessor<I> > worklist(processor, NUM_THREADS - 1);
@@ -282,7 +282,7 @@ void MakeAlignsPathsParallelX(const size_t       K,
 
 template void MakeAlignsPathsParallelX<1>(const size_t, 
                                           const BaseVecVec &,
-                                          BitVecVec *,
+                                          VecBitVec *,
                                           BMG<1> *,
                                           const String &,
                                           const size_t,
@@ -290,7 +290,7 @@ template void MakeAlignsPathsParallelX<1>(const size_t,
 
 template void MakeAlignsPathsParallelX<2>(const size_t, 
                                           const BaseVecVec &,
-                                          BitVecVec *,
+                                          VecBitVec *,
                                           BMG<2> *,
                                           const String &,
                                           const size_t,

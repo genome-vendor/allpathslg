@@ -19,6 +19,7 @@
 #include "system/SysIncludes.h"
 #include "system/Types.h"
 #include "system/Exit.h"
+#include "system/file/TempFile.h"
 
 #ifndef InputErr
      #define InputErr(message)                                               \
@@ -33,28 +34,6 @@
                << Date( ) << ":\n" << message << endl << endl;               \
           CRD::exit(1);    }
 #endif
-
-// ==============================================================================
-//
-// temp_file: this class is a front end to mkstemp, which appears to be the
-// preferred (safest) way to create temporary files.  It takes input a template for
-// filename, which is then replaced by an actual filename.  The destructor
-// deletes the file.
-//
-// Sample usage:
-//
-// temp_file f( "/tmp/bob_XXXXXXX" );
-// (do stuff with the file named f)
-//
-// ==============================================================================
-
-class temp_file : public String {
-     public:
-     temp_file( const String& template_name );
-     ~temp_file( );
-};
-
-String GetTempDir(const String &templatename);
 
 // ==============================================================================
 //
@@ -160,9 +139,9 @@ String StringOfOutput( String command, int n = 1, bool force = false );
 
 String LineOfOutput( String command, bool force = false, bool err_too = False );
 
-vector<String> AllOfOutput(String command);
+vector<String> AllOfOutput(String const& command);
 
-inline String AllOfOutput1(String command)
+inline String AllOfOutput1(String const& command)
 {    String all;
      vector<String> line = AllOfOutput(command);
      for ( size_t i = 0; i < line.size( ); i++ )
@@ -190,45 +169,27 @@ void CpAppend( String file1, ostream& file2 );
 ///
 /// File2 may be a directory.
 ///
-/// Delete all occurrences of characters in chars_to_delete.
+void Cp2( String const& file1, String const& file2, bool append = false );
 
-void Cp2( String file1, String file2, Bool append = False,
-     String chars_to_delete = String( ) );
-void CpAppend2( String file1, String file2 );
+inline void CpAppend2( String const& file1, String const& file2 )
+{ Cp2(file1,file2,true); }
 
 /// CpIfNeIfExists: if file1 = file2 (as strings) or file1 does not exist, do
 /// nothing.  Otherwise, call Cp2.
 
-void CpIfNeIfExists( String file1, String file2 );
+void CpIfNeIfExists( String const& file1, String const& file2 );
 
 /// Concatenate files.
+inline void Cat( String const& in1, String const& in2, String const& out )
+{ Cp2(in1,out); Cp2(in2,out,true); }
 
-void Cat( String infile1, String infile2, String outfile );
 
 /// Symlink creates a soft link.  It fails if name_of_symbolic_link
 /// already exists.  SymlinkForce deletes name_of_symbolic_link first.
-
 void Symlink( String existing_file, String name_of_symbolic_link );
 void SymlinkForce( String existing_file, String name_of_symbolic_link );
 
 void Mv( String file1, String file2 );
-
-/// Open: open a file with specified flags.  Abort if the open fails.
-/// The optional mode is only important if flags include O_CREAT and
-/// the file is in fact created by the Open() call.  In that case the
-/// default mode is read/write/execute permissions for all of u,g,o.
-
-int Open( const String& filename, int flags, int mode = 0664);
-
-inline int OpenForRead( const String& filename )
-{    return Open( filename, O_RDONLY );    }
-
-/// Open file for writing, creating if it does not exist.
-
-inline int OpenForWrite( const String& filename, int mode = 0664)
-{    return Open( filename, O_WRONLY | O_CREAT, mode );    }
-
-void Close( int fd );
 
 String FirstLineOfFile( String filename );
 
@@ -303,11 +264,6 @@ void Rename( String from, String to );
 void RequireDirectory( String fn );
 void RequireRegularFile( String fn );
 
-/// Make sure we can write to this file, abort otherwise.
-/// If the mode does not include ios::app, truncate the file to length 0.
-
-void RequireWritePermission( String fn, ios::openmode mode=ios::out );
-
 void SetDatasizeLimitMb( int n );
 
 String Getenv( const String& var );
@@ -374,10 +330,10 @@ String FilenameSafeString( String wannabe_fn );
 // OpenIfstream and OpenOfstream are intended only as machinery to make
 // Ifstream and Ofstream work.
 
-void OpenIfstream( ifstream& i, String f );
-void OpenOfstream( ofstream& o, String f, ios_base::openmode mode = ios::out);
-void OpenOfstream( ofstream& o, String s, String f,
-                   ios_base::openmode mode = ios::out);
+void OpenIfstream( std::ifstream& i, String const& f );
+void OpenOfstream( std::ofstream& o, String const& f );
+void OpenOfstream( std::ofstream& o, String const& s, String const& f,
+                        std::ios_base::openmode mode = std::ios_base::out );
 
 #define Ifstream(STREAMNAME, FILENAME)                         \
      ifstream STREAMNAME;                                      \
@@ -533,20 +489,22 @@ inline void DotMod (ostream & log, unsigned int pass, unsigned int mod) {
 */
 
 inline 
-void dots_pct(const size_t i, const size_t n) 
+void dots_pct(const size_t i, const size_t n, const bool verbose = true) 
 {
-  unsigned u0 =  i      * 80 / n;
-  unsigned u1 = (i + 1) * 80 / n;
-  String s = "";
-  for (unsigned u = u0 + 1; u <= u1; u++) {
-    if      (u % 8 ==  0) s += "%";
-    else if (u % 8 ==  7) s += "0";
-    else if (u % 8 ==  6) s += ToString((u / 8 + 1) % 10);
-    else if (u     == 77) s += "1";
-    else                  s += ".";
-    if (u == 80)          s += "\n";
+  if (verbose) {
+    unsigned u0 =  i      * 80 / n;
+    unsigned u1 = (i + 1) * 80 / n;
+    String s = "";
+    for (unsigned u = u0 + 1; u <= u1; u++) {
+      if      (u % 8 ==  0) s += "%";
+      else if (u % 8 ==  7) s += "0";
+      else if (u % 8 ==  6) s += ToString((u / 8 + 1) % 10);
+      else if (u     == 77) s += "1";
+      else                  s += ".";
+      if (u == 80)          s += "\n";
+    }
+    cout << s << flush;
   }
-  cout << s << flush;
 }
 
 /// Number of bytes of memory in use.
@@ -785,21 +743,7 @@ inline void Echo( String s, String filename )
 {    {    ofstream temporary_write_stream( filename.c_str( ), ios::app );
           temporary_write_stream << s << "\n";    }    }
 
-/// ReadBytes and WriteBytes are like the system calls "read" and "write", but abort
-/// in the event of failure.  Also they read and write in chunks of at most
-/// 2^31 - 2^12 bytes to avoid failures on some operating systems.
-///
-/// SafeWrite is like WriteBytes, but does not correctly handle large nbytes values,
-/// but does return an answer.
-
-void ReadBytes( int filedes, const void* buffer, longlong nbytes );
 void WriteBytes( int filedes, const void* buffer, longlong nbytes );
-ssize_t SafeWrite( int filedes, const void *buffer, size_t nbytes );
-
-///Copy bytes from source to target in BLOCKSIZE units.
-/// Calls ReadBytes and WriteBytes, aborts on failure.
-void CopyBytes(int fdsource, int fdtarget, longlong nbytes,
-	       const int BLOCKSIZE = 1024);
 
 /// PlainFold: fold a given string. If start and stop are given, it
 /// prints the characters in [start, stop].
@@ -864,6 +808,13 @@ String TimeSince( double start );
 
 #define EXIT_MAIN_NORMALLY { return(0); }
 
+
+// CheckForCommand: test if the shell command can be found in the current path
+
+inline bool IsCommandInPath(const String &cmd) {
+  return (System("which " + cmd + " > /dev/null") == 0);
+}
+
 // ===============================================================================
 //
 // search_path_for_command: if a file named "cmd" is in one of the directories in
@@ -915,41 +866,6 @@ inline void SafeMemcpy( void* to, void* from, size_t nbytes )
 /// Rmdir: remove directory or abort.
 
 void Rmdir( const String& dir );
-
-/// BinaryOverwrite: remove file fn and write t into it.
-/// To use this, there has to be a
-/// preexisting function BinaryWrite( int fd, const T& t ).
-
-template<class T> void BinaryOverwrite( const String& fn, const T& t ) {
-  Remove(fn);
-  BinaryWrite( fn, t );
-}
-
-/// BinaryWrite: write to fname, delegating to BinaryWrite(int fd,T& t ).
-
-template<class T> void BinaryWrite( const String& fname, const T& t ) {
-  int fd = OpenForWrite(fname);
-  BinaryWrite( fd, t );
-  Close(fd);
-}
-
-/// BinaryRead: read fname into t, delegating to BinaryRead(int fd,T& t ).
-
-template<class T> void BinaryRead( const String& fname, T& t ) {
-  int fd = OpenForRead(fname);
-  BinaryRead( fd, t );
-  Close(fd);
-}
-
-#define DEFINE_BINIO_FOR(T) \
- inline void BinaryWrite( int fd, const T& x ) \
- {    WriteBytes( fd, &x, sizeof(T) );    } \
- \
- inline void BinaryRead( int fd, T& x ) \
- {    ReadBytes( fd, &x, sizeof(T) );    } \
-  typedef T __ ## T ## __binaryIoEatSemicolon__
-
-DEFINE_BINIO_FOR(int);  // the rest are defined in StdMethods.h
 
 // Output d digits to the right of decimal point, or if the number is less
 // than 1 in absolute value, output d digits after leading zeros.

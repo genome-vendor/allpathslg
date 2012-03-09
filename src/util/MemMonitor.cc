@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
 
   BeginCommandArguments;
   CommandArgument_Int_Doc(PID,                                  "Process ID of the program to monitor.");
-  CommandArgument_Int_OrDefault_Doc(INTERVAL,               20, "The time (in seconds) between periodic checks on the process.");
+  CommandArgument_Int_OrDefault_Doc(INTERVAL,               20, "The time (in seconds) between output of stats to file.");
   CommandArgument_Int_OrDefault_Doc(MEM_LIMIT,               0, "Memory limit (in kB) of process to watch.  If the process exceeds this limit, it will be killed.");
   CommandArgument_Bool_OrDefault_Doc(WITH_TRACEBACK,         0, "Should a traceback be printed everytime the program's memory usage is polled?");
   CommandArgument_Bool_OrDefault_Doc(TRACEBACK_ON_OVERFLOW,  1, "Should a traceback be printed just prior to killing a program that has exceeded the memory limit?");
@@ -230,15 +230,18 @@ int main(int argc, char **argv) {
     fout << "# (MM," << PID << ") cmdline: '" << ps.CmdLine() << "'" << endl;
     fout << "# (MM," << PID << ") fields: " << ps.DataLineHeader() << endl;
 
+    int iter = 0;
     do {
       ps.Load();
-
-      fout << "(MM," << PID << ") "  << ps.DataLine() << endl << flush;
-		
-      if (WITH_TRACEBACK) {
-        fout << "# (MM) process traceback: " << ps.GetTraceback() << endl;
+      
+      if (iter++ % INTERVAL == 0) {
+        fout << "(MM," << PID << ") "  << ps.DataLine() << endl << flush;
+        
+        if (WITH_TRACEBACK) {
+          fout << "# (MM) process traceback: " << ps.GetTraceback() << endl;
+        }
       }
-    
+
       if (MEM_LIMIT > 0 && ps.VmSize() > MEM_LIMIT) {
         fout << "# (MM) notice: monitored process exceeded memory threshold of " << MEM_LIMIT << " kB; killing " << PID << endl;
         
@@ -259,9 +262,8 @@ int main(int argc, char **argv) {
       if (ps.VmStk()  > maxps.VmStk())  { maxps.VmStk()  = ps.VmStk();  }
       if (ps.VmExe()  > maxps.VmExe())  { maxps.VmExe()  = ps.VmExe();  }
       if (ps.VmLib()  > maxps.VmLib())  { maxps.VmLib()  = ps.VmLib();  }
-     
-
-      sleep(INTERVAL);
+        
+      sleep(1);
     } while (ps.IsRunning());
 
     fout << "# (MM," << PID << ") fields: " << maxps.DataLineHeader() << endl;

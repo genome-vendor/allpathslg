@@ -682,13 +682,13 @@ int main(int argc, char *argv[])
   vecKmerPath paths   (file_head + ".paths" + kK);
   vecKmerPath paths_rc(file_head + ".paths_rc" + kK);
   vec<tagged_rpint> pathsdb;
-  BinaryRead3(file_head + ".pathsdb" + kK, pathsdb);
+  BinaryReader::readFile(file_head + ".pathsdb" + kK, &pathsdb);
 
   // Unibases, unipaths [db]
   vecbasevector unibases(file_head + ".unibases" + kK);
   vecKmerPath unipaths(file_head + ".unipaths" + kK);
   vec<tagged_rpint> unipathsdb;
-  BinaryRead3(file_head + ".unipathsdb" + kK, unipathsdb);
+  BinaryReader::readFile(file_head + ".unipathsdb" + kK, &unipathsdb);
 
   vec< vec<int> > unibases_next( unibases.size( ) );
   vec<int> to_rc;
@@ -699,14 +699,14 @@ int main(int argc, char *argv[])
   // Unipath link graph
   String graph_file_infix = USE_THEO_GRAPHS ? ".theo" : "";
   digraphE<fsepdev> LG;
-  BinaryRead(sub_dir + "/unipath_link_graph" + graph_file_infix + ".cloud" + kK, LG);
+  BinaryReader::readFile(sub_dir + "/unipath_link_graph" + graph_file_infix + ".cloud" + kK, &LG);
 
   // Unipath copy numbers (predicted)
   VecPdfEntryVec CNs((file_head + ".unipaths.predicted_count" + kK).c_str());
 
   // Unilocs (i.e., read locations on unipaths)
   vec<ReadLocationLG> unilocs;
-  BinaryRead2(file_head + ".unilocs." + ToString(K), unilocs);
+  BinaryReader::readFile(file_head + ".unilocs." + ToString(K), &unilocs);
 
   // Calculate read lengths
   vec<int> read_lengths = KmerPathSeqLength( paths, K );
@@ -729,7 +729,7 @@ int main(int argc, char *argv[])
   }
 
   if (READ_CLOUD_EVAL)
-    BinaryRead2(file_head + ".ref.locs", read_POGs);
+    BinaryReader::readFile(file_head + ".ref.locs", &read_POGs);
 
   // Sanity checks!
   // If any of these asserts fails, the input files are inconsistent.

@@ -20,8 +20,9 @@
 #include "ParallelVecUtilities.h"
 #include "Qualvector.h"
 #include "Set.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "math/Functions.h"
 #include "paths/Ulink.h"
 #include "paths/UnibaseCopyNumberCommon.h"
@@ -32,7 +33,7 @@
 #include "util/SearchFastb2Core.h"
 #include <vector>
 
-char PCottageJoinData::HEADER[8] = {'J','O','I','N','D','A','T','A'};
+size_t const PCottageJoinData::HEADER;
 
 void AlignReadsToUnipaths( const String& run_dir, const String& jump_reads,
      const String& frag_reads, const String& frag_reads_edit, const Bool USE_JUMPS,
@@ -74,7 +75,7 @@ void AlignReadsToUnipaths( const String& run_dir, const String& jump_reads,
           for ( size_t i = 0; i < jaligns.size( ); i++ )
                if ( jaligns[i].third >= 0 ) JALIGNS.push_back( jaligns[i] );
           if ( checkpoint_head != "" )
-               BinaryWrite3( checkpoint_head + ".JALIGNS", JALIGNS );    }
+               BinaryWriter::writeFile( checkpoint_head + ".JALIGNS", JALIGNS );    }
 
      // Count reads.
 
@@ -99,8 +100,8 @@ void AlignReadsToUnipaths( const String& run_dir, const String& jump_reads,
      cout << Date( ) << ": ";
      PRINT( Sum(aligned) );
      if ( checkpoint_head != "" )
-     {    BinaryWrite3( checkpoint_head + ".ALIGNS1", ALIGNS );
-          BinaryWrite3( checkpoint_head + ".aligned1", aligned );    }
+     {    BinaryWriter::writeFile( checkpoint_head + ".ALIGNS1", ALIGNS );
+          BinaryWriter::writeFile( checkpoint_head + ".aligned1", aligned );    }
 
      // Look for perfect placements of truncated fragment reads.
 
@@ -125,9 +126,9 @@ void AlignReadsToUnipaths( const String& run_dir, const String& jump_reads,
           cout << Date( ) << ": ";
           PRINT( Sum(aligned) );
           if ( checkpoint_head != "" )
-          {    BinaryWrite3( checkpoint_head + ".ALIGNS" + ToString(pass+1), 
+          {    BinaryWriter::writeFile( checkpoint_head + ".ALIGNS" + ToString(pass+1),
                     ALIGNS );
-               BinaryWrite3( checkpoint_head + ".aligned" + ToString(pass+1), 
+               BinaryWriter::writeFile( checkpoint_head + ".aligned" + ToString(pass+1),
                     aligned );    }    }
 
      // Try using the second 20 bases of the fragment reads..
@@ -138,8 +139,10 @@ void AlignReadsToUnipaths( const String& run_dir, const String& jump_reads,
      int start = 20, len = 20;
      {    vecbasevector reads(frag_reads_file);
           for ( size_t i = 0; i < nreads; i++ )
-          {    if ( aligned[i] ) reads[i].resize(0);
-               else reads[i].SetToSubOf( reads[i], start, len );    }
+          {    if ( aligned[i] || reads[i].isize() < start+len )
+                 reads[i].resize(0);
+               else
+                 reads[i].SetToSubOf( reads[i], start, len );    }
           reads.WriteAll(temp_file);    }
      SearchFastb2( temp_file, unifile, 20, &aligns, 0, MAX_PLACEMENTS );
      for ( size_t i = 0; i < aligns.size( ); i++ )
@@ -150,8 +153,8 @@ void AlignReadsToUnipaths( const String& run_dir, const String& jump_reads,
      cout << Date( ) << ": ";
      PRINT( Sum(aligned) );
      if ( checkpoint_head != "" )
-     {    BinaryWrite3( checkpoint_head + ".ALIGNS6", ALIGNS );
-          BinaryWrite3( checkpoint_head + ".aligned6", aligned );    }
+     {    BinaryWriter::writeFile( checkpoint_head + ".ALIGNS6", ALIGNS );
+          BinaryWriter::writeFile( checkpoint_head + ".aligned6", aligned );    }
 
      // Try using the edited fragment reads.
 
@@ -172,8 +175,8 @@ void AlignReadsToUnipaths( const String& run_dir, const String& jump_reads,
      cout << Date( ) << ": ";
      PRINT( Sum(aligned) );
      if ( checkpoint_head != "" )
-     {    BinaryWrite3( checkpoint_head + ".ALIGNS7", ALIGNS );
-          BinaryWrite3( checkpoint_head + ".aligned7", aligned );    }
+     {    BinaryWriter::writeFile( checkpoint_head + ".ALIGNS7", ALIGNS );
+          BinaryWriter::writeFile( checkpoint_head + ".aligned7", aligned );    }
      cout << Date( ) << ": "
           << "-----------------------------------------------------" << endl;
      Remove(temp_file);    }
@@ -468,7 +471,7 @@ void MakeUlinks( const String& run_dir, const String& TMP, const String& FRAG_RE
      String ULINKS_file = run_dir + "/" + TMP + "/UnipathPatcher.ULINKS";
      vec<String> unknown_libs;
      if ( CHECKPOINT && IsRegularFile(ULINKS_file) && IsRegularFile(ULINKS_file) )
-          BinaryRead3( ULINKS_file, ulinks );
+          BinaryReader::readFile( ULINKS_file, &ulinks );
      else
      {    // Only running for jump pairs for now.  For some reason using fragment
           // pairs results in a lot of noise.  Also note that now handling of 
@@ -583,7 +586,7 @@ void MakeUlinks( const String& run_dir, const String& TMP, const String& FRAG_RE
           cout << Date( ) << ": sorting " << ToStringAddCommas( ulinks.size( ) ) 
                << " unipath links" << endl;
           ParallelSort(ulinks);
-          if (CHECKPOINT) BinaryWrite3( ULINKS_file, ulinks );    }    }
+          if (CHECKPOINT) BinaryWriter::writeFile( ULINKS_file, ulinks );    }    }
 
 #define MEM ToStringAddCommas( MemUsageBytes( ) )
 
@@ -851,10 +854,8 @@ void BuildJoinData( const vec<int>& dead_fw, const vec<int>& dead_rc,
      BinaryReader::readFile( extenders_q_jump_file.c_str(),&extenders_q_jump );
      cout << Date( ) << ": reloaded extending data, memory usage = " << MEM << endl;
 
-     BinaryWriter jdWriter(JOINDATA_file.c_str(),
-                             PCottageJoinData::HEADER,
-                             sizeof(PCottageJoinData::HEADER));
-     size_t offset = sizeof(PCottageJoinData::HEADER);
+     BinaryWriter jdWriter(JOINDATA_file.c_str(),false);
+     jdWriter.write(PCottageJoinData::HEADER);
      PCottageJoinData joinData;
      size_t nnn = joiners.size();
      join_data_offsets.clear();
@@ -929,8 +930,8 @@ void BuildJoinData( const vec<int>& dead_fw, const vec<int>& dead_rc,
          AssertEq(joinData.reads.size(),joinData.quals.size());
          AssertEq(joinData.reads.size(),2*joinData.pairs.size());
 
-         join_data_offsets.push_back(offset);
-         offset += jdWriter.write(joinData); }
+         join_data_offsets.push_back(jdWriter.tell());
+         jdWriter.write(joinData); }
      jdWriter.close();
      Destroy(to_rc);    }
 
@@ -949,6 +950,10 @@ namespace
 
         void operator()( PCottageResults const& results )
         {
+            if ( results.report == "FAILED" )
+                FatalErr("Inconsistent data discovered by item "
+                            << results.itemNumber);
+
             mStartStop[results.itemNumber] = results.startStop;
             mReports[results.itemNumber] = results.report;
 

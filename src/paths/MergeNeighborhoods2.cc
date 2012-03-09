@@ -262,7 +262,7 @@ void RunScaffoldAccuracy(const HyperKmerPath &hyper,
 
   // Run ScaffoldAccuracy with different D (distances).
   for (int did=0; did<3; did++) {
-    int dist = pow(10, did) * 1000;
+    int dist = pow(10., did) * 1000;
     String str_dist = ToString(dist);
     String log_file = ass_base + "_d" + str_dist + ".log";
     String loc_info = "d_" + str_dist + "_";
@@ -331,7 +331,7 @@ size_t FindComponents(size_t const K,
   
   cout << Tag() << "loading local HyperKmerPaths" << endl;
   vec<HyperKmerPath> nhoods;
-  BinaryRead(sub_dir + "/nhood.hypers", nhoods);
+  BinaryReader::readFile(sub_dir + "/nhood.hypers", &nhoods);
   
   // Find components.
   
@@ -510,7 +510,7 @@ void FindAllComponentOverlaps(const size_t ploidy,
 {
   // write overlaps to disk for memory efficiency on large genomes
   String tmp_file = working_dir + "/" + "MN2_overlaps.tmp";
-  BinaryIterativeWriter<vec<overlapit> > overlaps_out(tmp_file.c_str());
+  BinaryIteratingWriter<vec<overlapit> > overlaps_out(tmp_file.c_str());
   
   const size_t n_edges = to_comp.size();
     
@@ -846,7 +846,7 @@ int main(int argc, char *argv[])
   vecKmerPath spaths;
   vec<tagged_rpint> spathsdb;
   spaths.ReadAll(sub_dir + "/reads.paths" + kK);
-  BinaryRead2(sub_dir + "/reads.pathsdb" + kK, spathsdb);
+  BinaryReader::readFile(sub_dir + "/reads.pathsdb" + kK, &spathsdb);
 
 
 
@@ -997,7 +997,7 @@ int main(int argc, char *argv[])
     HyperKmerPath h(K, hcomps);
     cout << Tag() << "write assembly to file <sub_dir>/hyper.prelim" + 
       OUT_SUFFIX << endl;
-    BinaryOverwrite(sub_dir + "/hyper.prelim" + OUT_SUFFIX, h);
+    BinaryWriter::writeFile(sub_dir + "/hyper.prelim" + OUT_SUFFIX, h);
     Ofstream(dot, sub_dir + "/hyper.prelim" + OUT_SUFFIX + ".dot");
     h.PrintSummaryDOT0w(dot, true, false, true, 0, true);
   }

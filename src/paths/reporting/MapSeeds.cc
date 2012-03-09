@@ -22,7 +22,7 @@
 #include "paths/KmerPath.h"
 #include "paths/UnipathNhoodCommon.h" // digraphE<fsepdev>
 #include "paths/simulation/Placement.h"
-
+#include "feudal/BinaryStream.h"
 
 
 
@@ -66,7 +66,7 @@ int main( int argc, char *argv[] )
   vec<int> u_components( n_unipaths, -1 );
   {
     digraphE<fsepdev> LG;
-    BinaryRead( sub_dir + "/unipath_link_graph.seeds.k" + KS, LG );
+    BinaryReader::readFile( sub_dir + "/unipath_link_graph.seeds.k" + KS, &LG );
     ForceAssertEq( n_unipaths, (size_t)LG.N() );
     
     vec< vec<int> > components;

@@ -17,7 +17,7 @@
 #include "graph/Digraph.h"
 #include "paths/KmerBaseBroker.h"
 #include "paths/KmerPath.h"
-
+#include "feudal/BinaryStream.h"
 
 /**
    Class: HyperKmerPath
@@ -311,14 +311,9 @@ class HyperKmerPath : public digraphE<KmerPath> {
      // ===========================================================================
      // =========================== BINARY I/O ====================================
      // ===========================================================================
-
-     friend void BinaryWrite( int fd, const HyperKmerPath& h );
-     friend void BinaryRead( int fd, HyperKmerPath& h );
-
-     friend void BinaryWrite( int fd, const vec<HyperKmerPath>& h )
-     {    BinaryWriteComplex( fd, h );    }
-     friend void BinaryRead( int fd, vec<HyperKmerPath>& h )
-     {    BinaryReadComplex( fd, h );    }
+     void writeBinary( BinaryWriter& writer ) const;
+     void readBinary( BinaryReader& reader );
+     static size_t externalSizeof() { return 0; }
 
      // ===========================================================================
      // ============================== OTHER ======================================
@@ -374,7 +369,7 @@ class HyperKmerPath : public digraphE<KmerPath> {
      int K_;
 
 };  // class HyperKmerPath
-
+SELF_SERIALIZABLE(HyperKmerPath);
 
 
 

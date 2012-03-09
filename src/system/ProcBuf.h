@@ -6,39 +6,24 @@
 //   Institute is not responsible for its use, misuse, or functionality.     //
 ///////////////////////////////////////////////////////////////////////////////
 
-#if ! defined( __GNUC__ ) || __GNUC__ > 2
-
 #ifndef PROCBUF_H
 #define PROCBUF_H
 
-#include <iosfwd>
+#include "system/file/FileWriter.h"
 #include <streambuf>
-#include <string>
-#include <vector>
 
-using namespace std;
-
-template <class charT, class traits = char_traits<charT> >
-class basic_procbuf : public basic_streambuf<charT,traits>
+class procbuf : public std::basic_streambuf<char>
 {
   public:
-    typedef charT                      char_type;
-    typedef typename traits::int_type  int_type;
-    typedef typename traits::pos_type  pos_type;
-    typedef typename traits::off_type  off_type;
-    typedef traits                     traits_type;
+    procbuf( char const* command, std::ios_base::openmode mode,
+        bool expect_ret_zero = false );
+    ~procbuf() { close(); delete [] eback(); delete [] pbase(); }
 
-    basic_procbuf();
-    basic_procbuf( const char* command,
-		   ios_base::openmode mode );
-    ~basic_procbuf();
+    bool is_open() { return mFD != -1; }
+    void close() { if ( is_open() ) doClose(); }
 
-    bool is_open()  volatile
-    {  return  (this->M_fd) >= 0;  }
-
-    basic_procbuf<charT,traits> * open( const char* command,
-					ios_base::openmode mode ) volatile;
-    basic_procbuf<charT,traits> * close();
+    // read as many characters as are immediately available from the pipe
+    size_t read( void* buf, size_t len ) { return mFW.readOnce(buf,len); }
 
   protected:
     int_type overflow( int_type c = traits_type::eof() );
@@ -47,32 +32,19 @@ class basic_procbuf : public basic_streambuf<charT,traits>
     int_type sync();
 
   private:
-    int M_fd;
-    pid_t M_pid;
+    procbuf( procbuf const & ); // unimplemented -- no copying
+    procbuf& operator=( procbuf const& ); // unimplemented -- no copying
 
-    char_type *M_internal_get_buffer;
-    char_type *M_internal_get_buffer_end;
-    char_type *M_internal_put_buffer;
-    char_type *M_internal_put_buffer_end;
-    // We might read an odd # of bytes in wide mode -
-    // The extra bytes go here...
-    char M_get_slop[sizeof(char_type)];
-    int  M_n_slop;
     bool flush();
     bool fill();
+    int doOpen( char const* command, std::ios_base::openmode mode );
+    void doClose();
 
-    enum {
-        DEFAULT_GET_BUFFER_SIZE=512,
-	DEFAULT_PUT_BUFFER_SIZE=512
-    };
-    
-    // prohibit copying and assignment
-    basic_procbuf( const basic_procbuf & );
-    basic_procbuf & operator= ( const basic_procbuf & );
+    int mFD;
+    FileWriter mFW;
+    pid_t mPID;
+    std::string mCMD;
+    bool mExpectRetZero;
 };
-
-typedef basic_procbuf<char> procbuf;
-
-#endif
 
 #endif

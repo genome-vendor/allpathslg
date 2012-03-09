@@ -1116,7 +1116,7 @@ void LoadLookAlignsBinary(const String & file_name,
   look_align high;
   high.query_id = high_id-1;
   
-  longlong size = BinarySize3<look_align>(file_name, true);
+  longlong size = BinaryVecNumElements(file_name);
 
   longlong chunk = 1000000; // million at a time
 
@@ -1125,7 +1125,7 @@ void LoadLookAlignsBinary(const String & file_name,
   for ( longlong from = 0 ; from < size && ! done ; from += chunk ) {
 
     longlong to = min ( from+chunk, size );
-    BinaryReadRange3(file_name,from,to,a,true);
+    a.ReadRange(file_name,from,to);
     
     vec<look_align>::iterator it;
     vec<look_align>::iterator last;
@@ -1217,7 +1217,7 @@ void LoadMappedLookAlignsBinary(const String & file_name,
   look_align high;
   high.query_id = high_id-1;
   
-  longlong size = BinarySize3<look_align>(file_name, true);
+  longlong size = BinaryVecNumElements(file_name);
 
   longlong chunk = 1000000; // million at a time
 
@@ -1226,7 +1226,7 @@ void LoadMappedLookAlignsBinary(const String & file_name,
   for ( longlong from = 0 ; from < size && ! done ; from += chunk ) {
 
     longlong to = min ( from+chunk, size );
-    BinaryReadRange3(file_name,from,to,a,true);
+    a.ReadRange(file_name,from,to);
     
     vec<look_align>::iterator it;
     vec<look_align>::iterator last;

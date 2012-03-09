@@ -8,6 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include "MainTools.h"
+#include "feudal/BinaryStream.h"
 #include "paths/KmerPath.h"
 #include "paths/Unipath.h"
 
@@ -146,7 +147,7 @@ void BuildDbFile( vecKmerPath& paths,
   }
   
   cout << Date() << ": Writing pathsdb to file" << endl;
-  BinaryWrite3( pathsdb_file, pathsdb );
+  BinaryWriter::writeFile( pathsdb_file, pathsdb );
   return;
 }
 

@@ -367,9 +367,9 @@ public:
 
     A get_allocator() const { return mAllocator; }
 
-    size_t writeBinary( BinaryWriter& writer ) const
-    { size_t len = writer.write(size());
-      return len+writer.write(data(),dataEnd()); }
+    void writeBinary( BinaryWriter& writer ) const
+    { writer.write(size());
+      writer.write(data(),dataEnd()); }
 
     void readBinary( BinaryReader& reader )
     { size_type sz; reader.read(&sz); resize(sz,T(mSubAllocator));
@@ -377,9 +377,9 @@ public:
 
     static size_t externalSizeof() { return 0; }
 
-    size_t writeFeudal( BinaryWriter& writer, void const** ppFixed ) const
+    void writeFeudal( BinaryWriter& writer, void const** ppFixed ) const
     { *const_cast<size_t*>(static_cast<size_t const*>(*ppFixed)) = size();
-      return writer.write(data(),dataEnd()); }
+      writer.write(data(),dataEnd()); }
 
     void readFeudal( BinaryReader& rdr, unsigned long dataLen, void* pFixed );
 
@@ -477,7 +477,8 @@ private:
 };
 
 template <class T, class S, class A>
-struct Serializability< OuterVec<T,S,A> > : public SelfSerializable {};
+struct Serializability< OuterVec<T,S,A> >
+{ typedef SelfSerializable type; };
 
 template <class T, class S, class A1, class A2>
 bool operator==( OuterVec<T,S,A1> const& v1, OuterVec<T,S,A2> const& v2 )

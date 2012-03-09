@@ -620,8 +620,7 @@ SeedNeighborhood::MakeInsertWalks( )
     HyperBasevector hb( _hkp, _kbb );
     
     String hyper_file = _outhead + ".local_unibases.hbv";
-    int fd = OpenForWrite( hyper_file );
-    BinaryWrite( fd, hb );
+    BinaryWriter::writeFile( hyper_file, hb );
     
     String unibases_file = _outhead + ".local_unibases.fasta";
     Ofstream( out, unibases_file );
@@ -643,8 +642,7 @@ SeedNeighborhood::MakeInsertWalks( )
     HyperBasevector hb( acyclic_HKP, _kbb );
     
     String hyper_file = _outhead + ".local_unibases_acyclic.hbv";
-    int fd = OpenForWrite( hyper_file );
-    BinaryWrite( fd, hb );
+    BinaryWriter::writeFile( hyper_file, hb );
   }
   
   // Walk long inserts with fragments

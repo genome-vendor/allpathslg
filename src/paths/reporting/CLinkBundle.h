@@ -10,6 +10,7 @@
 #define C_LINK_BUNDLE_H
 
 #include "CoreTools.h"
+#include "feudal/BinaryStreamTraits.h"
 
 /**
  * class CLinkBundle
@@ -66,6 +67,7 @@ public:
   pair<double,double> win2_;
   
 };
+TRIVIALLY_SERIALIZABLE(CLinkBundle);
 
 /**
  * CLinkBundle_order_best
@@ -96,15 +98,5 @@ struct pCLinkBundle_order_best
     return sorter( *left, *right );
   }
 };
-
-/**
- * BinaryWrite
- */
-void BinaryWrite( int fd, const CLinkBundle &bundle );
-
-/**
- * BinaryRead
- */
-void BinaryRead( int fd, CLinkBundle &bundle );
 
 #endif

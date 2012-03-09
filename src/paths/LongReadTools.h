@@ -85,16 +85,14 @@ public:
 
 
   // ---- SELF_SERIALIZABLE method
-  size_t writeBinary(BinaryWriter& writer) const
+  void writeBinary(BinaryWriter& writer) const
   {
-    size_t len = 0;
-    len += writer.write(rid);
-    len += writer.write(t1);
-    len += writer.write(tpos1);
-    len += writer.write(t2);
-    len += writer.write(tpos2);
-    len += writer.write(r);
-    return len;
+    writer.write(rid);
+    writer.write(t1);
+    writer.write(tpos1);
+    writer.write(t2);
+    writer.write(tpos2);
+    writer.write(r);
   }
   // ---- SELF_SERIALIZABLE method
   void readBinary(BinaryReader& reader)

@@ -12,6 +12,7 @@
 #include "graph/DigraphTemplate.h"
 #include "math/Functions.h"
 #include "paths/HyperKmerPath.h"
+#include "feudal/BinaryStream.h"
 
 int main( int argc, char *argv[] )
 {
@@ -42,7 +43,7 @@ int main( int argc, char *argv[] )
      // Read HyperKmerPath.
 
      HyperKmerPath h;
-     BinaryRead( sub_dir + "/hyper.prelim" + OUT_SUFFIX, h );
+     BinaryReader::readFile( sub_dir + "/hyper.prelim" + OUT_SUFFIX, &h );
   
      // Delete components having less than 1000 unique kmers.  Go from smallest 
      // to largest.  The second sort uses a lot of memory.  The amount of memory
@@ -124,7 +125,7 @@ int main( int argc, char *argv[] )
      if (WRITE)
      {    cout << Date( ) << ": write assembly to file <sub_dir>/hyper" + 
                OUT_SUFFIX << endl;
-          BinaryOverwrite( sub_dir + "/hyper" + OUT_SUFFIX, h );
+          BinaryWriter::writeFile( sub_dir + "/hyper" + OUT_SUFFIX, h );
           Ofstream( dot, sub_dir + "/hyper" + OUT_SUFFIX + ".dot" );
           h.PrintSummaryDOT0w( dot, True, False, True, 0, True );    }
 

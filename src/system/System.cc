@@ -11,7 +11,9 @@
 
 #include "system/System.h"
 #include "system/ErrNo.h"
+#include "system/file/Directory.h"
 #include "system/file/FileReader.h"
+#include "system/ProcBuf.h"
 #include "TokenizeString.h"
 
 #include <cerrno>
@@ -26,51 +28,11 @@
 
 #include <algorithm>
 #include <fstream>
+#include <sstream>
 #include <strstream>
 #include <vector>
 
 #include <dirent.h>
-
-int Open( const String& filename, int flags, int mode )
-{    int ntries = 0, fd;
-     retry: fd = open( filename.c_str( ), flags, mode );
-     ++ntries;
-     if ( fd < 0 )
-     { ErrNo err;
-       String msg = "Attempt to open file " + filename + " using flags = "
-               + ToString(flags) + " failed" + err.text();
-
-          // Handle case of interrupted function call.
-
-          if ( errno == EINTR && ntries <= 25 )
-          {    cout << msg << endl << "Retrying." << endl;
-               if ( ntries <= 5 )
-               {    cout << "retrying in 10 seconds" << endl;
-                    sleep(10);    }
-               else if ( ntries <= 15 )
-               {    cout << "retrying in 5 minutes" << endl;
-                    sleep(300);    }
-               else if ( ntries <= 25 )
-               {    cout << "retrying in 10 minutes" << endl;
-                    sleep(600);    }
-               goto retry;    }
-
-          // Handle case where there are too many open files.
-
-          if ( errno == EMFILE )
-          {    cout << msg << endl;
-               close(50); // Have to close *some* file or rest will fail!
-               int pid = getpid( );
-               cout << "\nHere is a list of all but one open file:\n" << endl;
-               System( "lsof -p " + ToString(pid) );
-               cout << "\nThis error is so bad that we have to abort." << endl;
-               cout << "Bye." << endl;
-               CRD::exit(1);    }
-
-          // Bail.
-
-          FatalErr(msg);    }
-     return fd;    }
 
 int SystemInternal( String command, const char *shell )
 {
@@ -279,85 +241,36 @@ void CpAppend( String file1, ostream& file2 )
 
 // Cp2 allows file2 to be a directory.
 
-void Cp2( String file1, String file2, Bool append, String chars_to_delete )
+void Cp2( String const& file1, String const& file2, bool append )
 {
-     if ( !IsRegularFile(file1) )
-          FatalErr( "Cp2: file1 = \"" << file1 << "\" does not exist." );
-     ForceAssert( file1.size( ) > 0 );
+    File f1(file1);
+    if ( !f1.isRegular() )
+        FatalErr( "Cp2: file1 = \"" << file1 << "\" is not a regular file." );
 
-     // If file2 is a directory, replace file2 by file2/last_part_of_file1.
+    File f2(file2);
+    // If file2 is a directory, replace file2 by file2/filename_of_file1.
+    if ( f2.isDir() )
+        f2 = f2.asDir().file(f1.filename());
 
-     if ( IsDirectory(file2) )
-     {    int slash_pos;
-          for ( slash_pos = (int) file1.size( ) - 1; slash_pos >= 0; slash_pos-- )
-               if ( file1[slash_pos] == '/' ) break;
-          file2 += '/';
-          for ( int i = slash_pos + 1; i < (int) file1.size( ); i++ )
-               file2 += file1[i];    }
+    // Test for identity.
+    if ( f1.isSameFile(f2) )
+        FatalErr( "Cp2: Attempt to copy " << file1 << " to itself." );
 
-     // Test for identity.
+    FileReader fr(f1);
+    FileWriter fw(f2,append);
+    size_t len;
+    size_t const BUFFER_SIZE = 8192;
+    char buf[BUFFER_SIZE];
+    while ( (len = fr.readSome(buf,BUFFER_SIZE)) )
+        fw.write(buf,len);
+    fr.close();
+    fw.close();
+}
 
-     if ( file1 == file2 )
-          FatalErr( "Cp2: Attempt to copy " << file1 << " to itself." );
-
-     // Try to open file1 for read access.
-     FileReader fr(file1.c_str());
-
-     // If file2 doesn't exist, we attempt to set its mode to that of file1.
-     mode_t mode1 = fr.getStat().st_mode;
-
-     int file2_desc;
-     if ( !append )
-          file2_desc = open( file2.c_str( ), O_WRONLY | O_CREAT | O_TRUNC, mode1 );
-     else file2_desc = open( file2.c_str( ), O_WRONLY | O_CREAT | O_APPEND, mode1 );
-     if ( file2_desc < 0 )
-     { ErrNo err;
-       FatalErr( "Cp2 from " << file1 << " to " << file2 << " failed "
-               "while opening " << file2 << err );    }
-
-     // Set up the buffer.  Bigger seems to be better.
-
-     int buf_size = 8192;
-     char* buf = new char[ buf_size + sizeof(int) ];
-
-     while(1)
-     {    int bytes_read = fr.readSome( buf, buf_size );
-          if ( bytes_read == 0 ) break;
-          if ( chars_to_delete.size( ) > 0 )
-          {    int count = 0;
-               for ( int i = 0; i < bytes_read; i++ )
-               {    int j;
-                    for ( j = 0; j < (int) chars_to_delete.size( ); j++ )
-                         if ( buf[i] == chars_to_delete[j] ) break;
-                    if ( j == (int) chars_to_delete.size( ) )
-                    {    if ( i != count ) buf[count] = buf[i];
-                         ++count;    }    }
-               bytes_read = count;    }
-          if ( write( file2_desc, buf, bytes_read ) < 0 )
-          { ErrNo err;
-            FatalErr( "Cp2 from " << file1 << " to " << file2 << " failed "
-                         "while writing " << file2 << err );    } }
-
-     if ( close(file2_desc) < 0 )
-     { ErrNo err;
-       FatalErr( "Cp2 from " << file1 << " to " << file2 << " failed "
-               "while closing " << file2 << err ); }
-
-     delete [ ] buf;    }
-
-void CpIfNeIfExists( String file1, String file2 )
+void CpIfNeIfExists( String const& file1, String const& file2 )
 {    if ( file1 == file2 ) return;
      if ( !IsRegularFile(file1) ) return;
      Cp2( file1, file2 );    }
-
-void CpAppend2( String file1, String file2 )
-{    Cp2( file1, file2, True );    }
-
-// The following implementation of Cat should be replaced by one that does not
-// do a system call.
-
-void Cat( String infile1, String infile2, String outfile )
-{    System( "cat " + infile1 + " " + infile2 + " > " + outfile );    }
 
 void Mv( String file1, String file2 )
 {    rename( file1.c_str( ), file2.c_str( ) );    }
@@ -402,22 +315,13 @@ String LineOfOutput( String command, bool force, bool err_too )
      String s = FirstLineOfFile(tempfile);
      return s;    }
 
-vector<String> AllOfOutput(String command) {
+vector<String> AllOfOutput(String const& command) {
+    procbuf pbuf(command.c_str(),std::ios_base::in);
+    istream is(&pbuf);
     vec<String> lines;
     String line;
-    char value;
-
-    FILE *pfile = popen(command.c_str(), "r");
-    while ((value = fgetc(pfile)) != EOF) {
-        if (value == '\n') {
-            lines.push(line);
-            line = "";
-        } else {
-            line += value;
-        }
-    }
-    pclose(pfile);
-
+    while ( getline(is,line) )
+        lines.push_back(line);
     return lines;
 }
 
@@ -595,18 +499,6 @@ void RequireRegularFile( String fn )
           FatalErr( "I was hoping that " << fn << " was a regular file, but "
                << "apparently it isn't.  Perhaps it doesn't exist at all." );    }
 
-void RequireWritePermission( String fn, ios::openmode mode ) {
-  if ( fn != "/dev/null" ) {
-    if (!IsRegularFile(fn) || ! (mode & ios::app) ) {//create an empty file.
-      close( creat( fn.c_str( ), 0664 ) );
-    }
-    chmod( fn.c_str( ), 0664 );
-    if ( access( fn.c_str( ), W_OK ) != 0 )
-      FatalErr( "I need write permission on " << fn <<
-		" but don't have it." );
-  }
-}
-
 void SetDatasizeLimitMb( int n )
 {    rlimit data;
      longlong top = (longlong)(n) * 1000000;
@@ -680,25 +572,36 @@ vector<String> AllFilesWithPrefix( const String &prefix, const String &dirname )
     return allfiles;
 }
 
-void OpenIfstream( ifstream& i, String f )
+void OpenIfstream( std::ifstream& i, String const& f )
 {    RequireRegularFile(f);
      i.open( f.c_str( ) );
      if ( !i ) FatalErr( "Problem opening " << f << " as an ifstream." );    }
 
-void OpenOfstream( ofstream& o, String f, ios_base::openmode mode)
-{    RequireWritePermission(f, mode);
-     o.open( f.c_str( ), ios::app | ios::out );
+void OpenOfstream( std::ofstream& o, String const& f )
+{    o.open( f.c_str( ), ios::app | ios::out );
      if ( !o ) FatalErr( "Problem opening " << f << " as an ofstream." );
      chmod( f.c_str( ), 0664 );    }
 
-void OpenOfstream( ofstream& o, String s, String f ,
-		   ios_base::openmode mode)
-{    RequireWritePermission(f, mode);
-     o.open( f.c_str( ), ios::app | ios::out );
-     if ( !o )
-          FatalErr( "My attempt to open " << s << " as an ofstream for "
-               << "file " << f << " has failed." );
-     chmod( f.c_str( ), 0664 );    }
+void OpenOfstream( std::ofstream& o, String const& s, String const& f,
+                        std::ios_base::openmode mode )
+{
+    if ( !(mode & std::ios_base::app) )
+    {
+        File fff(f);
+        if ( fff.isRegular() && ::truncate(f.c_str(),0) == -1 )
+        {
+            ErrNo err;
+            FatalErr("Can't truncate old file for ofstream on " << f << err);
+        }
+    }
+    o.open(f.c_str(), std::ios_base::app | std::ios_base::out );
+    if ( !o )
+    {
+        FatalErr("Attempt to open " << s << " as an ofstream for file "
+                    << f << " failed." );
+    }
+    chmod(f.c_str(), 0664);
+}
 
 float SafeQuotient( longlong numerator, longlong denominator )
 {
@@ -762,63 +665,6 @@ void Dot( ostream& log, unsigned int pass )
      flush(log);    }
 
 //
-
-const longlong max_read_or_write = 2147479552; // 2^31 - 2^12
-
-void ReadBytes( int filedes, const void* buffer0, longlong nbytes )
-{    char* buffer = (char*) buffer0;
-     longlong orig_nbytes = nbytes;
-     ssize_t answer;
-     while( nbytes > max_read_or_write )
-     {    answer = read( filedes, buffer, max_read_or_write );
-          if ( answer != max_read_or_write ) goto fail;
-          buffer += max_read_or_write;
-          nbytes -= max_read_or_write;    }
-     answer = read( filedes, buffer, nbytes );
-     if ( answer == nbytes ) return;
-fail:
-     ErrNo err;
-     FatalErr( "Read of " << orig_nbytes << " bytes using file descriptor "
-          << filedes << " failed" << err );    }
-
-void WriteBytes( int filedes, const void* buffer0, longlong nbytes )
-{    char* buffer = (char*) buffer0;
-     longlong orig_nbytes = nbytes;
-     ssize_t answer;
-     while( nbytes > max_read_or_write )
-     {    answer = write( filedes, buffer, max_read_or_write );
-          if ( answer < 0 ) goto fail;
-          buffer += max_read_or_write;
-          nbytes -= max_read_or_write;    }
-     answer = write( filedes, buffer, nbytes );
-     if ( answer >= 0 ) return;
-fail:
-     ErrNo err;
-     FatalErr( "Write of " << orig_nbytes << " bytes using file descriptor "
-          << filedes << " failed" << err );    }
-
-void CopyBytes(int fdsource, int fdtarget, longlong nbytes,
-	       const int BLOCKSIZE) {
-  char * c = new char[BLOCKSIZE];
-
-  while (nbytes > BLOCKSIZE) {
-    ReadBytes(fdsource, c, BLOCKSIZE);
-    WriteBytes(fdtarget, c, BLOCKSIZE);
-    nbytes -= BLOCKSIZE;
-  }
-  ReadBytes(fdsource, c, nbytes);
-  WriteBytes(fdtarget, c, nbytes);
-  delete[] c;
-}
-
-
-ssize_t SafeWrite( int filedes, const void *buffer, size_t nbytes )
-{    ssize_t answer = write( filedes, buffer, nbytes );
-     if ( answer < 0 )
-     { ErrNo err;
-       FatalErr( "Write of " << nbytes << " bytes using file descriptor "
-               << filedes << " failed" << err );    }
-     return answer;    }
 
 void PlainFold( const String &any_word, ostream& out, int start, int stop )
 {
@@ -952,12 +798,14 @@ String Dirname( const String& path )
 
 String RealPath( const String& path )
 {
-  char real[ PATH_MAX ];
-  if ( 0 == realpath( path.c_str(), real ) ) {
+  char* real = realpath( path.c_str(), NULL );
+  if ( 0 == real ) {
     ErrNo err;
     FatalErr( "RealPath(" << path <<") failed" << err );
   }
-  return String(real);
+  String retval(real);
+  free(real);
+  return retval;
 }
 
 int LastModified( const String& fn )
@@ -1003,32 +851,6 @@ void CpIfNewer( String fn1, String fn2, Bool ignoreErrors ) {
 }
 
 
-temp_file::temp_file( const String& template_name )
-{    String& fn = *this;
-     fn = template_name;
-     int fd = mkstemp( const_cast<char*>(fn.c_str()) );
-     if ( fd == -1 )
-     { ErrNo err;
-       if ( errno == EMFILE )
-        {    cout << "TempFile failed in creating " << fn << " from "
-                    << template_name << err << endl;
-             cout << "Aborting immediately." << endl;
-             CRD::exit(-1);    }
-          FatalErr( "TempFile failed in creating " << fn << " from "
-               << template_name << " " << err );    }
-     close( fd );
-     chmod( fn.c_str( ), 0664 );
-}
-
-temp_file::~temp_file( )
-{    String& fn = *this;
-     Remove(fn);    }
-
-String GetTempDir(const String &template_name)
-{ String result(template_name);
-  mkdtemp( const_cast<char*>(result.c_str()) );
-  return result; }
-
 String GetNestedDirsFromKey(const unsigned int key) 
 { String value = ToString(key);
   String dirs; dirs.reserve(2*value.size()-1);
@@ -1042,7 +864,6 @@ String GetDirFromKey(const unsigned int key, const unsigned int capacity)
 { String dir = ToString( key / capacity );
   return dir; 
 }
-
 
 String search_path_for_command( const String &cmd )
 {
@@ -1104,7 +925,6 @@ String command_name_of_process( int pid )
                     if ( !in ) break;
                     cout << line << endl;    }
                cout << "Exiting." << endl;    }
-          remove( tempfile.c_str( ) );
           CRD::exit(-1);    }
      String cmd = StringOfFile(tempfile, 2);
      if ( cmd.Contains( "[", 0 ) && cmd.Contains( "]", -1 ) )
@@ -1180,13 +1000,6 @@ size_t MemAvailable()
     size_t used = MemUsageBytes();
     return mem > used ? mem-used : 0ul;
 }
-
-void Close( int fd )
-{    int status = close(fd);
-     if ( status != 0 )
-     { ErrNo err;
-       FatalErr( "Attempt to close file descriptor " << fd
-               << " failed" << err );    }    }
 
 void RightPrecisionOut( ostream& out, const double x, int d )
 {    if ( x > -1.0 && x < 1.0 ) out << setprecision(d) << x;

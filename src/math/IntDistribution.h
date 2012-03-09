@@ -124,10 +124,12 @@ public:
 
 public:
   // ---- SELF_SERIALIZABLE method
-  size_t writeBinary(BinaryWriter& writer) const { return _prob.writeBinary(writer); }
+  void writeBinary( BinaryWriter& writer ) const
+  { _prob.writeBinary(writer); }
 
   // ---- SELF_SERIALIZABLE method
-  void readBinary(BinaryReader& reader) { _prob.readBinary(reader); _normalize(); }
+  void readBinary( BinaryReader& reader )
+  { _prob.readBinary(reader); _normalize(); }
 
   // ---- SELF_SERIALIZABLE method
   static size_t externalSizeof() { return 0; }

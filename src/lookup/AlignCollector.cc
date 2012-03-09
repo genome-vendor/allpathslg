@@ -8,8 +8,6 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include "lookup/AlignCollector.h"
-#include "VecTemplate.h"
-BINARY3_DEF(look_align);
 
 // Use this align to test read for ambiguity
 void AmbiguousAlignCollector::Insert(const look_align & la) {

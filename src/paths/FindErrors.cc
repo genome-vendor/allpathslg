@@ -24,6 +24,26 @@ static inline
 String Tag(String S = "FE") { return Date() + " (" + S + "): "; } 
 
 
+
+
+template<class QVV_t>
+void assert_bases_quals_consistency(const BaseVecVec & bvv,
+                                    const QVV_t & qvv)
+{
+  ForceAssertEq(bvv.size(), qvv.size());
+  const size_t nv = bvv.size();
+  size_t n_diff = 0;
+  for (size_t iv = 0; iv < nv; iv++)
+    if (bvv[iv].size() != qvv[iv].size())
+      n_diff++;
+  ForceAssertEq(n_diff, 0u);
+}
+
+
+
+
+
+
 float gc_content_compute(const BaseVecVec & bvv)
 {
   const size_t nbv = bvv.size();
@@ -121,6 +141,10 @@ public:
   uint64_t i  : 24;
   BVLocFE(const size_t _iv, const size_t _i) : iv(_iv), i(_i) {}
 };
+
+
+
+
 
 
 
@@ -348,7 +372,7 @@ int main(int argc, char *argv[])
     
     cout << Tag() << "Reading quals from '" << qualb_fn << "'." << endl;
     QualVecVec quals8(qualb_fn);
-    ForceAssertEq(n_reads, quals8.size());
+    assert_bases_quals_consistency(bases, quals8);
     
     // ---- Heuristics for pre-correction algorithm
     
@@ -404,6 +428,7 @@ int main(int argc, char *argv[])
     cout << Tag() << "Reading quals as nibble from '" << qualb_fn << "'." << endl;
     QualNibbleVecVec quals;
     LoadQualNibbleVec(qualb_fn, &quals);
+    assert_bases_quals_consistency(bases, quals);
 
     // ---- HACK! reset quals that were touched by pre-correct
 

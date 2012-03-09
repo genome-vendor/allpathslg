@@ -20,7 +20,6 @@
 #include "system/ErrNo.h"
 #include "system/Types.h"
 #include "Vec.h"
-#include "VecTemplate.h"
 
 void PrettyPrint(ostream& o, const vec<int>& v, int max_items, String terminator)
 {    int chars_in_line = 0;
@@ -141,41 +140,31 @@ ostream& operator<<(ostream& s, const vec<String>& v)
           s << v[i] << "\n";
      return s;    }
 
-// ostream& operator<<(ostream& s, const vec<String>& v)
-// {    s << v.size( ) << "\n";
-//      for ( vec<String>::size_type i = 0; i < v.size( ); i++ )
-//           s << v[i] << "\n";
-//      return s;    }
-
 template <>
 void WriteAppend( const String& f, const vec<String>& v )
 {
     ForceAssert( !IsRegularFile( f + ".gz" ) );
-    longlong max_size_bound = longlong(10000000) * longlong(100000000);
     if ( !IsRegularFile(f) )
     {
-        ForceAssertLt( (longlong) v.size( ), max_size_bound );
-        Ofstream( out, f );
-        out << setfill( '0' ) << setw(15) << v.size( ) << "\n";
-        for ( longlong i = 0; i < (longlong) v.size( ); i++ )
-            out << v[i] << "\n";
+        std::ofstream out( f.c_str() );
+        out << setfill('0') << setw(15) << v.size() << setfill(' ') << '\n';
+        for ( size_t i = 0; i < v.size( ); i++ )
+            out << v[i] << '\n';
+        out.close();
     }
     else
     {
-        longlong n;
-        {
-            Ifstream( in, f );
-            in >> n;
-        }
-        ForceAssertLt( n + (longlong) v.size( ), max_size_bound );
-        ostrstream osize;
-        osize << setfill( '0' ) << setw(15) << n + v.size( ) << "\n";
-        int fd = Open( f, O_WRONLY );
-        WriteBytes( fd, osize.str( ), 16 );
-        close(fd);
-        ofstream out( f.c_str( ), ios::app );
-        for ( longlong i = 0; i < (longlong) v.size( ); i++ )
-            out << v[i] << "\n";
+        std::fstream out(f.c_str(),std::ios_base::in|std::ios_base::out);
+        size_t n;
+        out >> n;
+        size_t const max_size_bound = 10000000ul * 100000000ul;
+        ForceAssertLt( n+v.size(), max_size_bound );
+        out.seekp( 0, std::ios_base::beg );
+        out << setfill('0') << setw(15) << n+v.size() << setfill(' ') << '\n';
+        out.seekp( 0, std::ios_base::end );
+        for ( size_t i = 0; i < v.size( ); i++ )
+            out << v[i] << '\n';
+        out.close();
     }
 }
 
@@ -235,7 +224,7 @@ bool IsAsciiVec( const String &filename )
   return true;
 }
 
-longlong AsciiOrBinary0VecSize( const String& filename )
+longlong AsciiVecSize( const String& filename )
 {
   String ns;
   Ifstream( in, filename );
@@ -243,109 +232,6 @@ longlong AsciiOrBinary0VecSize( const String& filename )
   ForceAssert( ns.IsInt( ) );
   longlong n = ns.Int( );
   return n;
-}
-
-
-int GetBinary2Or3ElementSize(const String & filename, int version = -1)
-{
-  if( version == -1 ) version = WhichBinaryFormat(filename);
-  ForceAssert( version == 2 || version == 3 );
-  const String& b_header = (version == 2 ? binary2_first_line : binary3_first_line);
-  int header_size = (version == 2 ? binary2_header_size : binary3_header_size);
-
-  String header;
-  header.resize(header_size);
-
-  if ( true )
-  { FileReader fr(filename.c_str());
-    fr.read( &header[0], header_size ); }
-
-  for ( unsigned int i = 0; i < b_header.size( ); i++ ) {    
-    if ( header[i] != b_header[i] ) {    
-      return -1;    
-    }    
-  }   
-  String elements = header.substr(binary_element_count_begin, 
-                                  binary_element_count_size);
-  elements = elements.Before(" ");
-  longlong n = elements.Int();
-  longlong size = FileSize(filename) - header.size();
-  AssertEq(size % n, 0);
-  return size / n;
-}  
-
-int GetBinary2ElementSize(const String & filename, bool strict) {
-  return GetBinary2Or3ElementSize( filename, (strict ? 2 : -1) );
-}
-int GetBinary3ElementSize(const String & filename, bool strict) {
-  return GetBinary2Or3ElementSize( filename, (strict ? 3 : -1) );
-}
-
-
-int WhichBinaryFormat( const String& filename ) {
-  String word1, word2;
-  int version;
-
-  Ifstream(file, filename);
-  file >> word1 >> word2 >> version;
-  
-  ForceAssertEq( word1, "binary" );
-  ForceAssertEq( word2, "format" );
-
-  return version;
-}
-
-
-void BinaryCat2Or3( const String & target, const String & source, 
-		    int version) {
-  ForceAssert( WhichBinaryFormat(target) == version );
-  ForceAssert( WhichBinaryFormat(source) == version );
-  longlong ns = BinaryNumElements(source);
-  longlong nt = BinaryNumElements(target);
-
-  //adjust the number of records
-  int fdt = OpenForWrite(target);
-  lseek(fdt, binary_element_count_begin, SEEK_SET);
-  BinaryWriteSize(fdt, ns + nt);
-  lseek(fdt, 0, SEEK_END);
-
-  //start reading at the beginning of the data.
-  FileReader fr(source.c_str());
-  int offset = version == 2 ? binary2_header_size : binary3_header_size;
-  fr.seek(offset);
-
-  //add in all the new records, 1024  bytes at a time so we don't overwhelm
-  //the memory.
-  const int BLOCK=1024;
-  char c[BLOCK];
-  while (true) {
-    int nread = fr.readSome( c, BLOCK );
-    if ( !nread ) break;
-    WriteBytes(fdt, c, nread);
-  }
-  close(fdt);
-}
-  
-void BinaryCat2( const String& target, const String & source ) {
-  BinaryCat2Or3( target, source, 2);
-}
-
-void BinaryCat3( const String& target, const String & source ) {
-  BinaryCat2Or3( target, source, 3);
-}
-
-longlong BinaryNumElements( const String & filename) {
-  int version = WhichBinaryFormat(filename);
-  ForceAssert(2 == version || 3 == version);
-
-  Ifstream(is, filename);
-  String junk;
-  getline(is, junk);
-  longlong elements;
-  is >> elements;
-  ForceAssert(is.good());
-
-  return elements;
 }
 
 template< > vec<double>::vec( const String& s )
@@ -376,26 +262,3 @@ template< > vec<int>::vec( const String& s )
           else 
           {    push_back( t.Int( ) );
                break;    }    }    }
-
-
-void BinaryWrite( int fd, const vec< String >& v ) {
-  BinaryWriteComplex( fd, v );
-}
-
-void BinaryRead( int fd, vec< String >& v ) {
-  BinaryReadComplex( fd, v );
-}
-
-
-BINARY2_DEF(char);
-BINARY2_DEF(unsigned char);
-BINARY2_DEF(int);
-BINARY2_DEF(longlong);
-BINARY2_DEF(float);
-
-BINARY3_DEF(char);
-BINARY3_DEF(unsigned char);
-BINARY3_DEF(int);
-BINARY3_DEF(longlong);
-BINARY3_DEF(float);
-BINARY3_DEF(double);

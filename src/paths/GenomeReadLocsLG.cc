@@ -22,6 +22,7 @@
 #include "ReadLocationLG.h"
 #include "lookup/LookAlign.h"
 #include "lookup/PerfectLookup.h"
+#include "feudal/BinaryStream.h"
 
 int main( int argc, char *argv[] )
 {
@@ -138,6 +139,6 @@ int main( int argc, char *argv[] )
 
   cout << Date( ) << ": Sorting and writing locs" << endl;
   Sort(locs_on_ref);
-  BinaryWrite2( run_dir + "/" + READS + ".ref.locs", locs_on_ref );
+  BinaryWriter::writeFile( run_dir + "/" + READS + ".ref.locs", locs_on_ref );
   cout << Date( ) << ": Done!" << endl;
 }

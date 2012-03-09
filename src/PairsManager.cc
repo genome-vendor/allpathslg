@@ -73,9 +73,7 @@ void writeLibraryStats( ostream & out, const vec<PM_LibraryStats> & stats)
 // Write a PairsManager to a file. Wrapper around writeBinary method.
 // By convention, these files usually have the extension '.pairs'.
 void PairsManager::Write( const String & pairs_file ) const {
-    BinaryWriter writer(pairs_file.c_str());
-    writer.write(*this);
-    writer.close();
+    BinaryWriter::writeFile(pairs_file.c_str(),*this);
 }
 
 
@@ -83,20 +81,19 @@ void PairsManager::Write( const String & pairs_file ) const {
 void PairsManager::Read( const String & pairs_file ) {
   if ( !IsRegularFile( pairs_file ) )
     FatalErr( "ERROR: PairsManager::Read failed - can't find file " << pairs_file );
-  BinaryReader reader(pairs_file.c_str());
-  reader.read(this);
+  BinaryReader::readFile(pairs_file.c_str(),this);
 }
 
 
 // Write a PairsManager to a stream, using BinaryWriter class in BinaryStream.h.
 // By convention, these files usually have the extension '.pairs'.
-size_t PairsManager::writeBinary( BinaryWriter& writer ) const {
+void PairsManager::writeBinary( BinaryWriter& writer ) const {
   // File format versioning - some future proofing
   const int version = 1;
-  size_t len = writer.write(version);
+  writer.write(version);
 
   // Write dataset size.
-  len += writer.write(_n_reads);
+  writer.write(_n_reads);
 
   // Write library data.  In order to be consistent with file format version 1,
   // we have to write the library stats separate from the library names.
@@ -105,13 +102,13 @@ size_t PairsManager::writeBinary( BinaryWriter& writer ) const {
   vec< pair<int,int> > lib_stats;
   for ( size_t i = 0; i < nLibraries(); i++ )
     lib_stats.push_back( make_pair( _libs[i]._sep, _libs[i]._sd ) );
-  len += writer.write( lib_stats );
-  len += writer.write( getLibraryNames() );
+  writer.write( lib_stats );
+  writer.write( getLibraryNames() );
 
   // Write pair data.
-  len += writer.write(_ID1);
-  len += writer.write(_ID2);
-  return len+writer.write(_lib_IDs);
+  writer.write(_ID1);
+  writer.write(_ID2);
+  writer.write(_lib_IDs);
 }
 
 

@@ -31,12 +31,14 @@ void read_to_fastq_stream(ofstream & fastq,
                           const size_t ibv,
                           const unsigned phred_offset,
                           const String & prefix,
-                          const String & suffix)
+                          const String & suffix,
+                          bool rc)
 {
   fastq << "@" << prefix << ":" << ibv << suffix << endl;
-  fastq << bv.ToString() << endl;
+  fastq << (rc ? BaseVec(bv).ReverseComplement() : bv).ToString() << endl;
   fastq << "+" << endl;
-  fastq << qual_vec_to_fastq_string(qv, phred_offset) << endl;
+  fastq << qual_vec_to_fastq_string((rc ? QualVec(qv).ReverseMe() : qv),
+                                      phred_offset) << endl;
 }                          
 
 
@@ -61,7 +63,7 @@ int main(int argc, char *argv[])
   CommandArgument_Bool_OrDefault_Doc(PICARD_NAMING_SCHEME, False, "If true, "
 				     "add '/1' to the end of first read "
 				     "names, '/2' to the end of second.");
-
+  CommandArgument_Bool_OrDefault_Doc(FLIP, False, "reverse complement reads and quals");
   EndCommandArguments;
 
   // Load the data.
@@ -91,12 +93,12 @@ int main(int argc, char *argv[])
       ForceAssertEq(it_bv->size(), it_qv->size());
       
       read_to_fastq_stream(fastq_A, *it_bv, *it_qv, ibv, 
-                           PHRED_OFFSET, NAMING_PREFIX, suffix_A);
+                           PHRED_OFFSET, NAMING_PREFIX, suffix_A, FLIP);
       it_bv++;
       it_qv++;
       
       read_to_fastq_stream(fastq_B, *it_bv, *it_qv, ibv, 
-                           PHRED_OFFSET, NAMING_PREFIX, suffix_B);
+                           PHRED_OFFSET, NAMING_PREFIX, suffix_B, FLIP);
       it_bv++;
       it_qv++;
 
@@ -116,7 +118,7 @@ int main(int argc, char *argv[])
       ForceAssertEq(it_bv->size(), it_qv->size());
 
       read_to_fastq_stream(fastq, *it_bv, *it_qv, ibv, 
-                           PHRED_OFFSET, NAMING_PREFIX, NAMING_SUFFIX);
+                           PHRED_OFFSET, NAMING_PREFIX, NAMING_SUFFIX, FLIP);
       it_bv++;
       it_qv++;
 

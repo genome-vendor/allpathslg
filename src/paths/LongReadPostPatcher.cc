@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //                   SOFTWARE COPYRIGHT NOTICE AGREEMENT                     //
-//       This software and its documentation are copyright (2011) by the     //
+//       This software and its documentation are copyright (2012) by the     //
 //   Broad Institute.  All rights are reserved.  This software is supplied   //
 //   without any warranty or guaranteed support whatsoever. The Broad        //
 //   Institute is not responsible for its use, misuse, or functionality.     //
@@ -144,6 +144,22 @@ int main(int argc, char *argv[])
      NUM_THREADS = configNumThreads(NUM_THREADS);
      omp_set_num_threads( NUM_THREADS );
 
+     // Load scaffolds.
+
+     vec<superb> scaffolds;
+     ReadSuperbs( sub_dir + "/" + SCAFFOLDS_IN + ".superb", scaffolds );
+     int total_gaps = 0;
+     for ( int s = 0; s < scaffolds.isize( ); s++ )
+          total_gaps += scaffolds[s].Ngaps( );
+     String outputFile = sub_dir + "/" + SCAFFOLDS_OUT + ".edits";
+     if ( total_gaps == 0 )
+     {    cout << "There are no gaps to patch, so we won't do any work." << endl;
+          if (WRITE)
+          {    cout << "\n" << Tag( ) << ": saving patches" << endl;
+               BinaryWriter::writeFile( outputFile, vec<assembly_edit>( ) );    }
+          cout << "0 gaps patched" << endl << endl << Tag() 
+               << "Done, time used = " << TimeSince(clock) << endl;    }
+
      // Load data.
 
      vecbasevector R; 
@@ -220,9 +236,7 @@ int main(int argc, char *argv[])
        cout << endl;
      }
 
-     vec<superb> scaffolds;
      String ASSEMBLY = "linear_scaffolds0.clean.patched";
-     ReadSuperbs( sub_dir + "/" + SCAFFOLDS_IN + ".superb", scaffolds );
      vec<int> to_super( ntigs, -1 ), to_super_pos( ntigs, -1 );
      for ( int i = 0; i < scaffolds.isize( ); i++ ) 
      {    for ( int j = 0; j < scaffolds[i].Ntigs( ); j++ ) 
@@ -295,7 +309,7 @@ int main(int argc, char *argv[])
 
        uint reads_processed = 0;
        cout << Tag() << ": going through the reads (100 dots to follow)\n";
-       #pragma omp parallel for
+       #pragma omp parallel for schedule(dynamic, 1)
        for ( size_t zix = 0; zix < ids.size( ); zix++ )
          for ( int zp = 0; zp < 2; zp++ )
          {   int z = 2 * ids[zix] + zp;
@@ -865,7 +879,6 @@ int main(int argc, char *argv[])
                          reps.push_back(r);
                          edits.push( assembly_edit::GAP_CLOSER, m1, 
                               start1, m2, stop2, reps );    }    }    }
-          String outputFile = sub_dir + "/" + SCAFFOLDS_OUT + ".edits";
-          BinaryWriter::writeFile( outputFile.c_str( ), edits );    }
+          BinaryWriter::writeFile( outputFile, edits );    }
      cout << Sum(patched) << " gaps patched" << endl;
      cout << endl << Tag() << "Done, time used = " << TimeSince(clock) << endl;    }

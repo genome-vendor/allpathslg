@@ -9,6 +9,7 @@
 #ifndef SEQ_INTERVAL_H
 #define SEQ_INTERVAL_H
 
+#include "feudal/BinaryStreamTraits.h"
 #include <functional>
 #include <algorithm>
 #include <iostream>
@@ -143,5 +144,6 @@ private:
   int end_;         // end base on sequence
 
 };
+TRIVIALLY_SERIALIZABLE(seq_interval);
 
 #endif

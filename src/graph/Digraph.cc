@@ -20,6 +20,7 @@
 template void digraphE<int>::ToLeft(vec<int>&) const;
 template void digraphE<int>::ToRight(vec<int>&) const;
 template const int& digraphE<int>::EdgeObject(int) const;
+template void digraphE<int>::readBinary( BinaryReader& );
 
 Bool digraph::HasEdge( int v, int w ) const {
   return find( from_[v].begin(),  from_[v].end(), w ) != from_[v].end();
@@ -75,21 +76,6 @@ Bool digraph::HasCycle( const vec<int>& sub ) const
                     {    color[p] = red;    
                          reds.push_back(p);    }    }    }    }
      return False;    }
-
-void BinaryWrite( int fd, const digraph& g )
-{    int n = g.from_.size( );
-     WriteBytes( fd, &n, sizeof(int) );
-     for ( int v = 0; v < n; v++ )
-     {    BinaryWrite( fd, g.from_[v] );
-          BinaryWrite( fd, g.to_[v] );    }    }
-
-void BinaryRead( int fd, digraph& g )
-{    int n;
-     ReadBytes( fd, &n, sizeof(int) );
-     g.from_.resize(n), g.to_.resize(n);
-     for ( int v = 0; v < n; v++ )
-     {    BinaryRead( fd, g.from_[v] );
-          BinaryRead( fd, g.to_[v] );    }    }
 
 void digraph::Initialize( const vec< vec<int> >& from, const vec< vec<int> >& to )
 {    ForceAssertEq( from.size( ), to.size( ) );
@@ -739,9 +725,6 @@ template Bool digraphE<int>::AllPathsLengthRangeAlt( int v, int w, int L1,
      int max_loops, const Bool no_dups, const Bool eq_ok,
      const int max_partials ) const;
 
-template void BinaryWrite( int, const digraphE<int>& );
-template void BinaryRead( int, digraphE<int>& );
-
 void digraph::DeleteEdgesAtVertex( int v )
 {    for ( int i = 0; i < from_[v].isize( ); i++ )
      {    int w = from_[v][i];
@@ -1188,3 +1171,5 @@ int digraph::InputFromOutputTo( int w, int i ) const
           if ( to_[v][j] == w ) return j;
      ForceAssert( 0 == 1 );
      return -1;    }
+
+template void digraphE<int>::writeBinary( BinaryWriter& ) const;

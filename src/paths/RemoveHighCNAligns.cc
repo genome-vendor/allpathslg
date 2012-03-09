@@ -10,8 +10,9 @@
 #include "MainTools.h"
 
 #include "SeqInterval.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "paths/Alignlet.h"
 #include "paths/CommonPatherCore.h"
 #include "paths/KmerPath.h"
@@ -142,11 +143,11 @@ int main( int argc, char *argv[] )
   
   cout << Date( ) << ": loading aligns" << endl;
   vec<alignlet> aligns;
-  BinaryRead3( aligns_file, aligns );
+  BinaryReader::readFile( aligns_file, &aligns );
   
   cout << Date( ) << ": loading index" << endl;
   vec<int> index;
-  BinaryRead3( index_file, index );
+  BinaryReader::readFile( index_file, &index );
   
   cout << Date( ) << ": loading copy numbers" << endl;
   VecPdfEntryVec copynum( copynum_file );
@@ -158,9 +159,9 @@ int main( int argc, char *argv[] )
   vec<tagged_rpint> cgpathsdb;
   vec<big_tagged_rpint> cgpathsdb_big;
   if(big_db)
-    BinaryRead2(cgpathsdb_big_full_file, cgpathsdb_big);
+    BinaryReader::readFile(cgpathsdb_big_full_file, &cgpathsdb_big);
   else
-    BinaryRead2(cgpathsdb_full_file, cgpathsdb);
+    BinaryReader::readFile(cgpathsdb_full_file, &cgpathsdb);
   cout << Date( ) << ": loading contigs unipaths" << endl;
   vecKmerPath cgpaths( cgpaths_file + "." + strK );
 
@@ -289,7 +290,7 @@ int main( int argc, char *argv[] )
 
   // Save.
   cout << Date( ) << ": saving" << endl;
-  BinaryWrite3( index_out_file, index );
+  BinaryWriter::writeFile( index_out_file, index );
 
   // Compute and print some stats.
   String cn_threshold = ToString( PLOIDY_MULTIPLIER * ploidy );

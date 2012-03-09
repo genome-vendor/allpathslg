@@ -26,14 +26,15 @@ FeudalFileWriter::FeudalFileWriter( char const* filename,
                                     FeudalFileWriter::size_type eltSize,
                                     FeudalFileWriter::size_type fixedLenDataLen,
                                     unsigned long estimatedNElements )
-: mWriter(filename,&gInvalidFCB,sizeof(gInvalidFCB)),
-  mNextOffset(sizeof(FeudalControlBlock)),
+: mWriter(filename,false),
   mVecSize(vecSize),
   mEltSize(eltSize),
   mFixedLenDataLen(fixedLenDataLen)
 {
     mOffsets.reserve(estimatedNElements);
     mFixedLenData.reserve(fixedLenDataLen*estimatedNElements);
+    mWriter.write(gInvalidFCB);
+    mOffsets.push_back(mWriter.tell());
 }
 
 FeudalFileWriter::~FeudalFileWriter()
@@ -42,10 +43,9 @@ FeudalFileWriter::~FeudalFileWriter()
         close();
 }
 
-void FeudalFileWriter::addElement( size_t varLen, void const* fixedLenData )
+void FeudalFileWriter::addElement( void const* fixedLenData )
 {
-    mOffsets.push_back(mNextOffset);
-    mNextOffset += varLen;
+    mOffsets.push_back(mWriter.tell());
 
     if ( mFixedLenDataLen )
     {
@@ -63,8 +63,9 @@ void FeudalFileWriter::checkPoint()
                 "it." << endl;
         CRD::exit(1);
     }
-    finish();
-    mWriter.seek(mNextOffset);
+    size_t pos = mWriter.tell();
+    finish(pos);
+    mWriter.seek(pos);
 }
 
 void FeudalFileWriter::close()
@@ -74,23 +75,21 @@ void FeudalFileWriter::close()
              << " that is already closed." << endl;
     else
     {
-        finish();
+        finish(mWriter.tell());
         mWriter.close();
     }
 }
 
-void FeudalFileWriter::finish()
+void FeudalFileWriter::finish( size_t pos )
 {
-    if ( mOffsets.size() )
-        mWriter.write(&*mOffsets.begin(),&*mOffsets.end());
-    mWriter.write(mNextOffset);
+    mWriter.write(&*mOffsets.begin(),&*mOffsets.end());
     if ( mFixedLenData.size() )
         mWriter.write(&*mFixedLenData.begin(),&*mFixedLenData.end());
 
     mWriter.flush();
     mWriter.seek(0ul);
-    FeudalControlBlock fcb(mOffsets.size(),
-                           mNextOffset-sizeof(FeudalControlBlock),
+    FeudalControlBlock fcb(mOffsets.size()-1,
+                           pos-sizeof(FeudalControlBlock),
                            mFixedLenDataLen, mVecSize, mEltSize);
     mWriter.write(fcb);
 }

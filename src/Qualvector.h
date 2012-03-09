@@ -17,22 +17,23 @@
 
 #include "feudal/SerfVec.h"
 #include "feudal/MasterVec.h"
+#include "Charvector.h"
 #include "String.h"
 #include <ostream>
 
 /// Logical type for quality scores
-typedef uint8_t qual_t;
+typedef unsigned char qual_t;
 
 /// Vector of quality scores, for example representing the quality of each base
 /// in one read.
-typedef SerfVec<qual_t> QualVec;
+typedef UCharVec QualVec;
 typedef QualVec qualvector;
 typedef QualVec qvec;
 
 
 /// Vector of vectors of quality scores, for example representing the quality
 /// of each base in each read in a set of reads.
-typedef MasterVec< SerfVec<qual_t> > QualVecVec;
+typedef VecUCharVec QualVecVec;
 typedef QualVecVec vecqualvector;
 typedef QualVecVec vecqvec;
 

@@ -194,8 +194,6 @@ bool operator< ( const SPlacement &left, const SPlacement &right )
   return ( left.rc_ < right.rc_ );
 }
 
-
-
 /**
  * AreConsistent
  */
@@ -277,8 +275,6 @@ bool AreConsistent( const look_align_plus &hit1,
 
 }
 
-
-
 /**
  * SuperChain
  */
@@ -352,8 +348,6 @@ void SuperChain( const int super_id,
 
 }
 
-
-
 /**
  * DigestChain
  */
@@ -421,8 +415,6 @@ void DigestChain( const shandler &supers,
   
 }
 
-
-
 /**
  * PrintChain
  */
@@ -441,7 +433,6 @@ void PrintChain( const shandler &supers,
       sel_id = ii;
       break;
     }
-    out << "super_UNALIGNED\n" << endl;
   }
   if ( sel_id < 0 ) return;
 
@@ -522,8 +513,6 @@ void PrintChain( const shandler &supers,
 
 }
 
-
-  
 /**
  * ChainGaps
  */

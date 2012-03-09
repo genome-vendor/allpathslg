@@ -6,11 +6,17 @@
 //   Institute is not responsible for its use, misuse, or functionality.     //
 ///////////////////////////////////////////////////////////////////////////////
 
+// MakeDepend: library OMP
+// MakeDepend: cflags OMP_FLAGS
+#include <omp.h>
+
 #include "CoreTools.h"
 #include "VecUtilities.h"
+#include "ParallelVecUtilities.h"
+#include "lookup/LookAlign.h" 
 #include "efasta/EfastaTools.h"
 #include "paths/AssemblyCleanupTools.h"
-
+#include "pairwise_aligners/AlignTwoBasevectors.h"
 
 Bool scompare( const superb& s1, const superb& s2 ){
   int l1 = s1.FullLength();
@@ -296,8 +302,323 @@ void Assembly::renumber(){
 }
 
 void Assembly::dedup() {
+  // Remove duplicate scaffolds.
+  cout << Date() << " removing inexact duplicate scaffolds: " << endl;
+  cout << "initial number of scaffolds = " << scaffolds.size() << endl;
+  double lengthThresh = 0.99;
+  double errThresh = 0.01;
+  int removed_count = 0;
+  int removed_size  = 0;
+  // compute minimum and maximum lengths of scaffolds (reduced and gapped)
+  vec< vec< vec<basevector> > > s2altTigs( scaffolds.size() );
+  vec<longlong> s2minRedLen( scaffolds.size(), 0 ), s2maxRedLen( scaffolds.size(), 0 );
+  vec<longlong> s2minFullLen( scaffolds.size(), 0 ), s2maxFullLen( scaffolds.size(), 0 );
+  for ( int si = 0; si < scaffolds.isize(); si++ ){
+    s2altTigs[si].resize( scaffolds[si].Ntigs() );
+    for ( int i = 0; i < scaffolds[si].Ntigs(); i++ ){
+      int ti = scaffolds[si].Tig(i);
+      efasta &tigi = efastas[ ti ];
+      s2minRedLen[si] += tigi.MinLength();
+      s2maxRedLen[si] += tigi.MaxLength();
+      s2minFullLen[si] += tigi.MinLength();
+      s2maxFullLen[si] += tigi.MaxLength();
+      if ( i < scaffolds[si].Ntigs() -1 ){
+	s2minFullLen[si] += scaffolds[si].Gap(i) - 3 * scaffolds[si].Dev(i); 
+	s2maxFullLen[si] += scaffolds[si].Gap(i) + 3 * scaffolds[si].Dev(i); 
+      }
+
+      fastavector fseq;
+      tigi.FlattenMinTo( fseq );
+      s2altTigs[si][i].push_back( fseq.ToBasevector() );
+      if ( tigi.Ambiguities() > 0 ){
+	tigi.FlattenMaxTo( fseq );
+	s2altTigs[si][i].push_back( fseq.ToBasevector() );
+      }else if ( tigi.Ambiguities() > 1 ){
+	tigi.FlattenTo( fseq );
+	s2altTigs[si][i].push_back( fseq.ToBasevector() );
+      }
+      UniqueSort( s2altTigs[si][i] );
+    }
+  }
+
+  for ( int si = 0; si < scaffolds.isize(); si++ ) {
+    int Ni = scaffolds[si].Ntigs();
+    ForceAssertEq( Ni, s2altTigs[si].isize() );
+    for ( int sj = si + 1; sj < scaffolds.isize(); sj++ ) {
+      int Nj = scaffolds[sj].Ntigs();
+      ForceAssertEq( Nj, s2altTigs[sj].isize() );
+      if ( Nj != Ni ) 
+	continue;
+      if ( s2maxRedLen[si] < s2minRedLen[sj] * lengthThresh )
+	continue;
+      if ( s2maxRedLen[sj] < s2minRedLen[si] * lengthThresh )
+	continue;
+      if ( s2maxFullLen[si] < s2minFullLen[sj] * lengthThresh )
+	continue;
+      if ( s2maxFullLen[sj] < s2minFullLen[si] * lengthThresh )
+	continue;
+      
+      // check if reverse complement
+      //cout << " passed initial tests\n";
+      vec<int> areRcs( Ni, 0 );
+      vec<int> areEqual( Ni, 0 );
+      for ( int ci = 0; ci < Ni; ci++ ){
+	int cj1 = Nj -ci -1;
+	int cj2 = ci;
+	
+	vec<basevector> &v_ibases = s2altTigs[si][ci];
+	vec<basevector> &v_jbases = s2altTigs[sj][ cj1 ];
+	Bool foundRc = False;
+	for ( size_t vi = 0; vi < v_ibases.size() && ! foundRc; vi++ ){
+	  for ( size_t vj = 0; vj < v_jbases.size(); vj++ ){
+	    align a;
+	    int rc;
+	    int min_overlap = Min( v_ibases[vi].size(), v_jbases[vj].size() );
+	    int max_overlap = v_ibases[vi].size() + v_jbases[vj].size();
+	    int overlap = AlignTwoBasevectors(v_ibases[vi], v_jbases[vj], a, 
+					      min_overlap, max_overlap, errThresh, NULL, rc);
+	    
+	    look_align la;
+	    la.ResetFromAlign( a, v_ibases[vi], v_jbases[vj] );
+	    if ( overlap >= min_overlap && la.ErrorRate() <= errThresh && la.Rc1() ){
+	      foundRc = True;
+	      areRcs[ci] = 1;
+	      break;
+	    }
+	  }
+	}
+  
+	
+
+	v_jbases = s2altTigs[sj][ cj2 ];
+	Bool foundEqual = False;
+	for ( size_t vi = 0; vi < v_ibases.size() && ! foundEqual; vi++ ){
+	  for ( size_t vj = 0; vj < v_jbases.size(); vj++ ){
+	    align a;
+	    int rc;
+	    int min_overlap = Min( v_ibases[vi].size(), v_jbases[vj].size() );
+	    int max_overlap = v_ibases[vi].size() + v_jbases[vj].size();
+	    int overlap = AlignTwoBasevectors(v_ibases[vi], v_jbases[vj], a, 
+					      min_overlap, max_overlap, errThresh, NULL, rc);
+	    
+	    look_align la;
+	    la.ResetFromAlign( a, v_ibases[vi], v_jbases[vj] );
+	    if ( overlap >= min_overlap && la.ErrorRate() <= errThresh && ! la.Rc1() ){
+	      foundEqual = True;
+	      areEqual[ci] = 1;
+	      break;
+	    }
+	  }
+	}
+      
+      }
+      
+      if ( Sum( areRcs ) > 0 || Sum( areEqual ) > 0 )
+	PRINT4( areRcs.size(), Sum( areRcs ), areEqual.size(), Sum( areEqual ) );
+
+      if ( Sum( areRcs ) == areRcs.isize() || Sum( areEqual ) == areEqual.isize() ){
+
+	String type = Sum( areRcs ) == areRcs.isize() ? "reverse complement" : "duplicate";
+	
+	cout << "scaffold " << sj << "(l=" << scaffolds[si].FullLength() << ") is " << type << " of " << si
+	     << " (length " << scaffolds[si].FullLength() << ")" << endl;
+	
+	scaffolds.erase( scaffolds.begin() + sj );
+	scaffMap.erase( scaffMap.begin() + sj );
+	s2minRedLen.erase( s2minRedLen.begin() + sj );
+	s2maxRedLen.erase( s2maxRedLen.begin() + sj );
+	s2minFullLen.erase( s2minFullLen.begin() + sj );
+	s2maxFullLen.erase( s2maxFullLen.begin() + sj );
+	s2altTigs.erase( s2altTigs.begin() + sj );
+	sj--;
+	removed_count++;
+	removed_size += scaffolds[sj].ReducedLength();
+      }
+    }
+  }
+  cout << "removed " << removed_count << " duplicate scaffolds"
+       << " (" << removed_size << " bases)" << endl;
+  cout << "final number of scaffolds = " << scaffolds.size() << endl;
+  remove_unused_contigs();
+}
+
+
+void Assembly::dedup2() {
+  // Remove scaffolds that are possibly duplicate
+  // The criteria are:
+  // 1. two scaffolds have same number of contigs (n_contig)
+  // 2. n_contig >= 2
+  // 3. Each contig and gap much match 
+  //    - Gaps are matched whan [ gap_size +/- 3 * std ] overlap
+  //    - Contigs are matched when 
+  //      - perfect efasta match for contig size < 50,000
+  //      - 1/100 mismatch kmer rate for contig size >= 50,000 (!!!!! this is only meant to be temporary fix to the problem)
+  // 4. Both rc and fw duplicates are checked
+
+  int VERBOSITY = 0;
+  const int EfastaMatchSize = 50 * 1000; 
+  const int MaxDev  = 3;
+  const double MaxMismatchRate = 0.01;
+  cout << Date() << ": " << "Remove possible duplicate scaffolds" << endl;
+  cout << Date() << ": " << "initial number of scaffolds = " << scaffolds.size() << endl;
+  
+  int removed_count = 0;
+  int removed_size = 0;
+  vec <Bool> to_remove ( scaffolds.size(), False );
+  for ( int si = 0; si < scaffolds.isize(); si++ ) {
+    if ( to_remove[si] ) continue;
+    int Ni = scaffolds[si].Ntigs();
+    //if ( Ni < 2 ) continue;
+    for ( int sj = si + 1; sj < scaffolds.isize(); sj++ ) {
+      if ( to_remove[sj] ) continue;
+      int Nj = scaffolds[sj].Ntigs();
+      if ( Nj != Ni ) continue;
+      //VERBOSITY = ( si == 1 && sj == 6 ? 1: 0 );
+      // check scaffolds duplicate in two passes: fw in pass=0, rc in pass=1
+      for( int pass = 0; pass < 2; pass++ ) {
+	if ( VERBOSITY >= 1 )
+	cout << Date() << ": " << "pass= " << pass << endl;
+	if ( VERBOSITY >= 1 )
+	  cout << Date() << ": " << "check gap " << endl ;
+	// compare the gap of two scaffolds
+	bool gap_match = true;
+	for ( int igap = 0; igap < Ni-1; ++igap ) {
+	  int gap1 = scaffolds[si].Gap(igap);
+	  int dev1 = scaffolds[si].Dev(igap);
+	  int gap2 = scaffolds[sj].Gap( pass == 0 ? igap : Ni -2 - igap);
+	  int dev2 = scaffolds[sj].Dev( pass == 0 ? igap : Ni -2 - igap);
+	  if ( IntervalOverlap( gap1 - MaxDev * dev1, gap1 + MaxDev * dev1 + 1,
+		gap2 - MaxDev * dev2, gap2 + MaxDev * dev2 + 1) == 0 ) {
+	    gap_match = false;
+	    break;
+	  }
+	}
+	if ( !gap_match) continue;
+	if ( VERBOSITY >= 1 )
+	  cout << Date() << ": " << "check contigs " << endl ;
+
+	// check if the contigs matchs
+	bool tig_match = true;
+	if ( VERBOSITY >= 1 )
+	  cout << "ncontigs= " << Ni << endl;
+	for ( int itig = 0; itig < Ni; ++itig) {
+	  if ( VERBOSITY >= 1 )
+	    cout << " check contig " << itig << ": "
+	    << " vs " << scaffolds[sj].Tig( pass == 0 ? itig :  Nj -1 -itig ) << endl;
+	  efasta &tigi = efastas[ scaffolds[si].Tig(itig) ];
+	  efasta &tigj = efastas[ scaffolds[sj].Tig( pass == 0 ? itig :  Nj -1 -itig ) ] ;
+
+	  if ( VERBOSITY >= 1 )
+	    cout << "tigi.size()= " << tigi.size() << endl;
+	  if ( VERBOSITY >= 1 )
+	    cout << "tigj.size()= " << tigj.size() << endl;
+	  
+	  // check if contig sizes match
+	  int tig_size = ( tigi.size() + tigj.size()  ) /2;
+	  int MaxMismatch =  tig_size * MaxMismatchRate ;
+	  if ( abs( (int)tigi.size() - (int)tigj.size() ) > MaxMismatch ) { tig_match = false; break; }
+
+	  // require perfect efasta match if contig size less than EfastaMatchSize
+	  if ( tig_size < EfastaMatchSize ) {
+	    if ( VERBOSITY >= 1 )
+	      cout << " check efasta " << endl;
+	    vec<basevector> v_ibases, v_jbases;
+	    tigi.ExpandTo(v_ibases);
+	    tigj.ExpandTo(v_jbases);
+	    if ( pass == 1 ) 
+	      for ( size_t k = 0; k < v_jbases.size(); ++k ) { v_jbases[k].ReverseComplement(); }
+	    bool foundEqual = False;
+	    for ( size_t vi = 0; vi < v_ibases.size() && ! foundEqual; vi++ ){
+	      for ( size_t vj = 0; vj < v_jbases.size(); vj++ ){
+		if ( v_jbases[vj].size() != v_ibases[vi].size() )
+		  continue;
+		basevector jbases = v_jbases[vj];
+		if ( jbases == v_ibases[vi] ){
+		  foundEqual = True;
+		  break;
+		}
+	      }
+	    }
+	    if ( ! foundEqual ) {
+	      tig_match = false;
+	      break;
+	    }
+	  } 
+	  // larger contig size. do kmer matching
+	  else {
+	    if ( VERBOSITY >= 1 )
+	      cout << " check kmers " << endl;
+	    basevector base1, base2;
+	    tigi.FlattenTo( base1 );
+	    tigj.FlattenTo( base2 );
+	    if ( pass == 1 ) base2.ReverseComplement();
+	    const int K = 24;
+	    ForceAssertGt( base1.isize( ), K );
+	    vec< basevector > kmers1( base1.isize( ) - K + 1);
+            #pragma omp parallel for
+	    for ( int jz = 0; jz <= base1.isize( ) - K; jz += 1000 ) 
+	      for ( int j = jz; j <= Min( base1.isize( ) - K, jz + 1000 ); j++ ) 
+		kmers1[j].SetToSubOf( base1, j, K ); 
+	      ParallelUniqueSort(kmers1);    
+	    ForceAssertGt( base2.isize( ), K );
+	    vec< basevector > kmers2( base2.isize( ) - K + 1);
+            #pragma omp parallel for
+	    for ( int jz = 0; jz <= base2.isize( ) - K; jz += 1000 ) 
+	      for ( int j = jz; j <= Min( base2.isize( ) - K, jz + 1000 ); j++ ) 
+	        kmers2[j].SetToSubOf( base2, j, K ); 
+	    ParallelUniqueSort(kmers2);    
+
+	    // compare how many kmers are identical for the two sorted list
+	    int nkmer1 = kmers1.size(), nkmer2 = kmers2.size();
+	    int nkmer = (nkmer1 + nkmer2)/2;
+	    int count = 0;
+	    for( size_t i = 0, j = 0; i < kmers1.size() && j < kmers2.size(); ) {
+	      if ( kmers1[i] > kmers2[j] ) j++;
+	      else if ( kmers1[i] < kmers2[j] )  i++;
+	      else count++, i++, j++;
+	    }
+	    if ( VERBOSITY >= 1 ) {
+	      cout << "nkmer= " << nkmer << endl;
+	      cout << "duplicate= " << count << endl;
+	    }
+	    if ( abs(nkmer - count) > int( nkmer * MaxMismatchRate) ) {
+	      tig_match = false;
+	      break;
+	    }
+	  }
+	} // for itig
+	if ( !tig_match ) continue;
+	// ---------------------------------------------------------------------------
+	// Now we concluded that the two scaffolds are duplicate. Remove the later one
+	// --------------------------------------------------------------------------
+	{
+	  String type = pass == 0 ? "fw duplicate" : "rc duplicate";
+	  cout << "scaffold " << sj << " is " << type << " of " << si
+	    << " (length " << scaffolds[si].FullLength() << ")" << endl;
+	  to_remove[sj] = True;
+	  removed_count++;
+	  removed_size += scaffolds[sj].ReducedLength();
+	  break; // do not go second pass 
+	}
+      } // end pass 2
+    } // end for sj
+  } // end for si
+  
+  // now remove the duplicate scaffolds 
+  {
+    EraseIf( scaffolds, to_remove );
+    EraseIf( scaffMap, to_remove );
+  }
+
+  cout << "removed " << removed_count << " duplicate scaffolds"
+       << " (" << removed_size << " bases)" << endl;
+  cout << "final number of scaffolds = " << scaffolds.size() << endl;
+  remove_unused_contigs();
+}
+
+void Assembly::dedup_exact() {
   // Remove duplicate scaffolds...currently only handles case of singleton contigs
-  // which are duplciates fw or rc. --bruce 8 Jun 2011
+  // which are duplicates fw or rc. --bruce 8 Jun 2011
   cout << Date() << " removing duplicate scaffolds: " << endl;
   cout << "initial number of scaffolds = " << scaffolds.size() << endl;
   int removed_count = 0;

@@ -1256,6 +1256,22 @@ bool TrustedPath::DominatesVerticesOf( const TrustedPath& other ) const {
   return ( iOtherVertex == otherVertexIds.end() );
 }
 
+void TrustedPath::writeBinary( BinaryWriter& writer ) const
+{
+    writer.write(m_contig);
+    writer.write(m_vertexIds);
+    writer.write(m_aligns);
+    writer.write(m_fractionEdgeLengthAligned);
+}
+
+void TrustedPath::readBinary( BinaryReader& reader )
+{
+    reader.read(&m_contig);
+    reader.read(&m_vertexIds);
+    reader.read(&m_aligns);
+    reader.read(&m_fractionEdgeLengthAligned);
+    m_uniquePerfectEdgeIds.clear();
+}
 
 struct order_TrustedPath_byContig 
   : public binary_function<TrustedPath,TrustedPath,bool> 

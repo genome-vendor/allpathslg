@@ -9,8 +9,6 @@
 // MakeDepend: library OMP
 // MakeDepend: cflags OMP_FLAGS
 
-#undef NDEBUG
-
 #include <omp.h>
 
 #include "Basevector.h"
@@ -21,26 +19,39 @@
 #include "paths/KmerAlignSet.h"
 #include "paths/LongReadTools.h"
 #include "paths/Uniseq.h"
+#include "random/Bernoulli.h"
+
+#include "paths/BigMapTools.h"
+
+Bool cmp132( const triple<int,int,int>& x, const triple<int,int,int>& y )
+{    if ( x.first < y.first ) return True;
+     if ( x.first > y.first ) return False;
+     if ( x.third < y.third ) return True;
+     if ( x.third > y.third ) return False;
+     return x.second < y.second;    }
 
 void Phase1( 
 
      // inputs:
 
      const int NUM_THREADS, const vecbasevector& unibases, const vec<int>& to_rc,
-     const vec< vec<int> >& nexts, const int K, const int L,
+     const vec< vec<int> >& nexts, const vec< vec<int> >& nexts_count, 
+     const int K, const int L,
      const vec< vec< pair<int,int> > >& Ulocs, const vecbasevector& longreads,
      const vec<int>& reads_to_use, const heuristics& heur, 
 
      // algorithms:
 
-     const Bool USE_SHORTEST, const Bool CLUSTER_OLD,
-     const Bool CLUSTER_ALIGNS_NEW_CLEAN,
+     const Bool USE_SHORTEST, const Bool CLUSTER_ALIGNS_NEW_CLEAN,
+     const Bool BEST_ONLY,
 
      // control:
 
      const Bool PATCHES_ONLY, const int MIN_PATCH1, const int MIN_PATCH2,
-     const Bool TEST_READ_GAP, const Bool STANDARD_ALIGNS, const Bool FILTER,
-     const Bool CLEAN_GRAPH,
+     const Bool STANDARD_ALIGNS, const Bool FILTER0, const Bool FILTER, 
+     const Bool FILTER2, const Bool CLEAN_GRAPH, const Bool CYCLIC_BAIL,
+     const Bool KILL_INFERIOR_CLUSTERS_NEW, const Bool SCREEN_NEXTS, 
+     const int MIN_SPREAD1,
 
      // logging:
 
@@ -51,9 +62,9 @@ void Phase1(
 
      // outputs:
 
-     vec<uniseq>& UNISEQ, vec< vec<int> >& UNISEQ_ID, vec<Bool>& COMPUTED, 
-     vecbasevector& all, vec<GapPatcher>& patchers, vec< digraphE<int> >& Galt_all,
-     vec< vec<int> >& Galt_U_all, 
+     vec<uniseq>& UNISEQ, vec< vec<int> >& UNISEQ_ID, vec< vec< vec<int> > >& BESTS,
+     vec<Bool>& COMPUTED, vecbasevector& all, vec<GapPatcher>& patchers, 
+     vec< digraphVE<int,int> >& Hall,
      vec< vec< pair< int, vec< pair<int,int> > > > >& ALIGNS_ALL )
 {
      // Set up.
@@ -63,6 +74,28 @@ void Phase1(
      int done_ptr = 0;
      vec<String> reports( longreads.size( ) );
      if (QLT1) omp_set_num_threads(1);
+
+
+     /*
+     // Load and hash genome.
+
+     vecbasevector genome, genome2;
+     const int LG = 12;
+     vec< vec< pair<int,int> > > Glocs;
+     int ng;
+     int VALIDATION = 1;
+     if ( VALIDATION >= 1 )
+     {    genome.ReadAll( data_dir + "/genome.fastb" );
+          ng = genome.size( );
+          genome2.resize( genome.size( ) ); 
+          for ( size_t j = 0; j < genome.size( ); j++ )
+               genome2[j] = Cat( genome[j], genome[j] );
+          Glocs.resize( IPow( 4, LG ) );
+          for ( size_t i = 0; i < genome2.size( ); i++ )
+          {    for ( int j = 0; j <= genome2[i].isize( ) - LG; j++ )
+               {    int n = KmerId( genome2[i], LG, j );
+                    Glocs[n].push( i, j );    }    }    }
+     */
 
      // Phase 1.  Now go through the reads.
 
@@ -78,6 +111,39 @@ void Phase1(
           for ( int i = 0; i < alx.NAligns( ); i++ )
           {    for ( int j = 0; j < alx.Count(i); j++ )
                     aligns.push( alx.U(i), alx.Offset(i,j), alx.Rpos(i,j) );    }
+
+          // Initial filter.
+
+          if (FILTER0)
+          {    vec< triple<int,int,int> > aligns0(aligns);
+               Sort(aligns0);
+               vec<Bool> a_to_delete( aligns0.size( ), False );
+               for ( int i = 0; i < aligns0.isize( ); i++ )
+               {    int u = aligns0[i].first, rpos = aligns0[i].third;
+                    int upos = rpos + aligns0[i].second;
+                    const int radius = 300;
+                    if ( upos <= radius || upos >= unibases[u].isize( ) - radius )
+                         continue;
+                    const int min_count = 5;
+                    int count = 1;
+                    for ( int j = i-1; j >= 0; j-- )
+                    {    if ( aligns0[j].first != u ) break;
+                         int rposj = aligns0[j].third;
+                         int uposj = rposj + aligns0[j].second;
+                         if ( upos - uposj > radius ) break;
+                         count++;    }
+                    for ( int j = i+1; j < aligns0.isize( ); j++ )
+                    {    if ( aligns0[j].first != u ) break;
+                    int rposj = aligns0[j].third;
+                         int uposj = rposj + aligns0[j].second;
+                         if ( uposj - upos > radius ) break;
+                         count++;    }
+                    if ( count < min_count ) a_to_delete[i] = True;    }
+               EraseIf( aligns0, a_to_delete );
+               sort( aligns0.begin( ), aligns0.end( ), cmp132 );
+               aligns = aligns0;    }
+
+          // Print.
 
           if (PRINT_RAW_ALIGNS)
           {    ostringstream hout;
@@ -137,19 +203,45 @@ void Phase1(
                          aligns2[k].second + aligns2[k].third );    }
                aligns_in.AddAlign( u, rpos_upos );
                i = j - 1;    }
-          if (CLUSTER_OLD) ClusterAlignsOld( aligns_in, aligns_out );
-          else ClusterAlignsNew( aligns_in, aligns_out, CLUSTER_ALIGNS_NEW_CLEAN );
+          ClusterAlignsNew( aligns_in, aligns_out, CLUSTER_ALIGNS_NEW_CLEAN,
+               MIN_SPREAD1 );
           vec< pair< int, vec< pair<int,int> > > > ALIGNS = aligns_out.X( );
+
+          // For efficiency, test to see if the read is unambiguously aligned
+          // internal to a unipath.  In that case we don't do anything.
+
+          const int winf = 4;
+          const int min_dist = 200;
+          int M = 0, Mid = -1;
+          for ( int j = 0; j < aligns_out.NAligns( ); j++ )
+          {    if ( aligns_out.Count(j) >= M )
+               {    M = aligns_out.Count(j);
+                    Mid = j;    }    }
+          Bool far = True;
+          for ( int j = 0; j < aligns_out.NAligns( ); j++ )
+               if ( j != Mid && aligns_out.Count(j) >= M/winf ) far = False;
+          ostringstream hout;
+          if ( far && Mid >= 0 )
+          {    int u = aligns_out.U(Mid);
+               int p1 = aligns_out.Upos( Mid, 0 );
+               int p2 = aligns_out.Upos( Mid, M-1 ) + L;
+               if ( p1 >= min_dist && p2 <= unibases[u].isize( ) - min_dist )
+               {    hout << "\n0 Nothing to do.\n";
+                    if ( !SKIP_SILENT ) reports[id] = hout.str( );
+                    done[id] = True;
+                    continue;    }    }
 
           // Kill inferior clusters.
 
           KmerAlignSet aly(ALIGNS);
-          KillInferiorClusters(aly);
+          if (KILL_INFERIOR_CLUSTERS_NEW) 
+          {    const double min_ratio_to_kill = 2.0;
+               KillInferiorClustersNew( aly, unibases, min_ratio_to_kill );    }
+          else KillInferiorClusters( aly );
           ALIGNS = aly.X( );
 
           // Print alignments.
 
-          ostringstream hout;
           hout << "\n=========================================================="
                << "==========================\n";
           hout << "\nALIGNMENTS OF READ " << id << ", LENGTH = " 
@@ -179,13 +271,6 @@ void Phase1(
                          int overlap = unibases[u].isize( ) - G.EdgeObject(e);
                          if ( overlap != K - 1 ) to_delete.push_back(e);    }    }
                G.DeleteEdges(to_delete);    }
-          /*
-          if ( G.EdgeObjectCount( ) == 0 )
-          {    hout << "\n2 Nothing to do.\n";
-               if ( !SKIP_SILENT ) reports[id] = hout.str( );
-               done[id] = True;
-               continue;    }
-          */
 
           // Remove transitive edges.
 
@@ -243,6 +328,55 @@ void Phase1(
                << " edges by triple transitivity\n" << endl;
           G.DeleteEdges(edges_to_remove);
 
+          // Remove edges that are inconsistent with filled fragments.
+
+          if (SCREEN_NEXTS)
+          {
+          vec<int> edges_to_remove2;
+          for ( int x = 0; x < G.N( ); x++ )
+          {    int u = ALIGNS[x].first;
+               for ( int j = 0; j < G.From(x).isize( ); j++ )
+               {    int y = G.From(x)[j];
+                    int v = ALIGNS[y].first;
+                    int score = 0; 
+                    int best_score 
+                         = nexts_count[u].nonempty( ) ? Max( nexts_count[u] ) : 0;
+                    for ( int l = 0; l < nexts[u].isize( ); l++ )
+                         if ( nexts[u][l] == v ) score = nexts_count[u][l];
+
+                    // Statistical test....
+
+                    int n = score + best_score;
+                    int r = score;
+                    int k = 10;
+                    double p_max = 0.05;
+                    double p = 1.0/double(k+1);
+                    const int max_score = 5;
+
+                    if ( score <= max_score 
+                         && n >= 1 && BinomialSum( n, r, p ) <= p_max ) 
+                    {    
+                         hout << "killing " << u << " " << v << "\n";
+                         /*
+                         basevector b = unibases[u];
+                         b.resize( b.isize( ) - (K-1) );
+                         b = Cat( b, unibases[v] );
+                         vec<placementy> places = FindGenomicPlacementsY( 
+                              0, b, LG, genome2, Glocs );
+                         if ( places.nonempty( ) )
+                         {    hout << "WARNING: VALID!" << endl;
+                              PRINT3_TO( hout, score, best_score, 
+                                   BinomialSum( n, r, p ) );    }
+                         */
+
+                         edges_to_remove2.push_back(
+                              G.EdgeObjectIndexByIndexFrom(x, j) );    }    }    }
+          UniqueSort(edges_to_remove2);
+          hout << "removing " << edges_to_remove2.size( ) 
+               << " edges by using filled fragments\n" << endl;
+          G.DeleteEdges(edges_to_remove2);
+          }
+
           // Clean graph.
 
           if (CLEAN_GRAPH)
@@ -257,7 +391,56 @@ void Phase1(
                G = digraphE<int>( G, keep );
                EraseIf( ALIGNS, to_delete );
                EraseIf( ALIGNSX, to_delete );    }
-          ALIGNS_ALL[id] = ALIGNS;
+
+          // Filter again.  Connect two unipaths if they share a kmer match
+          // with the read.  For each unipath, count up the total number of kmer
+          // matches shared by its connected component.  If less than 5, kill all
+          // its kmer matches.
+
+          int nuni = unibases.size( );
+          if (FILTER2)
+          {    equiv_rel e(nuni);
+               vec< vec<int> > ucount(nuni);
+               vec< triple<int,int,int> > rpos_u_upos;
+               for ( int i = 0; i < ALIGNS.isize( ); i++ )
+               {    for ( int j = 0; j < ALIGNS[i].second.isize( ); j++ )
+                    {    ucount[ ALIGNS[i].first ].push_back( 
+                              ALIGNS[i].second[j].first );
+                         rpos_u_upos.push( ALIGNS[i].second[j].first,
+                              ALIGNS[i].first, 
+                              ALIGNS[i].second[j].second );    }    }
+               for ( int u = 0; u < nuni; u++ )
+                    UniqueSort( ucount[u] );
+               Sort(rpos_u_upos);
+               for ( int i = 0; i < rpos_u_upos.isize( ); i++ )
+               {    int j;
+                    for ( j = i + 1; j < rpos_u_upos.isize( ); j++ )
+                         if ( rpos_u_upos[j].first != rpos_u_upos[i].first ) break;
+                    for ( int k = i + 1; k < j; k++ )
+                         e.Join( rpos_u_upos[k].second, rpos_u_upos[k-1].second );
+                    i = j - 1;    }
+               vec<int> reps;
+               e.OrbitRepsAlt(reps);
+               const int min_orbit = 5;
+               vec<Bool> weak(nuni, False);
+               for ( int i = 0; i < reps.isize( ); i++ )
+               {    vec<int> c;
+                    vec<int> o;
+                    e.Orbit( reps[i], o );
+                    for ( int j = 0; j < o.isize( ); j++ )
+                         c.append( ucount[ o[j] ] );
+                    UniqueSort(c);
+                    if ( c.isize( ) < min_orbit )
+                    {    for ( int j = 0; j < o.isize( ); j++ )
+                              weak[ o[j] ] = True;    }    }
+               vec<Bool> ALIGNS_to_delete( ALIGNS.size( ), False );
+               vec<int> keep;
+               for ( int i = 0; i < ALIGNS.isize( ); i++ )
+               {    if ( weak[ ALIGNS[i].first ] ) ALIGNS_to_delete[i] = True;
+                    else keep.push_back(i);    }
+               EraseIf( ALIGNS, ALIGNS_to_delete );
+               EraseIf( ALIGNSX, ALIGNS_to_delete );
+               G = digraphE<int>( G, keep );    }
 
           // Display alignment graph.
 
@@ -309,23 +492,8 @@ void Phase1(
                Galt_U.push_back( ALIGNS[j].first );
           for ( int x = 0; x < G.N( ); x++ )
           {    for ( int j = 0; j < G.From(x).isize( ); j++ )
-               {    int y = G.From(x)[j];
+               {    int y = G.From(x)[j], pos1;
                     int& over = Galt.EdgeObjectByIndexFromMutable( x, j );
-                    int start = ALIGNS[x].second.back( ).first;
-                    int stop = ALIGNS[y].second.back( ).first;
-                    vec<int> xlist, newlist;
-                    for ( int j = 0; j < ALIGNS[x].second.isize( ); j++ )
-                         xlist.push_back( ALIGNS[x].second[j].first );
-                    UniqueSort(xlist);
-                    for ( int j = 0; j < ALIGNS[y].second.isize( ); j++ )
-                    {    if ( !BinMember( xlist, ALIGNS[y].second[j].first ) )
-                              newlist.push_back( ALIGNS[y].second[j].first );    }
-                    UniqueSort(newlist);
-                    over = stop - start - newlist.isize( );    
-               
-                    // Experimental alternate calculation.
-
-                    int pos1;
                     for ( pos1 = 0; pos1 < ALIGNS[y].second.isize( ); pos1++ )
                     {    if ( ALIGNS[y].second[pos1].first 
                               == ALIGNS[x].second.back( ).first )
@@ -342,17 +510,27 @@ void Phase1(
                               basevector z1( longreads[id], rpos1, rpos2 - rpos1 );
                               basevector z2( unibases[u2], upos1, upos2 - upos1 );
                               align a;
+                              if ( z1.size( ) == 0 || z2.size( ) == 0 )
+                                   over = 0;
+                              else
+                              {
                               over = SmithWatFreeSym( 
                                    z1, z2, a, True, True, 1, 1 );    }    }    }    }
-          Galt_all[id] = Galt;
-          Galt_U_all[id] = Galt_U;
+                              }
+          vec<int> verts( ALIGNS.size( ) );
+          for ( int i = 0; i < ALIGNS.isize( ); i++ )
+               verts[i] = ALIGNS[i].first;
+          digraphVE<int,int> H( Galt, verts );
+          Hall[id] = H;
+          ALIGNS_ALL[id] = ALIGNS;
 
           // Bail if graph is cyclic.  Very sloppy.
 
-          if ( !G.Acyclic( ) )
-          {    hout << "\nGraph is cyclic." << endl;
-               PRINT_TO( hout, id );
-               G.Clear( );    }
+          if (CYCLIC_BAIL)
+          {    if ( !G.Acyclic( ) )
+               {    hout << "\nGraph is cyclic." << endl;
+                    PRINT_TO( hout, id );
+                    G.Clear( );    }    }
 
           // Find all paths.
 
@@ -420,6 +598,11 @@ void Phase1(
                               << "<" << ALIGNS[w].first << ">";
                          len += unibases[ ALIGNS[w].first ].isize( ) - o;    }
                     hout << ", length = " << len
+                         << ", read range = " 
+                         << ALIGNS[ to_left[ epath.front( ) ] ].second.front( ).first
+                         << "-"
+                         << ALIGNS[ to_right[ epath.back( ) ] ].second.back( ).first
+                              + L
                          << ", matches = " << matches 
                          << ", errs = " << errs << endl;    }
 
@@ -455,10 +638,12 @@ void Phase1(
                          unibases, bpaths, verbosity, hout, run_dir, data_dir,
                          "Translate", True );    
                     vec<int> matches( bpaths.size( ) );
+                    vec<int> zerrs( bpaths.size( ), 0 );
                     for ( int j = 0; j < bpaths.isize( ); j++ )
                     {    vec<int> M;
                          for ( int r = 0; r < epathsi[j].isize( ); r++ )
                          {    int e = epathsi[j][r];
+                              zerrs[j] += Galt.EdgeObject(e);
                               int v = to_left[e], w = to_right[e];
                               for ( int m = 0; m < ALIGNS[v].second.isize( ); m++ )
                                    M.push_back( ALIGNS[v].second[m].first );
@@ -467,9 +652,14 @@ void Phase1(
                          UniqueSort(M);
                          matches[j] = M.size( );    }
                     int max_matches = Max(matches);
+                    int best_errs = 1000000000;
+                    for ( int j = 0; j < bpaths.isize( ); j++ )
+                    {    if ( matches[j] == max_matches )
+                              best_errs = Min( best_errs, zerrs[j] );    }
                     int mfudge = 0;
                     for ( int j = 0; j < bpaths.isize( ); j++ )
                     {    if ( matches[j] < max_matches - mfudge ) continue;
+                         if ( BEST_ONLY && zerrs[j] > best_errs ) continue;
                          hout << "<" << j << "> ";
                          for ( int r = 0; r < epathsi[j].isize( ); r++ )
                          {    int e = epathsi[j][r];
@@ -532,7 +722,8 @@ void Phase1(
           const double max_rel_err = 0.3;
           vec<int> plefts, prights;
           for ( int i = 0; i < ALIGNS.isize( ); i++ )
-          {    if ( !strong[i] ) continue;
+          {    if ( !PATCHES_ONLY ) continue;
+               if ( !strong[i] ) continue;
                int u = ALIGNS[i].first;
                const vec< pair<int,int> >& x = ALIGNS[i].second;
                if ( x.isize( ) < min_hits ) continue;
@@ -551,7 +742,6 @@ void Phase1(
                     // Don't allow big jumps in offset near ends.
 
                     /*
-                    if ( !TEST_READ_GAP )
                     {    const int max_jump = 10;
                          const int end_prox = 50;
                          int trunc1 = 0, trunc2 = 0;
@@ -575,7 +765,6 @@ void Phase1(
                     */
 
                     int read_gap = x2.front( ).first - x1.back( ).first - L;
-                    if ( TEST_READ_GAP && read_gap <= -L ) continue;
                     int left_overhang 
                          = unibases[u1].isize( ) - x1.back( ).second - L;
                     int right_overhang = x2.front( ).second;
@@ -583,7 +772,7 @@ void Phase1(
 
                     // Special handling for overlaps.
 
-                    if ( !TEST_READ_GAP && expected_gap <= -L )
+                    if ( expected_gap <= -L )
                     {
                          // First find all overlaps between u1 and u2.
 
@@ -692,9 +881,7 @@ void Phase1(
                                         gap2 += unibases[v2].isize( ) - K + 1;
                                    partials.push( v2, gap2 );    }    }    }
                     int n1 = unibases[u1].size( ), n2 = unibases[u2].size( );
-                    if ( ( !bridged && TEST_READ_GAP ) 
-                         || ( Max(n1,n2) >= MIN_PATCH1
-                         && Min(n1,n2) >= MIN_PATCH2 ) )
+                    if ( Max(n1,n2) >= MIN_PATCH1 && Min(n1,n2) >= MIN_PATCH2 )
                     {
                          #pragma omp critical
                          {    found_patch = True;
@@ -827,6 +1014,14 @@ void Phase1(
 
                     if ( B.size( ) > 0 ) 
                     {    all.push_back_reserve( B[0] );
+                         BESTS[id].resize( E.size( ) );
+                         for ( int j = 0; j < E.isize( ); j++ )
+                         {    for ( int r = 0; r < epaths[j].isize( ); r++ )
+                              {    int e = epaths[j][r];
+                                   int v = to_left[e], w = to_right[e];
+                                   BESTS[id][j].push_back(v);
+                                   if ( r == epaths[j].isize( ) - 1 )
+                                        BESTS[id][j].push_back(w);    }    }
                          COMPUTED[id] = True;
                          hout << "\nSAVING ";
                          int j = E[0];

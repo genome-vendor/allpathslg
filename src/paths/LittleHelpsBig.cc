@@ -7,10 +7,11 @@
 //   can be responsible for its use, misuse, or functionality.             //
 /////////////////////////////////////////////////////////////////////////////
 
-// LittleHelpsBig.  Use unipaths from little K1 to enlarge unipaths from big K2.
+// LittleHelpsBig.  Use unipaths from little K1 to enlarge unipaths from big K_LG.
 
 #include "Basevector.h"
 #include "MainTools.h"
+#include "feudal/BinaryStream.h"
 #include "paths/GetNexts.h"
 #include "paths/HyperKmerPath.h"
 #include "paths/KmerPath.h"
@@ -24,16 +25,363 @@ String Tag(String S = "LHB") { return Date() + " (" + S + "): "; }
 
 
 
+// Build unipaths and find terminal unibases.
+// Terminal unibases, or "leaves", are unibases that have only a single
+// adjacency on the unipath adjacency graph.  Leaves that are anchored at
+// their start are called "sinks", while leaves anchored at their end are
+// called "sources".
+
+void build_sinks_sources(const size_t K_LG,
+			 const String & IN_HEAD_LG,
+			 vec<longlong> * iub_sinks_lg_p,
+			 vec<longlong> * iub_sources_lg_p)    
+{ 
+  cout << Tag() << "Loading unipaths" << endl;
+
+  vecKmerPath unipaths(IN_HEAD_LG + ".unipaths.k" + ToString(K_LG));
+  digraph Adj;
+  BinaryReader::readFile(IN_HEAD_LG + ".unipath_adjgraph.k" + ToString(K_LG), &Adj);
+  HyperKmerPath hkp;
+  BuildUnipathAdjacencyHyperKmerPath(K_LG, Adj, unipaths, hkp);
+    
+  // Find terminal unibases.
+  cout << Tag() << "Finding sorces and sinks" << endl;
+  for (int v = 0; v < hkp.N(); v++) {
+    if (hkp.To(v).empty() && 
+	hkp.From(v).size() == 1)
+      iub_sources_lg_p->push_back(hkp.EdgeObjectIndexByIndexFrom(v, 0));
+
+    if (hkp.From(v).empty() && 
+	hkp.To(v).size() == 1)
+      iub_sinks_lg_p->push_back(hkp.EdgeObjectIndexByIndexTo(v, 0));
+  }
+}
+
+
+
+// Pre-processing step:
+// For each sink, and each source, determine whether or not an alignment is
+// possible using that unibase.  We do this by examining the unibases_sm.
+
+void evaluate_sources_sinks(const BaseVecVec & unibases_sm,
+                            const BaseVecVec & unibases_lg,
+                            const size_t K_SM,
+                            const String & OUT_HEAD,
+                            const size_t NUM_THREADS,
+                            const vec<longlong> & iub_sinks_lg,
+                            const vec<longlong> & iub_sources_lg,
+                            vec<bool> * good_sink_p,
+                            vec<bool> * good_source_p)
+{
+  const size_t nub_sm = unibases_sm.size();
+  const size_t n_sinks_sources = iub_sinks_lg.size();
+
+  good_sink_p->clear();
+  good_sink_p->resize(n_sinks_sources, true);
+  good_source_p->clear();
+  good_source_p->resize(n_sinks_sources, true);
+
+  // Build paths, using both sets of unibases and K=K_SM.
+  cout << Tag() << " Pathing" << endl;
+  vecKmerPath paths_all_sm;
+  {
+    BaseVecVec unibases_all = unibases_sm;
+    unibases_all.Append(unibases_lg);
+    ReadsToPathsCoreY(unibases_all, K_SM, paths_all_sm, 
+		      OUT_HEAD + ".LittleHelpsBig.unibases", NUM_THREADS);
+  }
+
+
+  // Form paths database for for unibases_sm.
+  cout << Tag() << " Paths db" << endl;
+  vec<tagged_rpint> pathsdb_sm;
+  {
+    vecKmerPath paths_sm(nub_sm);
+    for (size_t iub = 0; iub < nub_sm; iub++)
+      paths_sm[iub] = paths_all_sm[iub];
+    CreateDatabase(paths_sm, pathsdb_sm);
+  }
+
+  // Write output files.
+  cout << Tag() << " Good sinks" << endl;
+  size_t n_good_sinks = n_sinks_sources;
+  for (size_t iis = 0; iis < n_sinks_sources; iis++) {
+    // ---- The last kmer in this unipath must appear EXACTLY once in the pathsdb_sm.
+    const size_t iub_sink_all = nub_sm + iub_sinks_lg[iis];
+    const kmer_id_t kmer = paths_all_sm[iub_sink_all].Stop();
+    vec<longlong> rpints;
+    Contains(pathsdb_sm, kmer, rpints);
+    if (rpints.size() != 1) {
+      (*good_sink_p)[iis] = false;
+      n_good_sinks--;
+    }
+  }
+  cout << Tag() << " n_good_sinks=   " << n_good_sinks << endl;
+  
+
+  cout << Tag() << " Good sources" << endl;
+  size_t n_good_sources = n_sinks_sources;
+  for (size_t iis = 0; iis < n_sinks_sources; iis++) {
+    // ---- The first kmer in this unipath must appear EXACTLY once in the pathsdb_sm.
+    const size_t iub_source_all = nub_sm + iub_sources_lg[iis];
+    const kmer_id_t kmer = paths_all_sm[iub_source_all].Start();
+    vec<longlong> rpints;
+    Contains(pathsdb_sm, kmer, rpints);
+    if (rpints.size() != 1) {
+      (*good_source_p)[iis] = false;
+      n_good_sources--;
+    }
+  }
+    cout << Tag() << " n_good_sources= " << n_good_sources << endl;
+  
+}
+
+
+
+// Create a BaseVecVec containing the last K_LG-1 bases of each of the unibases
+// in sinks, and the first K_LG-1 bases of each of the unibases in sources.
+
+void build_leaves(const size_t K_SM,
+		  const size_t K_LG,
+		  const BaseVecVec & unibases_lg,
+		  const vec<longlong> & iub_sinks_lg,
+		  const vec<longlong> & iub_sources_lg,
+		  BaseVecVec * bvv_leaf_p)
+{
+  const size_t n_sinks   = iub_sinks_lg.size();
+  const size_t n_sources = iub_sources_lg.size();
+  const size_t n_total_leaves = n_sources + n_sinks;
+
+  const size_t nb_leaf = K_LG - 1;
+
+  bvv_leaf_p->reserve(n_total_leaves);
+
+  for (size_t iis = 0; iis < n_sinks; iis++) {
+    const BaseVec & bv_sink = unibases_lg[iub_sinks_lg[iis]];
+    bvv_leaf_p->push_back(BaseVec(bv_sink, bv_sink.size() - nb_leaf, nb_leaf));
+  }
+  for (size_t iis = 0; iis < n_sources; iis++) {
+    const BaseVec & bv_source = unibases_lg[iub_sources_lg[iis]];
+    bvv_leaf_p->push_back(BaseVec(bv_source, 0, nb_leaf));
+  }
+}
+
+
+
+
+
+
+// Now, gather a set of eligible pairs of sink and source unibases.
+// A pair of sink and source unibases (call them S1 and S2) is considered
+// "eligible" if the last K_SM-mer of S1 appears in S2 *and* the first K_SM-mer
+// of S2 appears in S1.  If this criterion is not met, these unibases cannot
+// possibly overlap by K_SM or more bases.
+
+void build_eligibles(const vecKmerPath & paths_leaf,
+		     const vec<tagged_rpint> & pathsdb_leaf,
+                     const vec<bool> & good_sink,
+                     const vec<bool> & good_source,
+		     vec<pair<size_t, size_t> > * eligibles_p,
+		     vec<unsigned> * counts_eligibles_p)
+{
+  const size_t n_sinks   = good_sink.size();
+  const size_t n_sources = good_source.size();
+  
+  // Loop over all sink unipaths, and examine the last kmer in each.
+  cout << Tag() << "Loop over sinks" << endl;
+  for (size_t ii_sink = 0; ii_sink < n_sinks; dots_pct(ii_sink++, n_sinks)) {
+    if (good_sink[ii_sink]) {
+
+      // Find all other appearances of this kmer in pathsdb_leaf.
+      vec<longlong> places;
+      kmer_id_t kmer = paths_leaf[ii_sink].Stop();
+      Contains(pathsdb_leaf, kmer, places);
+      const size_t n_places = places.size();
+      
+      for (size_t ipl = 0; ipl < n_places; ipl++) {
+        const longlong i_path = pathsdb_leaf[places[ipl]].PathId();
+        if (i_path >= 0 &&                 // ignore RC alignments
+            i_path >= longlong(n_sinks)) { // ignore alignments to other sink unipaths
+          const size_t ii_source = i_path - n_sinks;
+          if (good_source[ii_source])
+            eligibles_p->push_back(make_pair(ii_sink, ii_source));
+        }
+      }
+    }
+  }
+
+    
+  // Loop over all source unipaths, and examine the first kmer in each.
+  cout << Tag() << "Loop over sources" << endl;
+  for (size_t ii_source = 0; ii_source < n_sources; dots_pct(ii_source++, n_sources)) {
+    if (good_source[ii_source]) {
+ 
+      // Find all other appearances of this kmer in pathsdb_leaf.
+      vec<longlong> places;
+      kmer_id_t kmer = paths_leaf[n_sinks + ii_source].Start();
+      Contains(pathsdb_leaf, kmer, places);
+      const size_t n_places = places.size();
+      
+      for (size_t ipl = 0; ipl < n_places; ipl++) {
+        const longlong i_path = pathsdb_leaf[places[ipl]].PathId();
+        if (i_path >= 0 &&                // ignore RC alignments
+            i_path < longlong(n_sinks)) { // ignore alignments to other source unipaths
+          const size_t ii_sink = i_path;
+          if (good_sink[ii_sink]) 
+            eligibles_p->push_back(make_pair(ii_sink, ii_source));
+        }
+      }
+    }
+  }
+  
+  // Every eligible sink/source pair should now appear TWICE in eligibles.
+  // Sort the list of eligibles, and keep track of how many times each s/s
+  // pair appeared - later, we'll drop all s/s pairs that appeared only once.
+  cout << Tag() << "Unique sort" << endl;
+  UniqueSortAndCount(*eligibles_p, *counts_eligibles_p);
+
+  cout << Tag() << "n_eligibles = " << eligibles_p->size() << endl;
+}  
+
+
+
+
+
+
+
+
+void add_bridges(const size_t K_LG,
+                 const size_t K_SM,
+                 const BaseVecVec & unibases_lg,
+                 const vec<longlong> & iub_sinks_lg,
+                 const vec<longlong> & iub_sources_lg,
+                 const vec<bool> & good_sink,
+                 const vec<bool> & good_source,
+                 const vec< pair<size_t, size_t> > & eligibles,
+                 const vec<unsigned> & counts_eligibles,
+                 BaseVecVec * bvv_new_p)
+{  
+  const size_t n_eligibles = eligibles.size();
+  size_t n_bridges = 0;
+      
+  map<size_t, size_t> overlaps;
+  for (size_t iel = 0; iel < n_eligibles; dots_pct(iel++, n_eligibles)) {
+    const size_t ii_sink   = eligibles[iel].first;
+    const size_t ii_source = eligibles[iel].second;
+        
+    if (good_sink  [ii_sink]   &&    // unnecessary
+        good_source[ii_source] &&    // unnecessary
+        counts_eligibles[iel] != 1) {
+          
+      const BaseVec & ubv_sink   = unibases_lg[iub_sinks_lg[ii_sink]];
+      const BaseVec & ubv_source = unibases_lg[iub_sources_lg[ii_source]];
+          
+
+      if (true) {
+
+        // ---- NEW VERSION: only need last K_LG bases to check for overlaps
+
+        const BaseVec bv_sink(ubv_sink, ubv_sink.size() - K_LG, K_LG);
+        const BaseVec bv_source(ubv_source, 0, K_LG);
+        
+        // Check for direct overlap between the paths. 
+        
+        const size_t overlap = LargestOverlap(bv_sink, bv_source, K_LG-1, K_SM);
+        if (overlap > 0) {
+          overlaps[overlap]++;
+          
+          // We've found an overlap! Add bridge between unibases to bvv_new.
+          bvv_new_p->push_back(Cat(BaseVec(bv_sink, 0, bv_sink.size() - overlap), 
+                                   bv_source));
+          n_bridges++;
+        }
+        
+      }
+      else {
+
+        // ---- OLD VERSION: join two full unibases as a bridge and add it
+        // Check for direct overlap between the paths. 
+        
+        const size_t overlap = LargestOverlap(ubv_sink, ubv_source, K_LG-1, K_SM);
+        if (overlap > 0) {
+          overlaps[overlap]++;
+	  
+          // We've found an overlap! Add bridge between unibases to bvv_new.
+          bvv_new_p->push_back(Cat(BaseVec(ubv_sink, 0, ubv_sink.size() - overlap), 
+                                   ubv_source));
+          n_bridges++;
+        }
+      }
+    }
+  }
+  if (false)
+    for (map<size_t, size_t>::const_iterator it = overlaps.begin();
+	 it != overlaps.end(); it++)
+      cout << "overlap: " << it->first << " " << it->second << endl;
+
+
+  cout << Tag() << "n_bridges= " << n_bridges << endl;
+}  
+
+
+
+
+
+
+
+
+void add_adjacencies(const BaseVecVec & unibases_lg,
+                     const size_t K_LG,
+                     BaseVecVec * bvv_new_p)
+{
+  const size_t nub = unibases_lg.size();
+  vec< vec<int> > iub_nexts(nub);
+  GetNexts(K_LG, unibases_lg, iub_nexts);
+  for (size_t iub1 = 0; iub1 < nub; iub1++) {
+    const BaseVec & ubv1 = unibases_lg[iub1];
+
+    if (true) {
+      // ---- NEW VERSION: only K_LG + 1 common bases
+
+      const BaseVec bv1(ubv1, ubv1.size() - K_LG, K_LG);
+      for (size_t ii = 0; ii < iub_nexts[iub1].size(); ii++) {
+        const size_t iub2 = iub_nexts[iub1][ii];
+        const BaseVec & ubv2 = unibases_lg[iub2];
+        bvv_new_p->push_back(Cat(bv1, BaseVec(ubv2, K_LG - 1, 1)));
+      }
+    }
+    else {
+      // ---- OLD VERSION: full unibase + 1 base
+
+      for (size_t ii = 0; ii < iub_nexts[iub1].size(); ii++) {
+        const size_t iub2 = iub_nexts[iub1][ii];
+        const BaseVec & ubv2 = unibases_lg[iub2];
+        bvv_new_p->push_back(Cat(ubv1, BaseVec(ubv2, K_LG - 1, 1)));
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
 int main(int argc, char *argv[])
 {
   RunTime();
   
   BeginCommandArguments;
-  CommandArgument_String(IN_HEAD1);
-  CommandArgument_String(IN_HEAD2);
-  CommandArgument_Int(K1);
-  CommandArgument_Int(K2);
+  CommandArgument_String(IN_HEAD_SM);
+  CommandArgument_String(IN_HEAD_LG);
+  CommandArgument_Int(K_SM);
+  CommandArgument_Int(K_LG);
   CommandArgument_String(OUT_HEAD);
+  CommandArgument_Bool_OrDefault(REPATH, True);
   CommandArgument_UnsignedInt_OrDefault_Doc(NUM_THREADS, 0, 
     "Number of threads to use (use all available processors if set to 0)");
   EndCommandArguments;
@@ -43,287 +391,153 @@ int main(int argc, char *argv[])
   // Thread control
    
   NUM_THREADS = configNumThreads(NUM_THREADS);
- 
+
   // Load unibases.
+
   cout << Tag() << "Loading unibases" << endl;
   
-  String KS1 = ToString(K1), KS2 = ToString(K2);
-  BaseVecVec unibases1(IN_HEAD1 + ".unibases.k" + KS1);
-  BaseVecVec unibases2(IN_HEAD2 + ".unibases.k" + KS2);
+  BaseVecVec unibases_lg(IN_HEAD_LG + ".unibases.k" + ToString(K_LG));
+  const size_t nub_lg = unibases_lg.size();
+  const size_t nkmer_lg = unibases_lg.SizeSum() - unibases_lg.size() * (K_LG - 1);
+  cout << Tag() << "n_unibases(K=" << K_LG << ")= " << nub_lg << endl;
+  cout << Tag() << "n_kmers(K=" << K_LG << ")= " << nkmer_lg << endl;
+
+  // This will store all new base vectors.
+  BaseVecVec bvv_new = unibases_lg;
   
-  const size_t nuni1 = unibases1.size();
-  const size_t nuni2 = unibases2.size();
+  if (true) {  // Scoping out intermediate data structures
 
-  cout << Tag() << "n_unibases(K=" << KS1 << ")= " << nuni1 << endl;
-  cout << Tag() << "n_unibases(K=" << KS2 << ")= " << nuni2 << endl;
+
+    BaseVecVec unibases_sm(IN_HEAD_SM + ".unibases.k" + ToString(K_SM));
+    const size_t nub_sm = unibases_sm.size();
+    cout << Tag() << "n_unibases(K=" << K_SM << ")= " << nub_sm << endl;
+
+    // Make output directory, if necessary.
+    if (OUT_HEAD.Contains("/")) Mkpath(OUT_HEAD.RevBefore("/"));
+
   
-  // Make output directory, if necessary.
-  if (OUT_HEAD.Contains("/")) Mkpath(OUT_HEAD.RevBefore("/"));
+    // Build unipaths and find terminal unibases ('leaves') which are
+    // unibases that have only a single adjacency on the unipath adjacency graph.  
+    // Leaves at the unibase start are 'sources' and at the end are 'sinks'.
 
-
-  BaseVecVec new_reads = unibases2;
-  {  // Scoping out intermediate data structures
-  
-    // Build unipaths2 and find terminal unibases.
-    // Terminal unibases, or "leaves", are unibases that have only a single
-    // adjacency on the unipath adjacency graph.  Leaves that are anchored at
-    // their start are called "sinks", while leaves anchored at their end are
-    // called "sources".
-    vec<longlong> sinks;
-    vec<longlong> sources;
-    
-    { // scoping bracket
-      cout << Tag() << "Loading unipaths" << endl;
-
-      vecKmerPath unipaths2(IN_HEAD2 + ".unipaths.k" + KS2);
-      digraph A2;
-      BinaryRead(IN_HEAD2 + ".unipath_adjgraph.k" + KS2, A2);
-      HyperKmerPath h2;
-      BuildUnipathAdjacencyHyperKmerPath(K2, A2, unipaths2, h2);
-    
-      // Find terminal unibases.
-      cout << Tag() << "Finding sorces and sinks" << endl;
-      for (longlong v = 0; v < h2.N(); v++) {
-	if (h2.To(v).empty() && h2.From(v).solo())
-	  sources.push_back(h2.EdgeObjectIndexByIndexFrom(v, 0));
-	if (h2.From(v).empty() && h2.To(v).solo())
-	  sinks.push_back(h2.EdgeObjectIndexByIndexTo(v, 0));
-      }
-    }
-    const size_t n_sinks = sinks.size();
-    const size_t n_sources = sources.size();
-
+    vec<longlong> iub_sinks_lg;
+    vec<longlong> iub_sources_lg;
+    build_sinks_sources(K_LG, IN_HEAD_LG, & iub_sinks_lg, & iub_sources_lg);
+    const size_t n_sinks   = iub_sinks_lg.size();
+    const size_t n_sources = iub_sources_lg.size();
+    ForceAssertEq(n_sinks, n_sources);
     cout << Tag() << "n_sinks=   " << n_sinks << endl;
     cout << Tag() << "n_sources= " << n_sources << endl;
+    
+    
 
-    
-    cout << Tag() << "Creating local data structures" << endl;
-    
-    // Determine which unibases1 can follow which.  This is not quite right
-    // because it assumes that K1-1 overlap is enough for adjacency.
-  
-    // Build paths, using both sets of unibases and K=K1.
-    BaseVecVec unibases = unibases1;
-    unibases.Append(unibases2);
-    vecKmerPath paths;
-    ReadsToPathsCoreY(unibases, K1, paths, 
-		       OUT_HEAD + ".LittleHelpsBig.unibases", NUM_THREADS);
-  
-    // Form paths database for for unibases1.
-    vecKmerPath paths1;
-    vec<tagged_rpint> pathsdb1;
-    for (size_t i = 0; i < nuni1; i++)
-      paths1.push_back_reserve(paths[i]);
-    CreateDatabase(paths1, pathsdb1);
+    // Determine which unibases_sm can follow which.  This is not quite right
+    // because it assumes that K_SM-1 overlap is enough for adjacency.
   
     // Pre-processing step:
     // For each sink, and each source, determine whether or not an alignment is
-    // possible using that unibase.  We do this by examining the unibases1.
-    vec<bool>   sinks_good(n_sinks,   true);
-    vec<bool> sources_good(n_sources, true);
-  
-    for (size_t j1 = 0; j1 < n_sinks; j1++) {
-      // Find the last kmer in this unipath (which is from unipaths2).
-      size_t sink = sinks[j1] + nuni1;
-      kmer_id_t kmer = paths[sink].Stop();
-      
-      // This kmer must appear EXACTLY once in the pathsdb1.
-      vec<longlong> rpints;
-      Contains(pathsdb1, kmer, rpints);
-      if (!rpints.solo()) sinks_good[j1] = false;
-    }
-  
-    for (size_t j2 = 0; j2 < n_sources; j2++) {
-      // Find the first kmer in this unipath.
-      size_t source = sources[j2] + nuni1;
-      kmer_id_t kmer = paths[source].Start();
-      
-      // This kmer must appear EXACTLY once in the pathsdb1.
-      vec<longlong> rpints;
-      Contains(pathsdb1, kmer, rpints);
-      if (!rpints.solo()) sources_good[j2] = false;
-    }
-  
-  
-  
-    // Create a BaseVecVec containing the last K2 bases of each of the unibases
-    // in sinks, and the first K2 bases of each of the unibases in sources.
-    // Then, path these bases using K1, and create a pathsdb.  Now we can look up
-    // a K1-mer in the pathsdb to quickly determine whether or not an overlap of
-    // size > K1 is possible.
-    cout << Tag() << "Building leafs." << endl;
-    BaseVecVec leaf_bases;
-    const size_t n_total_leaves = n_sources + n_sinks;
-    leaf_bases.Reserve(n_total_leaves + ((K2-1) * n_total_leaves) / 16, n_total_leaves);
-    for (size_t j1 = 0; j1 < n_sinks; j1++) {
-      const BaseVec & sink = unibases[sinks[j1] + nuni1];
-      leaf_bases.push_back(BaseVec(sink, sink.size() - (K2-1), K2-1));
-    }
-    for (size_t j2 = 0; j2 < n_sources; j2++) {
-      const BaseVec & source = unibases[sources[j2] + nuni1];
-      leaf_bases.push_back(BaseVec(source, 0, K2-1));
-    }
+    // possible using that unibase.  We do this by examining the unibases_sm.
 
-    cout << Tag() << "Pathing." << endl;
-    vecKmerPath leaf_paths;
-    vecKmerPath leaf_pathsrc;
-    vec<tagged_rpint> leaf_pathsdb;
-    ReadsToPathsCoreY(leaf_bases, K1, leaf_paths, leaf_pathsrc, leaf_pathsdb);
+    cout << Tag() << "Evaluating sinks and sources" << endl;
+
+    vec<bool> good_sink;
+    vec<bool> good_source;
+    evaluate_sources_sinks(unibases_sm, unibases_lg, 
+                           K_SM, OUT_HEAD, NUM_THREADS, 
+                           iub_sinks_lg, iub_sources_lg,
+                           & good_sink, & good_source);
   
 
-
-    // Now, gather a set of eligible pairs of sink and source unibases.
-    // A pair of sink and source unibases (call them S1 and S2) is considered
-    // "eligible" iff the last K1-mer of S1 appears in S2 *and* the first K1-mer
-    // of S2 appears in S1.  If this criterion is not met, these unibases cannot
-    // possibly overlap by K1 or more bases.
-    cout << Tag() << "Building list of eligible pairs." << endl;
     vec< pair<size_t, size_t> > eligibles;
-  
+    vec<unsigned> counts_eligibles;
+    if (true) {
 
-    // Loop over all sink unipaths, and examine the last kmer in each.
-    cout << Tag() << "Loop over sinks." << endl;
-    for (size_t j1 = 0; j1 < n_sinks; dots_pct(j1++, n_sinks)) {
-      kmer_id_t kmer = leaf_paths[j1].Stop();
-      
-      // Find all other appearances of this kmer in leaf_pathsdb.
-      vec<longlong> places;
-      Contains(leaf_pathsdb, kmer, places);
-      const size_t n_places = places.size();
-
-      for (size_t ip = 0; ip < n_places; ip++) {
-	const longlong id = leaf_pathsdb[places[ip]].PathId();
-	if (id >= 0 &&    // ignore RC alignments
-            id >= longlong(n_sinks))  // ignore alignments to other sink unipaths
-          eligibles.push_back(make_pair(j1, size_t(id - n_sinks)));
+      // Create a BaseVecVec containing the last K_LG bases of each of the unibases
+      // in sinks, and the first K_LG bases of each of the unibases in sources.
+      // Then, path these bases using K_SM, and create a pathsdb.  Now we can look up
+      // a K_SM-mer in the pathsdb to quickly determine whether or not an overlap of
+      // size > K_SM is possible.
+      vecKmerPath paths_leaf;
+      vec<tagged_rpint> pathsdb_leaf;
+      {
+        cout << Tag() << "Building leaves" << endl;
+        BaseVecVec bvv_leaf;
+        build_leaves(K_SM, K_LG, unibases_lg, iub_sinks_lg, iub_sources_lg, 
+                     & bvv_leaf);
+        cout << Tag() << "Pathing leaves" << endl;
+        vecKmerPath paths_leaf_rc;
+        ReadsToPathsCoreY(bvv_leaf, K_SM, paths_leaf, paths_leaf_rc, pathsdb_leaf);
       }
-    }
-    
-
-
-    // Loop over all source unipaths, and examine the first kmer in each.
-    cout << Tag() << "Loop over sources." << endl;
-    for (size_t j2 = 0; j2 < n_sinks; dots_pct(j2++, n_sinks)) {
-      kmer_id_t kmer = leaf_paths[n_sinks + j2].Start();
       
-      // Find all other appearances of this kmer in leaf_pathsdb.
-      vec<longlong> places;
-      Contains(leaf_pathsdb, kmer, places);
-      const size_t n_places = places.size();
       
-      for (size_t ip = 0; ip < n_places; ip++) {
-	const longlong id = leaf_pathsdb[places[ip]].PathId();
-	if (id >= 0 &&  // ignore RC alignments
-            id < longlong(n_sinks)) // ignore alignments to other source unipaths
-          eligibles.push_back(make_pair(size_t(id), j2));
-      }
+      // Now, gather a set of eligible pairs of sink and source unibases.
+      // A pair of sink and source unibases (call them S1 and S2) is considered
+      // "eligible" iff the last K_SM-mer of S1 appears in S2 *and* the first K_SM-mer
+      // of S2 appears in S1.  If this criterion is not met, these unibases cannot
+      // possibly overlap by K_SM or more bases.
+      cout << Tag() << "Building list of eligible pairs" << endl;
+      
+      build_eligibles(paths_leaf, pathsdb_leaf, good_sink, good_source,
+                      & eligibles, & counts_eligibles);
     }
-  
-    // Every eligible sink/source pair should now appear TWICE in eligibles.
-    // Sort the list of eligibles, and keep track of how many times each s/s
-    // pair appeared - later, we'll drop all s/s pairs that appeared only once.
-    cout << Tag() << "Unique sort." << endl;
-    vec<unsigned> eligible_counts;
-    UniqueSortAndCount(eligibles, eligible_counts);
-  
-  
-  
   
     // MAIN ALGORITHM
     // For each eligible sink/source pair, try to bridge.
 
-    const size_t n_eligibles = eligibles.size();
-
     cout << Tag() << "Looking for bridges" << endl;
-    cout << Tag() << "n_eligibles = " << n_eligibles << endl;
+    add_bridges(K_LG, K_SM, unibases_lg, iub_sinks_lg, iub_sources_lg, 
+                good_sink, good_source, eligibles, counts_eligibles, 
+                & bvv_new);
 
-    double timestamp = WallClockTime();
-  
-  
-    BaseVecVec merged_paths;
-    size_t n_merges = 0;
     
-    // Loop over sink/source pairs.
-    for (size_t ie = 0; ie < n_eligibles; ie++) {
-      size_t j1 = eligibles[ie].first;
-      size_t j2 = eligibles[ie].second;
-      
-      if (sinks_good[j1] &&
-          sources_good[j2] &&
-          eligible_counts[ie] != 1) {
-        
-        size_t sink = sinks[j1] + nuni1;
-        size_t source = sources[j2] + nuni1;
-        kmer_id_t x1 = paths[sink].Stop();
-        kmer_id_t x2 = paths[source].Start();
-        
-        // Finally, check whether there is a direct overlap between
-        // the paths.  This is an expensive function call, so we only
-        // perform it if we have to.
-        size_t overlap = LargestOverlap(unibases[sink],
-                                        unibases[source],
-                                        K2-1, K1);
-        if (overlap > 0) {
-          
-          // We've found an overlap!  Merge the unibases together and add the
-          // resulting BaseVec to the merged_paths.
-          BaseVec merge = unibases[sink];
-          merge.resize(merge.size() - overlap);
-          merge = Cat(merge, unibases[source]);
-          merged_paths.push_back_reserve(merge);
-          n_merges++;
-        }
-      }
-      dots_pct(ie, n_eligibles);
-    }
-  
-    cout << "Number of merges made: " << n_merges << endl;
-    cout << "Elapsed time: " << (WallClockTime() - timestamp) << " s" << endl;
-  
-    // Combine old unibases and patches together
+    // Make sure we keep adjacency information
 
-    // GetNexts() needs vec<vec<in> >. This could be a problem.
-    vec< vec<int> > nexts2(nuni2);
-    GetNexts(K2, unibases2, nexts2);
-    new_reads.Append(merged_paths);
-    for (size_t id1 = 0; id1 < nuni2; id1++) {
-      for (size_t j = 0; j < nexts2[id1].size(); j++) {
-	size_t id2 = nexts2[id1][j];
-	BaseVec b = unibases2[id1];
-	b.resize(b.size() + 1);
-	b.Set(b.size() - 1, unibases2[id2][K2-1]);
-	new_reads.push_back_reserve(b);
-      }
-    }
+    cout << Tag() << "Adding adjacencies" << endl;
+    add_adjacencies(unibases_lg, K_LG, & bvv_new);
 
   } // end scoping of intermediate data structures
 
-  // Now build the new unipaths.
-  cout << Tag() << "Building new unipaths" << endl;
+  if (REPATH) {
 
-  vecKmerPath new_paths;
-  vecKmerPath new_pathsrc;
-  vecKmerPath new_unipaths;
-  vec<tagged_rpint> new_pathsdb;
-  vec<tagged_rpint> new_unipathsdb;
-  digraph new_adj_graph;
-  ReadsToPathsCoreY(new_reads, K2, new_paths, new_pathsrc, new_pathsdb,
-                     OUT_HEAD + ".LittleHelpsBig.pseudo_reads", NUM_THREADS);
-  Unipath(new_paths, new_pathsrc, new_pathsdb, new_unipaths, new_unipathsdb);
-  KmerBaseBroker new_kbb(K2, new_paths, new_pathsrc, new_pathsdb, new_reads);
-  BuildUnipathAdjacencyGraph(new_paths, new_pathsrc, new_pathsdb, 
-                             new_unipaths, new_unipathsdb, new_adj_graph);
+    // Now build the new unipaths.
+    
+    cout << Tag() << "Pathing everything" << endl;
+    vecKmerPath       paths_new;
+    vecKmerPath       paths_new_rc;
+    vec<tagged_rpint> pathsdb_new;
+    ReadsToPathsCoreY(bvv_new, K_LG, paths_new, paths_new_rc, pathsdb_new,
+		      OUT_HEAD + ".LittleHelpsBig.pseudo_reads", NUM_THREADS);
+    
+    cout << Tag() << "Unipathing everything" << endl;
+    vecKmerPath       unipaths_new;
+    vec<tagged_rpint> unipathsdb_new;
+    Unipath(paths_new, paths_new_rc, pathsdb_new, unipaths_new, unipathsdb_new);
+    
+    cout << Tag() << "Brokering kmers and bases" << endl;
+    KmerBaseBroker    kbb_new(K_LG, paths_new, paths_new_rc, pathsdb_new, bvv_new);
+    
+    cout << Tag() << "Building adjacencies" << endl;
+    digraph           adj_graph_new;
+    BuildUnipathAdjacencyGraph(paths_new, paths_new_rc, pathsdb_new, 
+			       unipaths_new, unipathsdb_new, adj_graph_new);
+    
+    // Write output files.
+    cout << Tag() << "Writing output files" << endl;
+    const String KS_LG = ToString(K_LG);
+    unipaths_new.WriteAll(OUT_HEAD + ".unipaths.k" + KS_LG);
+    BinaryWriter::writeFile(OUT_HEAD + ".unipathsdb.k" + KS_LG, unipathsdb_new);
+    BinaryWriter::writeFile(OUT_HEAD + ".unipath_adjgraph.k" + KS_LG, adj_graph_new);
+    IncrementalWriter<basevector> writer(OUT_HEAD + ".unibases.k" + KS_LG, unipaths_new.size());
+    for ( size_t i = 0; i < unipaths_new.size( ); i++ )
+      writer.add(kbb_new.Seq( unipaths_new[i] ));
+    writer.close();
+    
+  } else {
 
-  // Write output files.
-  cout << Tag() << "Writing output files" << endl;
-  new_unipaths.WriteAll(OUT_HEAD + ".unipaths.k" + KS2);
-  BinaryWrite3(OUT_HEAD + ".unipathsdb.k" + KS2, new_unipathsdb);
-  BinaryWrite(OUT_HEAD + ".unipath_adjgraph.k" + KS2, new_adj_graph);
-  BaseVecVec new_unibases;
-  new_unibases.reserve(new_unipaths.size());
-  for (size_t i = 0; i < new_unipaths.size(); i++)
-    new_unibases.push_back(new_kbb.Seq(new_unipaths[i]));
-  new_unibases.WriteAll(OUT_HEAD + ".unibases.k" + KS2);
+    // Write out new basevectors
+    bvv_new.WriteAll(OUT_HEAD + ".part1.fastb");
+    
+  } 
   
   cout << Tag() << "Done!" << endl;
   return 0;

@@ -13,7 +13,7 @@
 #include "MainTools.h"
 #include "Alignment.h"
 #include "Fastavector.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
 #include "math/HoInterval.h"
 #include "paths/Alignlet.h"

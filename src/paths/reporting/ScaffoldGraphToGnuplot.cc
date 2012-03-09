@@ -13,6 +13,7 @@
 #include "graph/Digraph.h"
 #include "graph/DigraphTemplate.h"
 #include "paths/reporting/CLinkBundle.h"
+#include "feudal/BinaryStream.h"
 
 /**
  * ScaffoldGraphToGnuplot
@@ -43,8 +44,7 @@ int main( int argc, char *argv[] )
   
   out << Date( ) << ": loading graph\n" << endl;
   digraphE<CLinkBundle> graph;
-  int fd = OpenForRead( graph_file );
-  BinaryRead( fd, graph );
+  BinaryReader::readFile( graph_file, &graph );
   
   // Build indices.
   vec<int> to_left;

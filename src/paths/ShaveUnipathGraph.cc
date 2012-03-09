@@ -30,6 +30,7 @@
 #include "paths/HyperKmerPath.h"
 #include "paths/ReadsToPathsCoreX.h"
 #include "paths/Unipath.h"
+#include "feudal/BinaryStream.h"
 
 
 
@@ -78,7 +79,7 @@ int main( int argc, char *argv[] )
     BuildUnipathAdjacencyGraph( paths, pathsrc, pathsdb, unipaths, unipathsdb, A );
   } else {
     cout << Date( ) << ": Using existing unipath adjacency graph" << endl;
-    BinaryRead( in_head + ".unipath_adjgraph.k" + ToString(K), A );
+    BinaryReader::readFile( in_head + ".unipath_adjgraph.k" + ToString(K), &A );
   }
   HyperKmerPath h;
   BuildUnipathAdjacencyHyperKmerPath( K, A, unipaths, h );
@@ -268,8 +269,8 @@ int main( int argc, char *argv[] )
   
   String out_head = DIR + "/" + OUT_HEAD;
   new_unipaths.WriteAll( out_head + ".unipaths" + kK );
-  BinaryWrite3( out_head + ".unipathsdb" + kK, new_unipathsdb );
-  BinaryWrite( out_head + ".unipath_adjgraph" + kK, new_adj_graph );
+  BinaryWriter::writeFile( out_head + ".unipathsdb" + kK, new_unipathsdb );
+  BinaryWriter::writeFile( out_head + ".unipath_adjgraph" + kK, new_adj_graph );
   vecbasevector new_unibases;
   for ( size_t i = 0; i < new_unipaths.size( ); i++ )
     new_unibases.push_back_reserve( new_kbb.Seq( new_unipaths[i] ) );

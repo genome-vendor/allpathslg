@@ -180,7 +180,6 @@ const Bool PALIND_FW_ONLY = False;
    header files:
    
   >#include "SortKmersImpl.h"
-  >#include "VecTemplate.h"
 */
 #define INSTANTIATE_SORTKMERS_FOR_I_K(I, K, prefix)                            \
     typedef KmerShapeDefaultClass(K) TYPE_NAME_I_K(prefix, kmer_shape, I, K);  \

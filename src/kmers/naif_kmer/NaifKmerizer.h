@@ -81,73 +81,39 @@ String TagNK(String S = "NK") { return Date() + " (" + S + "): "; }
 
 
 
-// -------- Parcel class ----------
-
-
 template<class REC_t>
-class Parcel : public vec<REC_t>
+class ParcelBuffer : public vec< vec<REC_t> >
 {
-public: 
-  size_t consecutive_records_find_end(const size_t i)
-  {
-    // **** can optimize with binary forward search!!!! ****
-    // actually, not worth the complexity.  This is not a bottleneck. far from it.
-    
-    vec<REC_t> & parcel = *this;
-    const size_t n = parcel.size();
-    const REC_t & rec = parcel[i];
-    size_t j = i + 1;
-    while (j < n && parcel[j].match(rec))
-      j++;
-    
-    return j;
-  }
-};
-
-
-
-template<class REC_t>
-class ParcelBuffer : public vec< Parcel<REC_t> >
-{
-public: 
-  const size_t _n_sub_parcels;
+  const size_t _n_parcels;
   size_t       _i0_parcel;
   size_t       _i1_parcel;
-  const size_t _n_parcels;
   
+public: 
   ParcelBuffer(const size_t i0_parcel, 
                const size_t i1_parcel, 
-               const size_t n_parcels)
-    : vec<Parcel<REC_t> >(i1_parcel - i0_parcel),
-      _n_sub_parcels(i1_parcel - i0_parcel),
-      _i0_parcel(i0_parcel),
-      _i1_parcel(i1_parcel),
-      _n_parcels(n_parcels)
+               const size_t n_parcels) :
+    vec< vec<REC_t> >(i1_parcel - i0_parcel),
+    _n_parcels(n_parcels),
+    _i0_parcel(i0_parcel),
+    _i1_parcel(i1_parcel)
   {}
-
-  void print_all_sizes(const size_t i_thread, const String & s) const 
-  {
-    if (false)
-    for (size_t i = 0; i != _n_sub_parcels; i++)
-      cout << "[thr " << i_thread << " " << s << "][" << &(*this) << "][" << dec << i << "].size = " << (*this)[i].size() << endl;
-  }
 
   size_t i_parcel_compute(const REC_t & rec) const 
   {
-    // only look at first 20 bits of hash
+    // only look at first 20 bits
     return  ((rec.hash_64bits() & 0x000fffff) * _n_parcels) >> 20;
   }
 
   bool in_one_parcel(const REC_t & rec) const 
   {
     const size_t i_parcel = i_parcel_compute(rec);
-    //ForceAssertLt(i_parcel, _n_parcels);
     return (_i0_parcel <= i_parcel && i_parcel < _i1_parcel);
   }
 
   void add(const REC_t & rec)
   {
-    const size_t i_sub_parcel = i_parcel_compute(rec) % _n_sub_parcels;
+    const size_t n_sub_parcels = this->size();
+    const size_t i_sub_parcel = i_parcel_compute(rec) % n_sub_parcels;
     (*this)[i_sub_parcel].push_back(rec);
   }
 };
@@ -186,53 +152,53 @@ public:
              const vec<size_t>           & i1_bv,
              vec<ParcelBuffer<rec_t> * > & parcel_bufs_pt,
              vec<unsigned>               & sync_states,
-             const unsigned                verbosity = 1)
-    : _n_threads(n_threads),
-      _n_passes(n_passes),
-      _p_kernel_main(p_kernel_main),
-      _i1_bv(i1_bv),
-      _parcel_bufs_pt(parcel_bufs_pt),
-      _sync_states(sync_states),
-      _verbosity(verbosity)
+             const unsigned                verbosity = 1) :
+    _n_threads(n_threads),
+    _n_passes(n_passes),
+    _p_kernel_main(p_kernel_main),
+    _i1_bv(i1_bv),
+    _parcel_bufs_pt(parcel_bufs_pt),
+    _sync_states(sync_states),
+    _verbosity(verbosity)
   {}
 
   // copy constructor
-  ParcelProc(const ParcelProc<KERNEL_t> & that)
-    : _n_threads(that._n_threads),
-      _n_passes(that._n_passes),
-      _p_kernel_main(that._p_kernel_main),
-      _i1_bv(that._i1_bv),
-      _parcel_bufs_pt(that._parcel_bufs_pt),
-      _sync_states(that._sync_states),
-      _verbosity(that._verbosity)	
+  ParcelProc(const ParcelProc<KERNEL_t> & that) :
+    _n_threads(that._n_threads),
+    _n_passes(that._n_passes),
+    _p_kernel_main(that._p_kernel_main),
+    _i1_bv(that._i1_bv),
+    _parcel_bufs_pt(that._parcel_bufs_pt),
+    _sync_states(that._sync_states),
+    _verbosity(that._verbosity)	
   {}
 
 
 private:
   // ---- this is just a dumb way of synchronizing the threads
-  void naif_sync(const size_t i_thread)
+  void _naif_sync(const size_t i_thread)
   {
     _sync_states[i_thread]++;
     {
       bool done = false;
       while (!done) {
         done = true;
-        for (size_t i = 0; i != _n_threads; i++)
+        for (size_t i = 0; i < _n_threads; i++)
           if (_sync_states[i] < _sync_states[i_thread]) 
             done = false;
       }
     } 
   }
-
   
-  // ---- add all the blocks into block 0 to build the full parcel and sort
-  Parcel<rec_t> & build_parcel(const size_t i_sub_parcel)
+  
+  // ---- add all the blocks into block 0 to build the full parcel
+  vec<rec_t> & _build_parcel(const size_t i_sub_parcel)
   {
-    Parcel<rec_t> & parcel = (*(_parcel_bufs_pt[0]))[i_sub_parcel];
+    vec<rec_t> & parcel = (*(_parcel_bufs_pt[0]))[i_sub_parcel];
     const size_t n_blks = _n_threads;
     
     size_t n_recs = 0;
-    for (size_t i_blk = 0; i_blk != n_blks; i_blk++)
+    for (size_t i_blk = 0; i_blk < n_blks; i_blk++)
       n_recs += (*(_parcel_bufs_pt[i_blk]))[i_sub_parcel].size();
     parcel.reserve(n_recs);
 
@@ -241,12 +207,30 @@ private:
            << ": reserved space for " << n_recs << " records (n_blks= " << n_blks << ")." << endl;
           
     // start at 1 because 0 is the full parcel
-    for (size_t i_blk = 1; i_blk != n_blks; i_blk++) {
-      Parcel<rec_t> & parcel_blk = (*(_parcel_bufs_pt[i_blk]))[i_sub_parcel];
+    for (size_t i_blk = 1; i_blk < n_blks; i_blk++) {
+      vec<rec_t> & parcel_blk = (*(_parcel_bufs_pt[i_blk]))[i_sub_parcel];
       parcel.insert(parcel.end(), parcel_blk.begin(), parcel_blk.end());
     }
     return parcel;
   }
+
+
+  
+  size_t _consecutive_records_find_end(const vec<rec_t> & recs, 
+                                       const size_t i0)
+  {
+    // **** can optimize with binary forward search!!!! ****
+    // actually, not worth the complexity.  This is not a bottleneck. far from it.
+    
+    const size_t n_recs = recs.size();
+    const rec_t & rec = recs[i0];
+    size_t i1 = i0 + 1;
+    while (i1 < n_recs && recs[i1].match(rec))
+      i1++;
+    return i1;
+  }
+
+
 
 
 public:
@@ -262,7 +246,7 @@ public:
     const size_t i_blk         = i_thread;
 
     
-    for (size_t i_pass = 0; i_pass != _n_passes; i_pass++) {
+    for (size_t i_pass = 0; i_pass < _n_passes; i_pass++) {
       
       const String str_pass = "[pass " + ToString(i_pass) + "] ";
 
@@ -297,8 +281,14 @@ public:
 
 
       // ---- parse base vectors block for kmers in parcel subset
+      //
+      //      'parsing' is where the user's kernel parses all the base vectors (reads)
+      //      for a sub-group of kmers and other associated metadata of the user's choosing.
+      //
+      //      Each thread only looks at a subset of reads but searches for 
+      //      for various subsets of kmers. 
 
-      for (size_t i_bv = i0_bv; i_bv != i1_bv; i_bv++)
+      for (size_t i_bv = i0_bv; i_bv < i1_bv; i_bv++)
         _p_kernel_main->parse_base_vec(&sub_parcels, i_bv);
         
       if (_verbosity >= 3) 
@@ -307,22 +297,25 @@ public:
 
       // ---- a thread barrier to make sure all threads are here
 
-      naif_sync(i_thread);
+      _naif_sync(i_thread);
 
 
       // ---- collect this thread's parcel from all the sub parcels
-
+      //
+      //      Now, all the various kmer subsets, dispersed over all the threads 
+      //      buffers, are brought together.
+      
       const size_t i_parcel = i0_parcel + i_sub_parcel;
 
       if (_verbosity >= 3) 
 	cout << TagNK() << str_pass << str_thread 
-	     << "collect parcel " << i_parcel << "." << endl;
+	     << "Collect parcel " << i_parcel << "." << endl;
       else if (i_thread == 0) {
         if (_verbosity >= 2) cout << TagNK() << str_pass << "Collecting parcels." << endl;
         if (_verbosity == 1) cout << "[collect] " << flush;
       }
         
-      Parcel<rec_t> & parcel = build_parcel(i_sub_parcel);
+      vec<rec_t> & parcel = _build_parcel(i_sub_parcel);
       
 
       // ---- sort kmer records in this parcel
@@ -331,7 +324,7 @@ public:
 	cout << TagNK() << str_pass << str_thread 
 	     << "Done collecting parcel of size " << parcel.size() << ". Sorting now." << endl;
       else if (i_thread == 0) {
-        if (_verbosity >= 2) cout << TagNK() << str_pass << "Sorting kmers." << endl;
+        if (_verbosity >= 2) cout << TagNK() << str_pass << "Sorting parcels." << endl;
         if (_verbosity == 1) cout << "[sort] " << flush;
       }
       
@@ -339,6 +332,12 @@ public:
 
       
       // ---- summarize parcel into a temporary kernel
+      // 
+      //      'summarization' is when the user's temporary kernel actually processes 
+      //      a kmer parcel.
+      //
+      //      A temporary kernel is created because it might have local data structures
+      //      to be merged later in the 'merging' step.
       
       KERNEL_t kernel_tmp(*_p_kernel_main);
       const size_t n_recs = parcel.size();
@@ -351,15 +350,18 @@ public:
         if (_verbosity == 1) cout << "[summarize] " << flush;
       }
 	      
-      size_t i = 0;
-      while (i < n_recs) {
-	const size_t j = parcel.consecutive_records_find_end(i);
-	kernel_tmp.summarize(parcel, i, j);
-	i = j;
+      size_t i0 = 0;
+      while (i0 < n_recs) {
+	const size_t i1 = _consecutive_records_find_end(parcel, i0);
+	kernel_tmp.summarize(parcel, i0, i1);
+	i0 = i1;
       }
 
       
       // ---- merge summarized parcel in temporary kernel into global kernel
+      //
+      //      'merging' is when the user's main kernel brings together 
+      //      the results summarized by each temporary kernel.
 
       if (_verbosity >= 3) 
 	cout << TagNK() << str_pass << str_thread 
@@ -374,7 +376,7 @@ public:
 
       // ---- a barrier to make sure all threads are here before parcel destructors kick in
 
-      naif_sync(i_thread);
+      _naif_sync(i_thread);
 
       if (i_thread == 0) {
         if (_verbosity >= 2) cout << TagNK() << str_pass << "Done." << endl;
@@ -382,7 +384,7 @@ public:
       }
     }
 
-  }  // for (size_t i_pass = 0; i_pass != _n_passes; i_pass++)
+  }  // for (size_t i_pass = 0; i_pass < _n_passes; i_pass++)
 
 
 };
@@ -423,7 +425,7 @@ void naif_kmerize(KERNEL_t     * p_kernel_main,
   // ---- compute number of kmers 
   size_t n_k_total = 0;
   
-  for (size_t i_bv = 0; i_bv != n_bv; i_bv++) {
+  for (size_t i_bv = 0; i_bv < n_bv; i_bv++) {
     const size_t n_b = bvv[i_bv].size();
     if (n_b >= K) 
       n_k_total += n_b - K + 1;  // add the number of kmers on base vector 
@@ -438,7 +440,7 @@ void naif_kmerize(KERNEL_t     * p_kernel_main,
   size_t n_k_per_blk = n_k_total / n_blks;
   vec<size_t> i1_bv(n_blks, n_bv);
   size_t n_k = 0;
-  for (size_t i_bv = 0; i_bv != n_bv; i_bv++) {
+  for (size_t i_bv = 0; i_bv < n_bv; i_bv++) {
     const size_t n_b = bvv[i_bv].size();
     if (n_b >= K) 
       n_k += n_b - K + 1;
@@ -500,6 +502,7 @@ void naif_kmerize(KERNEL_t     * p_kernel_main,
   //      each pass.  
   //      Therefore, here we declare a "global" vector of pointers to those buffers.
   //      This vector must be updated at each pass upon buffer declaration.
+
   vec<ParcelBuffer<rec_t> *> parcel_bufs_pt(n_threads);
     
   // ---- for syncing the threads 
@@ -515,12 +518,12 @@ void naif_kmerize(KERNEL_t     * p_kernel_main,
                               sync_states,
 			      verbosity);
     
-    if (n_threads <= 1) { 
+    if (n_threads <= 1) { // no need for Worklist
       proc(0);
     }
     else {
       Worklist< size_t, ParcelProc<KERNEL_t> > worklist(proc, n_threads - 1);
-      for (size_t i = 0; i != n_threads; i++)
+      for (size_t i = 0; i < n_threads; i++)
         worklist.add(i);
     }
   }

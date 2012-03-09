@@ -68,27 +68,10 @@ template<class T> class matrix {
      void solve_from_lu( const Permutation& P, const vec<T>& b, vec<T>& x )
      { x.resize(Nrows()); solve_from_lu(P, &b[0], &x[0]); }
     
-     // For gcc 4.2 compliance, moved code body to below from MatrixTemplate.h.
      // This version should be usable no matter how the data are
      // stored as long as the elements are consecutive in memory.  The
      // vectors b and x must, of course, contain Nrows() elements each.
-
-     void solve_from_lu( const Permutation& P, const T* b, T* x )
-     {    matrix<T>& lu = *this;
-          int i, j, n = Nrows( );
-	  T dot;
-	  for ( i = 0; i < n; i++ )
-	  {    dot = 0;
-	       T* v = &lu[i][0];
-	       for ( j = 0; j < i; j++ )
-		  dot += v[j] * x[j];
-	       x[i] = b[P[i]-1] - dot;    }
-	  for ( i = n-1; i >= 0; i-- )
-	  {    dot = 0;
-	       T* v = &lu[i][0];
-	       for ( j = i+1; j < n; j++ )
-	          dot += v[j] * x[j];
-	       x[i] = (x[i] - dot) / v[i];    }    }
+     void solve_from_lu( const Permutation& P, const T* b, T* x );
 
      void Print( ostream& o ) const;
 
@@ -105,6 +88,8 @@ template<class T> class matrix {
      int nrows_, ncols_;
 
 };
+
+template<> void matrix<char>::Print( ostream& out ) const;
 
 // mul( A, x, Ax ): set the last argument to the product of the first two arguments.
 

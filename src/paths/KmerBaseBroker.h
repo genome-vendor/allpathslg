@@ -15,6 +15,7 @@
 #include "CoreTools.h"
 #include "paths/KmerPath.h"
 #include "paths/SuperBaseVector.h"
+#include "feudal/BinaryStream.h"
 
 #include <algorithm>  // for set_union
 #include <map>
@@ -57,7 +58,7 @@ public:
     pathsp = new vecKmerPath( RunDir + "/" + readsBase + "." + pathsBase + ".k" + ToString(K) );
     paths_rcp = new vecKmerPath( RunDir + "/" + readsBase + "." + pathsBase + "_rc.k" + ToString(K) );
     vec<TAG>* nonconst_pathsdbp = new vec<TAG>;
-    BREADX2( RunDir + "/" + readsBase + "." + pathsBase + "db" + ( TAG::IS_BIG ? "_big" : "") + ".k" + ToString(K), *nonconst_pathsdbp ); 
+    BinaryReader::readFile( RunDir + "/" + readsBase + "." + pathsBase + "db" + ( TAG::IS_BIG ? "_big" : "") + ".k" + ToString(K), nonconst_pathsdbp );
     pathsdbp = nonconst_pathsdbp;
     self_owned = True; 
   }
@@ -76,7 +77,7 @@ public:
     pathsp = new vecKmerPath( RunDir + "/" + readsBase + "." + pathsBase + ".k" + ToString(K) );
     paths_rcp = new vecKmerPath( RunDir + "/" + readsBase + "." + pathsBase + "_rc.k" + ToString(K) );
     vec<TAG>* nonconst_pathsdbp = new vec<TAG>;
-    BREADX2( RunDir + "/" + readsBase + "." + pathsBase + "db" + (TAG::IS_BIG ? "_big" : "") + ".k" + ToString(K), *nonconst_pathsdbp ); 
+    BinaryReader::readFile( RunDir + "/" + readsBase + "." + pathsBase + "db" + (TAG::IS_BIG ? "_big" : "") + ".k" + ToString(K), nonconst_pathsdbp );
     pathsdbp = nonconst_pathsdbp;
     self_owned = True; 
   }

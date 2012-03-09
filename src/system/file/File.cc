@@ -22,7 +22,6 @@
 #include "system/file/SymLink.h"
 #include "system/ErrNo.h"
 #include "system/System.h"
-#include <stdio.h>
 #include <unistd.h>
 
 std::string File::CWD(".");

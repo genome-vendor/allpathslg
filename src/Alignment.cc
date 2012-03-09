@@ -798,24 +798,3 @@ int MaxPerfectMatch( Bool rd1_is_rc, const align& a, const basevector& rd1,
                ++p2;    }    
           answer = Max( answer, count );    }
      return answer;    }
-
-// void WriteAppend( const String& f, const vec<alignment_plus>& v )
-// {    ForceAssert( !IsRegularFile( f + ".gz" ) );
-//      static longlong max_size_bound = longlong(10000000) * longlong(100000000);
-//      if ( !IsRegularFile(f) )
-//      {    ForceAssertLt( (longlong) v.size( ), max_size_bound );
-//           Ofstream( out, f );
-//           out << setfill( '0' ) << setw(15) << v.size( ) << "\n";
-//           WriteAligns( out, v );    }
-//      else
-//      {    longlong n;
-//           {    Ifstream( in, f );
-//                in >> n;    }
-//           ForceAssertLt( n + (longlong) v.size( ), max_size_bound );
-//           ostrstream osize;
-//           osize << setfill( '0' ) << setw(15) << n + v.size( ) << "\n";
-//           int fd = Open( f, O_WRONLY );
-//           WriteBytes( fd, osize.str( ), 16 );
-//           close(fd);
-//           ofstream out( f.c_str( ), ios::app );
-//           WriteAligns( out, v );    }    }

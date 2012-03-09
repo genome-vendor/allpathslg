@@ -20,23 +20,23 @@
 #include "dna/Bases.h"
 #include <cstddef>
 
-class fastavector : public charvector
+class fastavector : public CharVec
 {
-    typedef charvector::alloc_type Alloc;
+    typedef CharVec::alloc_type Alloc;
 
 public:
     fastavector() {}
 
-    explicit fastavector( Alloc const& alloc ) : charvector(alloc) {}
+    explicit fastavector( Alloc const& alloc ) : CharVec(alloc) {}
 
     explicit fastavector( size_type n, char val = GeneralizedBase::X.asChar(),
                           size_type capacity = 0, Alloc const& alloc = Alloc() )
-    : charvector(n,val,capacity,alloc) {}
+    : CharVec(n,val,capacity,alloc) {}
 
     template <class Itr>
     fastavector( Itr first, Itr const& last, size_type capacity = 0,
               Alloc const& alloc = Alloc() )
-    : charvector(first,last,capacity,alloc) {}
+    : CharVec(first,last,capacity,alloc) {}
 
     fastavector( const String & s ) { assign(s.begin(),s.end()); }
 
@@ -45,7 +45,7 @@ public:
     // compiler-supplied copying and destructor are OK
 
     fastavector& resize( size_type n, char val = GeneralizedBase::X.asChar() )
-    { charvector::resize(n,val); return *this; }
+    { CharVec::resize(n,val); return *this; }
 
     void SetFrom( const bvec& b )
     { clear().reserve(b.size());
@@ -180,9 +180,6 @@ public:
      friend void LoadFromFastaFile( const String& f, vec<fastavector>& v, 
 				    vec<String>& names );
      
-
-     friend void BinaryWrite( int fd, const fastavector& b );
-     friend void BinaryRead( int fd, fastavector& b );
 
      // Write a fasta-format file which contains the bases in the
      // input fasta scaffolded together (with gaps, etc.) as defined

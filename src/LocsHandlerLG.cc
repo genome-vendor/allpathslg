@@ -13,6 +13,7 @@
 #include "String.h"
 #include "paths/KmerPath.h"
 #include "paths/Unipath.h"
+#include "feudal/BinaryStream.h"
 
 /**
  * LocsHandlerLG
@@ -68,7 +69,7 @@ void LocsHandlerLG::LoadFromKmers( const int K, const String &reads_head )
   vecKmerPath paths(paths_file);
   vecKmerPath unipaths(unipaths_file);
   vec<tagged_rpint> unipathsdb;
-  BinaryRead3(unipathsdb_file, unipathsdb);
+  BinaryReader::readFile(unipathsdb_file, &unipathsdb);
 
   // Load core_rlens_, core_clens_, and core_to_rc_.
   core_rlens_.resize( paths.size( ) );
@@ -82,7 +83,7 @@ void LocsHandlerLG::LoadFromKmers( const int K, const String &reads_head )
   UnipathInvolution( unipaths, unipathsdb, core_to_rc_ );
 
   // Load and sort locs.
-  BinaryRead2( unilocs_file, core_locs_ );
+  BinaryReader::readFile( unilocs_file, &core_locs_ );
   if ( ! is_sorted( core_locs_.begin( ), core_locs_.end( ) ) )
     sort( core_locs_.begin( ), core_locs_.end( ) );
   

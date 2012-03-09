@@ -6,12 +6,17 @@
 //   Institute is not responsible for its use, misuse, or functionality.     //
 ///////////////////////////////////////////////////////////////////////////////
 
-
+// author: Filipe Ribeiro 2011
 
 #ifndef KMERS__NAIF_KMER__KMERS_H
 #define KMERS__NAIF_KMER__KMERS_H
 
 
+#include "kmers/naif_kmer/KmerFunctions.h"
+
+
+
+// ---- 256 random 64bit numbers to compute hash key 
 
 const uint64_t hash_mixers[256] = {
   0xd5efa3673459f0b0, 0xe2bfb7185ba0dd69, 0xfa1a07dc2338c504, 0x98c417061852c314,
@@ -224,15 +229,17 @@ public:
     return hash;
   }
 
-  uint64_t hash_64bits2() const
+  uint64_t hash_64bits2() const  // FNV-1a
   {
+#define FNV_PRIME 1099511628211ul
+#define FNV_OFFSET_BASIS 14695981039346656037ul
+
     const unsigned nbits = (_K << 1);
-    uint64_t hash = 0x39745f62be1a8d0c;
+    uint64_t hash = FNV_OFFSET_BASIS;
     
-    for (unsigned shift = 0; shift < nbits; shift += 6) {
-      const unsigned shift2 = (_bases >> shift) & 63u;
-      if (shift2)
-        hash ^= (hash << shift2) | ((~hash) >> (64 - shift2));
+    for (unsigned shift = 0; shift < nbits; shift += 8) {
+      hash ^= (_bases >> shift) & 255ul;
+      hash *= FNV_PRIME;
     }
     return hash;
   }
@@ -552,7 +559,6 @@ bool kmer_qual_gt(const REC_t & a, const REC_t & b) { return a.qual() > b.qual()
 // -------- REC_t class --------
 
 
-
 template<class KMER_t>
 class KmerKmerFreq : public KMER_t
 {
@@ -574,6 +580,27 @@ bool kmer_freq_gt(const REC_t & a, const REC_t & b) { return a.freq() > b.freq()
 
 
 
+// -------- REC_t class --------
+
+
+template<class KMER_t>
+class KmerKmerBiFreq : public KMER_t
+{
+  uint32_t _freq_A;
+  uint32_t _freq_B;
+
+public:
+  KmerKmerBiFreq(const KMER_t kmer, const unsigned freq_A = 0, const unsigned freq_B = 0) : 
+    KMER_t(kmer), _freq_A(freq_A), _freq_B(freq_B) {}
+  KmerKmerBiFreq(const unsigned K, const unsigned freq_A = 0, const unsigned freq_B = 0) : 
+    KMER_t(K), _freq_A(freq_A), _freq_B(freq_B) {}
+  
+  uint32_t freq_A() const { return _freq_A; }
+  uint32_t freq_B() const { return _freq_B; }
+  void     set_freq_A(const unsigned freq) { _freq_A = freq; }
+  void     set_freq_B(const unsigned freq) { _freq_B = freq; }
+};
+
 
 
 
@@ -586,26 +613,25 @@ class BVLoc
 {
   uint64_t _ibv : 34;   // up to 2^34 =   16G (at 100b/read => 400+ GB)
   uint64_t _ib  : 28;   // up to 2^28 =  256M
-  uint64_t _dir :  2;   // 0: fw  1: rc  2: palindrome  3: invalid
+  uint64_t _dir :  2;   // 0:invalid  1:fw  2:rc  3:palindrome
   //uint64_t _fw  :  1;   // 0: fw  1: rc 
   //uint64_t _pal :  1;   // palidrome?
 
 public:
-  //BVLoc() : _ibv(0), _ib(0), _fw(0), _pal(0) {} 
-  BVLoc() : _ibv(0), _ib(0), _dir(3) {} 
+  BVLoc() : _ibv(0), _ib(0), _dir(0) {} 
 
   void set_ibv       (const size_t ibv) { _ibv = ibv; }
   void set_ib        (const size_t ib)  { _ib  = ib; }
-  void set_fw        (const bool fw)    { _dir = (fw ? 0 : 1); }
-  void set_rc        (const bool rc)    { _dir = (rc ? 1 : 0); }
-  void set_palindrome(const bool pal)   { if (pal) _dir = 2; }
+  void set_fw        (const bool fw)    { _dir = (fw ? 1 : 2); }
+  void set_rc        (const bool rc)    { _dir = (rc ? 2 : 1); }
+  void set_palindrome(const bool pal)   { if (pal) _dir = 3; }
 
   size_t ibv()           const { return _ibv; }
   size_t ib()            const { return _ib; }
-  bool   is_fw()         const { return _dir == 0; }
-  bool   is_rc()         const { return _dir == 1; }
-  bool   is_palindrome() const { return _dir == 2; }
-  bool   is_valid_loc()  const { return _dir != 3; }
+  bool   is_fw()         const { return _dir == 1; }
+  bool   is_rc()         const { return _dir == 2; }
+  bool   is_palindrome() const { return _dir == 3; }
+  bool   is_valid_loc()  const { return _dir != 0; }
 
   String to_str() const
   {
@@ -659,14 +685,13 @@ class KmerFWRC
 {
   KMER_t _fw;
   KMER_t _rc;
-
-
+  
 public:
   KmerFWRC(const KMER_t & kmer) : _fw(kmer), _rc(reverse_complement(kmer)) {}
-  explicit KmerFWRC(const unsigned K = 0) : _fw(K), _rc(K) 
-  {
-    _rc = reverse_complement(_fw);
-  }
+  KmerFWRC(const KmerFWRC<KMER_t> & kmer) : _fw(kmer._fw), _rc(kmer._rc) {}
+  explicit KmerFWRC(const unsigned K = 0) : 
+    _fw(K), 
+    _rc(reverse_complement(_fw)) {}
   
   unsigned K()    const { return _fw.K(); }
   unsigned size() const { return _fw.K(); }
@@ -694,6 +719,25 @@ public:
     _fw.push_left(base);
     _rc.push_right(3ul ^ base); // the complement of base
   }
+
+  void add_right(const unsigned base)  // no checking if in [0,3]!!!
+  {
+    _fw.add_right(base);
+    _rc.add_left(3ul ^ base); // the complement of base
+  }
+    
+  void add_left(const unsigned base)  // no checking if in [0,3]!!!
+  {
+    _fw.add_left(base);
+    _rc.add_right(3ul ^ base); // the complement of base
+  }
+  
+  void set(const unsigned i, const unsigned base)
+  {
+    _fw.set(i, base);
+    _rc.set(K() - i - 1, 3ul ^ base);
+  }
+
 };
 
 
@@ -750,29 +794,6 @@ public:
 
 
 
-// ---- general kmer frequency validator class ----
-// a bit obsolete
-
-
-class ValidatorKmerFreq
-{
-public:
-  const size_t f_min;
-  const size_t f_max;
-  ValidatorKmerFreq(const size_t f_min = 0, const size_t f_max = 0) : f_min(f_min), f_max(f_max) {}
-  template<class REC_t>
-  bool operator ()(const REC_t & krec) const { return ((!f_min || krec.freq() >= f_min) && 
-						       (!f_max || krec.freq() <= f_max)); }
-};
-
-
-class ValidatorKmerFreqAll : public ValidatorKmerFreq
-{
-public: 
-  ValidatorKmerFreqAll() : ValidatorKmerFreq(0, 0) {}
-};
-
-
 
 
 // ---------- Validator class ---------------
@@ -789,82 +810,20 @@ public:
   }
 };
 
+// ---------- Validator class ---------------
 
-// ------ kmer template functions ------
-
-
-
-
-
-inline
-String hieroglyph(unsigned base)
+class BiValidator
 {
-  if (base == 0) return "^";
-  if (base == 1) return "(";
-  if (base == 2) return "-";
-  if (base == 3) return ".";
-  ForceAssert(base < 4u);
-  return "?";
-}
-
-
-template<class KMER_t>
-String hieroglyphs(const KMER_t & kmer)
-{
-  String h = "";
-  unsigned K = kmer.size();
-  for (unsigned i = 0; i != K; i++)
-    h += hieroglyph(kmer[i]);
-  return h;
-}
+public:
+  virtual
+  bool operator()(const size_t xA, const size_t xB) const;
+};
 
 
 
 
-template<class KMER_t>
-inline 
-KMER_t reverse_complement(const KMER_t & kmerFW) 
-{
-  const unsigned K = kmerFW.K();
-  KMER_t kmerRC = kmerFW;          // copy, because KMER_t might have other stuff 
-  for (unsigned i = 0; i != K; i++) 
-    kmerRC.push_left(3u ^ kmerFW[i]);   // push bases from the begining
-  
-  return kmerRC;
-}
 
-
-
-template<class KMER_t>
-inline
-KMER_t canonical(const KMER_t & kmerFW) 
-{
-  const unsigned K = kmerFW.K();
-  KMER_t kmerRC = kmerFW;          // copy, because KMER_t might have other stuff 
-  for (unsigned i = 0; i != K; i++) 
-    kmerRC.push_left(3u ^ kmerFW[i]);   // push bases from the begining
-  
-  return (kmerFW < kmerRC) ? kmerFW : kmerRC;
-}
-
-
-
-
-template <class KMER_t>
-inline
-bool operator<=(const KMER_t & a, const KMER_t & b) { return !(a > b); }
-
-template <class KMER_t>
-inline
-bool operator>=(const KMER_t & a, const KMER_t & b) { return !(a < b); }
-
-template <class KMER_t>
-inline
-bool operator!=(const KMER_t & a, const KMER_t & b) { return !(a == b); }
-
-
-
-
+// --------- typedefs
 
 
 typedef KmerTemplate< uint8_t,  16>   Kmer60;   //  60 =  64 - 4 * 1

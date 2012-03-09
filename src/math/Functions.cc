@@ -306,7 +306,7 @@ template<class T> T N50( const vec<T>& v )
     for ( int i = v.size()-1; i >= 0; i-- ) {
       half += v[i];
       if ( 2 * half == sum && i > 0 ) 
-	return (v[i] + v[i-1])/2;
+        return (v[i] + v[i-1])/2;
       if ( 2 * half >= sum )
 	return v[i];
     }
@@ -376,11 +376,11 @@ template<class T> vec<T> NStatistics( const vec<T>& v )
   if ( is_sorted( v.begin(), v.end() ) )
   {
     for ( typename vec<T>::const_reverse_iterator v_iter = v.rbegin(); 
-          v_iter != v.rend(); ++v_iter )
+          v_iter != v.rend() && target_idx < targets.size(); ++v_iter )
     {
       partial_sum += *v_iter;
       
-      if ( partial_sum >= targets[target_idx] )
+      while ( partial_sum >= targets[target_idx] )
       {
 	stats[target_idx] = *v_iter;
 	
@@ -393,11 +393,11 @@ template<class T> vec<T> NStatistics( const vec<T>& v )
   else if ( is_sorted( v.rbegin(), v.rend() ) ) 
   {
     for ( typename vec<T>::const_iterator v_iter = v.begin(); 
-          v_iter != v.end(); ++v_iter )
+          v_iter != v.end() && target_idx < targets.size(); ++v_iter )
     {
       partial_sum += *v_iter;
       
-      if ( partial_sum >= targets[target_idx] )
+      while ( partial_sum >= targets[target_idx] )
       {
 	stats[target_idx] = *v_iter;
 	
@@ -419,6 +419,8 @@ template<class T> vec<T> NStatistics( const vec<T>& v )
 template vec<int> NStatistics( const vec<int>& v );
 
 template vec<longlong> NStatistics( const vec<longlong>& v );
+
+template vec<size_t> NStatistics( const vec<size_t>& v );
 
 Bool CombineMeasurements( const double g1, const double g2, const double d1,
                           const double d2, const double dmult, double& g, double& d )

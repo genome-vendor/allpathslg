@@ -13,47 +13,31 @@
 
 #include "feudal/BinaryStream.h"
 
-/*
-template<class HASH_TABLE_t, class VAL_t>
-kmer_hash_table_build_parallel(const unsigned K,
-			       const BaseVecVec & bvv,
-			       const VAL_t & validator,
-			       const double size_ratio,
-			       HASH_TABLE_t * hash_p,
-			       const unsigned n_threads,
-			       const unsigned verbosity)
-{
-  typedef typename HASH_TABLE_t::rec_type KmerRec_t;
-  vec<KmerRec_t> kvec;
-  KernelKmerStorer<KmerRec_t, VAL_t > storer(bvv, K, &kvec, &validator);
-  naif_kmerize(&storer, n_threads, verbosity);
 
-  sort(kvec.begin(), kvec.end(), &(kmer_freq_gt<KmerRec_t>));
-  hash_p->from_kmer_vec(kvec, size_ratio);
-}
-*/
-
-
-
-// ---- this hash table is a vec<REC_t> so it more than duplicates the size of the data.
-
- // KmerMap implemented as a chain hash table
+// ---- this hash table contains a vec<REC_t> so it more than duplicates 
+//      memory usage upon construction.
+//      
+//      KmerMap implemented as a chain hash table.
+//
+//      Deleting records cannot be implemented in an efficient way in a chain hash.
+//
 
 template<class REC_t>
 class KmerMap
 {
+  typedef typename REC_t::kmer_type Kmer_t;
+
   vec<REC_t>     _hash;
   size_t         _n_rec;
   
-  size_t _ih_next(size_t & ih, size_t & inc) const
+  size_t _ih_next(size_t & ih) const
   { 
-    ih += ++inc; // (inc + 5) * (++inc);
-    while (ih >= _hash.size()) ih -= _hash.size();
+    ih++;
+    if (ih >= _hash.size()) ih -= _hash.size();
     return ih;
   }
 
-  template<class KMER_t>
-  size_t _ih0_from_kmer(const KMER_t & kmer) const 
+  size_t _ih0_from_kmer(const Kmer_t & kmer) const 
   { 
     return kmer.hash_64bits() % _hash.size(); 
   }
@@ -70,21 +54,6 @@ public:
   { from_kmer_vec(kvec, ratio); }
 
 
-  // ---- kmer record index if kmer record exists; otherwise, index of empty record
-
-  template<class KMER_t>
-  size_t ih_of_kmer(const KMER_t & kmer) const
-  {
-    size_t ih = _ih0_from_kmer(kmer);
-    REC_t rec = _hash[ih];
-    size_t inc = 1;
-    while (rec.is_valid_kmer() && !kmer.match(rec)) 
-      rec = _hash[_ih_next(ih, inc)];
-  
-    return ih;
-  }
-
-
   // ---- build the hash from a kmer record vector
 
   void from_kmer_vec(const vec<REC_t> & kvec, 
@@ -99,39 +68,50 @@ public:
     if (verbosity) cout << "nh= " << _hash.size() << endl;
 
     // ---- set up the hash for each value in _kvec
-    for (size_t i = 0; i != _n_rec; i++) {
+    for (size_t i = 0; i != _n_rec; dots_pct(i++, _n_rec, verbosity > 0)) {
       const REC_t & rec = kvec[i];
       size_t ih = _ih0_from_kmer(rec);
-      size_t inc = 1;
       while (_hash[ih].is_valid_kmer())
-        _ih_next(ih, inc);
+        _ih_next(ih);
       _hash[ih] = rec;
-
-      if (verbosity) dots_pct(i, _n_rec);
     }
   }
 
-  void write_binary(const String & fn) const
+
+  // ---- kmer record index if kmer record exists; otherwise, index of empty record
+
+  size_t ih_of_kmer(const Kmer_t & kmer) const
   {
-    BinaryWriter::writeFile(fn.c_str(), _hash);
+    size_t ih = _ih0_from_kmer(kmer);
+    while (true) {
+      const REC_t & rec = _hash[ih];
+      if (rec.is_valid_kmer() && ! kmer.match(rec))
+        _ih_next(ih);
+      else 
+        return ih;
+    }
   }
-  
-  size_t read_binary(const String & fn) 
+
+
+  // ---- insert a new record
+
+  void insert_rec(const REC_t & rec_in)
   {
-    BinaryReader::readFile(fn.c_str(), &_hash);
-    return _hash.size();
+    ForceAssertLt(num_recs() + 1, size_hash());
+    const size_t ih = ih_of_kmer(rec_in);
+
+    if (!_hash[ih].is_valid_kmer()) // inserting rather than replacing
+      _n_rec++;
+    _hash[ih] = rec_in;  
   }
-  
- 
 
-  template<class KMER_t>
-  REC_t   operator()(const KMER_t & kmer) const { return _hash[ih_of_kmer(kmer)]; }
 
-  template<class KMER_t>
-  REC_t & operator()(const KMER_t & kmer)       { return _hash[ih_of_kmer(kmer)]; }
 
-  REC_t   operator[](const size_t i_h) const { return _hash[i_h]; }
-  REC_t & operator[](const size_t i_h)       { return _hash[i_h]; }
+  REC_t   operator()(const Kmer_t & kmer) const { return _hash[ih_of_kmer(kmer)]; }
+  REC_t & operator()(const Kmer_t & kmer)       { return _hash[ih_of_kmer(kmer)]; }
+
+  REC_t   operator[](const size_t ih) const { return _hash[ih]; }
+  REC_t & operator[](const size_t ih)       { return _hash[ih]; }
 
   size_t  size_hash()                  const { return _hash.size(); }
   size_t  num_recs()                   const { return _n_rec; }
@@ -144,21 +124,23 @@ public:
   {
     vec<size_t> freqs(1, 0);
     size_t not_found = 0;
-    const size_t n_h = _hash.size();
-    for (size_t i_h = 0; i_h < n_h; i_h++) {
-      const REC_t & rec0 = _hash[i_h];
+    const size_t nh = _hash.size();
+    for (size_t ih = 0; ih < nh; ih++) {
+      const REC_t & rec0 = _hash[ih];
       if (rec0) {
-        size_t j_h = _ih0_from_kmer(rec0);
-        REC_t rec = _hash[j_h];
-        size_t inc = 1;
-        while (rec && !rec0.match(rec))
-          rec = _hash[_ih_next(j_h, inc)];
+        size_t jh = _ih0_from_kmer(rec0);
+        REC_t rec = _hash[jh]; 
+        size_t n_seeks = 1;
+        while (rec && !rec0.match(rec)) {
+          rec = _hash[_ih_next(jh)];
+          n_seeks++;
+        }
         
         
         
-        if (_hash[j_h]) {
-          if (inc + 1 > freqs.size()) freqs.resize(inc + 1, 0);
-          freqs[inc]++;
+        if (_hash[jh]) {
+          if (n_seeks >= freqs.size()) freqs.resize(n_seeks, 0);
+          freqs[n_seeks]++;
         }
         else {
           not_found++;
@@ -172,6 +154,24 @@ public:
       cout << setw(10) << i << " " << setw(10) << freqs[i] << endl;
     cout << setw(10) << not_found << " not found." <<endl;
   }
+
+
+
+  void write_binary(const String & fn) const
+  {
+    BinaryWriter::writeFile(fn.c_str(), _hash);
+  }
+  
+  size_t read_binary(const String & fn) 
+  {
+    BinaryReader::readFile(fn.c_str(), &_hash);
+    _n_rec = 0;
+    const size_t nh = _hash.size();
+    for (size_t ih = 0; ih < nh; ih++)
+      if (_hash[ih].is_valid_kmer()) _n_rec++;
+    return _hash.size();
+  }
+  
 
 
 };

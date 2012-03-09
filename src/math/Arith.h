@@ -16,6 +16,7 @@
 
 #include "system/Types.h"
 #include "system/System.h"
+#include "feudal/BinaryStreamTraits.h"
 #include <math.h>
 #include <iostream>
 
@@ -81,17 +82,10 @@ class Float {
      friend Bool operator<=( Float x, Float y )
      {    return !( y < x );    }
 
-     friend void BinaryWrite( int fd, const Float& f ) {
-       WriteBytes( fd, &f.value_, sizeof(f.value_) );
-     }
-     
-     friend void BinaryRead( int fd, Float& f ) {
-       ReadBytes( fd, &f.value_, sizeof(f.value_) );
-     }
-
      private:
      float value_;
 };
+TRIVIALLY_SERIALIZABLE(Float);
 
 inline Float operator+( Float x, Float y )
 {    

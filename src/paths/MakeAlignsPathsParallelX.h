@@ -37,7 +37,7 @@
 template<size_t I>
 void MakeAlignsPathsParallelX(const size_t       K, 
                               const BaseVecVec & bases, 
-                              BitVecVec        * kmer_chosen,
+                              VecBitVec        * kmer_chosen,
                               BMG<I>           * bmg, 
                               const String     & PARCEL_HEAD,
                               const size_t       NUM_PROCS,

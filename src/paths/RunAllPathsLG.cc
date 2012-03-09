@@ -189,7 +189,7 @@ int main( int argc, char *argv[] )
     "Run CloseUnipathGaps on unipaths.");
   CommandArgument_Bool_OrDefault_Doc(SIMPLE_CLOSE_GAPS, False,
     "Run SimpleGapCloser on unipaths.");
-  CommandArgument_Bool_OrDefault_Doc(LITTLE_HELPS_BIG, True,
+  CommandArgument_Bool_OrDefault_Doc(LITTLE_HELPS_BIG, False,
     "Run LittleHelpsBig on unipaths.");
   CommandArgument_Bool_OrDefault_Doc(PATCH_UNIPATHS, True,
     "Run UnipathPatcher on unipaths.");
@@ -231,8 +231,10 @@ int main( int argc, char *argv[] )
     "If available, use optional long reads to patch unipaths.");
   CommandArgument_Bool_OrDefault_Doc(LONG_READ_POST_PATCH, True,
     "If available, use optional long reads to patch scaffolded contigs.");
-  CommandArgument_Bool_OrDefault_Doc(BIG_MAP, False,
+  CommandArgument_Bool_OrDefault_Doc(BIG_MAP, True,
     "Use the BigMap alternative route");
+  CommandArgument_Bool_OrDefault_Doc(NEW_BIG_MAP, False,
+    "Use a newer BigMap alternative route");
 
   // ValidateAllPathsInputs Options
   CommandArgument_Bool_OrDefault_Doc(VAPI_WARN_ONLY, False,
@@ -319,8 +321,6 @@ int main( int argc, char *argv[] )
        "passed to first instance of CorrectLongReads");
   CommandArgument_Int_OrDefault_Doc(CLR1_MIN_PATCH2, 200, 
        "passed to first instance of CorrectLongReads");
-  CommandArgument_Bool_OrDefault_Doc(CLR2_CLUSTER_OLD, False, 
-       "passed to second instance of CorrectLongReads");
 
   // BuildUnipathLinkGraph Options
      
@@ -390,8 +390,11 @@ int main( int argc, char *argv[] )
   CommandArgument_Bool_OrDefault( LRUP_TERMINAL_ONLY, False );
   CommandArgument_Bool_OrDefault( PUP_NEUTER, False );
 
-  // Assisted patching: use reference to guide contig patching prior to scaffolding
+  // Assisted patching: use reference to guide contig patching prior
+  //  to scaffolding.
+
   CommandArgument_Bool_OrDefault(ASSISTED_PATCHING, False);
+  CommandArgument_Int_OrDefault(ASSISTED_PATCHING_MIN_OVERLAP, K-1);
 
   // CleanAssembly options
 
@@ -530,12 +533,16 @@ int main( int argc, char *argv[] )
   }
 
   // Check for optional long reads (used for patching)
-  if ((LONG_READ_POST_PATCH || LONG_READ_UNIPATH_PATCH || BIG_MAP) &&  !IsRegularFile( data_dir + "/long_reads_orig.fastb" )) {
+  if ((LONG_READ_POST_PATCH || LONG_READ_UNIPATH_PATCH || BIG_MAP) && 
+      !IsRegularFile( data_dir + "/long_reads_orig.fastb" )) {
     cout << "Unable to find optional long reads for patching." << endl;
     LONG_READ_UNIPATH_PATCH = LONG_READ_POST_PATCH = BIG_MAP = false;
   } else {
     cout << "Found optional long reads for patching." << endl;
   }
+  if ( BIG_MAP ) FIX_SOME_INDELS = False;
+  if ( BIG_MAP ) FIX_LOCAL = False;
+  if ( BIG_MAP ) UCN_LOWER = True;
 
   // Do we have a reference file available?
   Bool haveReference = IsRegularFile(ref_dir + "/genome.fastb");
@@ -957,22 +964,54 @@ int main( int argc, char *argv[] )
 
   if ( BIG_MAP )
   {
+// MakeDepend: dependency FindUnipathGaps
+	make.AddRule( FilesIn( run_dir, current_unipaths + ".unibases.k" 
+			       + ToString(K) + ".predicted_gaps.txt" ),
+		      FilesIn( run_dir, current_unipaths+ ".unibases.kN",
+			     "jump_reads_filt.{pairs,fastb}" ),
+		      "FindUnipathGaps " + pdr +
+		      ARG(K1, K) +
+		      " NUM_THREADS=" + ToString(global_threads) +
+		      " JUMP_READS_IN=jump_reads_filt" +
+                      " MIN_KMERS=100"
+		      " HEAD=" + current_unipaths,
+		  
+		      "Compute gaps between unipaths" );
+
+// MakeDepend: dependency UnibaseCopyNumber3
+  make.AddRule( FilesIn( run_dir, current_unipaths + 
+			 ".unipaths.{predicted_count,kmer_hits,cn_raw}.kN" ),
+		FilesIn( run_dir, current_unipaths + ".unibases.kN", 
+                         correctedFragReads + ".fastb", "ploidy"),
+		
+		"UnibaseCopyNumber3 " + pdrk +
+		" NUM_THREADS=" + ToString(global_threads) +
+		" READS=" + current_unipaths +
+		" READS_EC=\"{" + correctedFragReads + "}\"" 
+		" ERR_RATE=0.0 "
+		" LOWER=False "
+		" WRITE_GAP=True"
+		" EXP_GAP_REMODEL=True",
+		
+		"Estimating the copy number of unibases (and the corresponding "
+		"unipaths), based on how many k-mers pile on each unibase." );   
+
 // MakeDepend: dependency CorrectLongReads
 
-      make.AddRule( FilesIn( run_dir, current_unipaths 
-                             + ".CLR_modified.{unibases}.kN" ),
+      make.AddRule( FilesIn( run_dir, current_unipaths + ".CLR_modified.{unibases}.kN",
+			     current_unipaths + ".long.{raw_longs,read_graph,read_paths}"),
 		    FilesIn( run_dir, "frag_reads_edit.{fastb,qualb,pairs}",
                              "long_reads_orig.fastb",
-			     current_unipaths + ".unibases.kN" ),
+			     current_unipaths 
+                                  + ".{unibases.kN,unibases.kN.predicted_gaps.txt,unipaths.cn_raw.kN}" ),
 		    "CorrectLongReads " + pdrk +
 		    " NUM_THREADS=" + ToString(CUG_THREADS) +
 		    " IN_HEAD=filled_reads" +
                     " MIN_TO_PATCH=10" +
                     ARG(MIN_PATCH1, CLR1_MIN_PATCH1) +
                     ARG(MIN_PATCH2, CLR1_MIN_PATCH2) +
-                    " TEST_READ_GAP=False CLUSTER_OLD=False PATCH_MODE=2"
-                    " CLUSTER_ALIGNS_NEW_CLEAN=True PATCHES_PLUS=True"
-                    " CORRECT_PATCHES_NEW=True"
+                    " CLUSTER_ALIGNS_NEW_CLEAN=True PATCHES=True " +
+                    ARG(NEW_PLUS_RULE, NEW_BIG_MAP) +
                     " WRITE_MODIFIED_UNIBASES=True",
 
 		    "Carry out initial correction of unipaths using long reads");
@@ -1040,39 +1079,42 @@ int main( int argc, char *argv[] )
       current_unipaths += ".simple_closed";
     }
 
-    AddRule_CommonPather(make, CP_THREADS, 40, run_dir,
+    if (BIG_MAP || LITTLE_HELPS_BIG) {
+      AddRule_CommonPather(make, CP_THREADS, 40, run_dir,
 			 run_dir, fragReads + ".fastb");
       
 // MakeDepend: dependency MakeRcDb
-    make.AddRule( FilesIn( run_dir, fragReads + ".paths{_rc,db}.k40" ),
-		  FilesIn( run_dir, fragReads + ".paths.k40" ),
-		  "MakeRcDb " + pdr + "K=40" +
-		  " READS=" + fragReads );
+      make.AddRule( FilesIn( run_dir, fragReads + ".paths{_rc,db}.k40" ),
+		    FilesIn( run_dir, fragReads + ".paths.k40" ),
+		    "MakeRcDb " + pdr + "K=40" +
+		    " READS=" + fragReads );
       
 // MakeDepend: dependency Unipather
-    make.AddRule( FilesIn( run_dir, fragReads + ".{unipaths{,db},unibases}.k40" ),
-		  FilesIn( run_dir, fragReads + ".{paths{,_rc,db}.k40,fastb}"),
-		  "Unipather " + pdr +
-		  " K=40"
-		  " BUILD_UNIGRAPH=False"
-		  " READS=" + fragReads +
-		  " UNIPATHS=unipaths UNIBASES=unibases",
-		  
-		  "Creating K40 unipaths from edited frag reads" );
+      make.AddRule( FilesIn( run_dir, fragReads + ".{unipaths{,db},unibases}.k40" ),
+		    FilesIn( run_dir, fragReads + ".{paths{,_rc,db}.k40,fastb}"),
+		    "Unipather " + pdr +
+		    " K=40"
+		    " BUILD_UNIGRAPH=False"
+		    " READS=" + fragReads +
+		    " UNIPATHS=unipaths UNIBASES=unibases",
+		    
+		    "Creating K40 unipaths from edited frag reads" );
       
-    if (LITTLE_HELPS_BIG) {      
-// MakeDepend: dependency LittleHelpsBig
-    make.AddRule( FilesIn( run_dir, "extended40.{unipaths,unipathsdb,unibases,unipath_adjgraph}.kN"),
-		  FilesIn( run_dir, fragReads + ".unibases.k40",
-			   current_unipaths + ".{unipaths,unibases,unipath_adjgraph}.kN"),
-		  "LittleHelpsBig " 
-		  " IN_HEAD1=" + run_dir + "/" + fragReads +
-		  " K1=40 IN_HEAD2=" + run_dir + "/" + current_unipaths +
-		  " K2=" + KS + " OUT_HEAD=" + run_dir + "/extended40"
-		  " NUM_THREADS=" + ToString(CP_THREADS),
-		  
-		  "Extend unipaths with K=40 unipaths");
 
+// MakeDepend: dependency LittleHelpsBig
+      make.AddRule( FilesIn( run_dir, "extended40.{unipaths,unipathsdb,unibases,unipath_adjgraph}.kN"),
+		    FilesIn( run_dir, fragReads + ".unibases.k40",
+			     current_unipaths + ".{unipaths,unibases,unipath_adjgraph}.kN"),
+		    "LittleHelpsBig " 
+		    " IN_HEAD_SM=" + run_dir + "/" + fragReads +
+		    " K_SM=40"
+		    " IN_HEAD_LG=" + run_dir + "/" + current_unipaths +
+		    " K_LG=" + KS + 
+		    " OUT_HEAD=" + run_dir + "/extended40"
+		    " NUM_THREADS=" + ToString(CP_THREADS),
+		    
+		    "Extend unipaths with K=40 unipaths");
+      
     } else {
       make.AddCpRule( run_dir, "extended40", run_dir, current_unipaths,
 		      ".{unipaths,unipathsdb,unibases,unipath_adjgraph}.kN" );
@@ -1163,6 +1205,7 @@ int main( int argc, char *argv[] )
                     + ( (CLOSE_WITH_MIXMERS || LONG_READ_UNIPATH_PATCH || BIG_MAP) ? 
 			" BONA_FIDE_UNIPATHS=True" : "" )
 		    + " MAX_MEMORY_GB=" + ToString(MAX_MEMORY_GB)
+		    + " WRITE_ALL=False"
 		    + ARG(FRAG_READS, "frag_reads_filt_cpd")
 		    + ARG(JUMP_READS, "jump_reads_filt_cpd") ,
 		    
@@ -1475,12 +1518,14 @@ int main( int argc, char *argv[] )
 // MakeDepend: dependency UnibaseCopyNumber3
   make.AddRule( FilesIn( run_dir, "all_reads.unipaths.{predicted_count,kmer_hits,cn_raw}.kN" ),
 		FilesIn( run_dir, "all_reads.unibases.kN", correctedFragReads + ".fastb",
-			 correctedJumpReads + ".fastb", "ploidy"),
+			 correctedJumpReads + ".fastb", 
+			 "jump_reads_filt_cpd.{fastb,pairs,outies}", "ploidy"),
 		
 		"UnibaseCopyNumber3 " + pdrk +
 		" NUM_THREADS=" + ToString(global_threads) +
 		" READS=all_reads"
 		" READS_EC=\"{" + correctedFragReads + "," + correctedJumpReads + "}\""
+		" JUMP_READS=jump_reads_filt_cpd"
                 + ARG(LOWER, UCN_LOWER) +
 		" ERR_RATE=0.0 "
 		" EXP_GAP_REMODEL=" + ( UCN_GAP_REMODEL ? "True" : "False" ),
@@ -1590,12 +1635,14 @@ int main( int argc, char *argv[] )
 			 "extended.unipaths."
 			 "{predicted_count,predicted_gap,kmer_hits,cn_raw}.kN" ),
 		FilesIn( run_dir, "extended.unibases.kN", 
-                         correctedFragReads + ".fastb", "ploidy"),
+                         correctedFragReads + ".fastb",
+			 "jump_reads_filt_cpd.{fastb,pairs,outies}", "ploidy"),
 		
 		"UnibaseCopyNumber3 " + pdrk +
 		" NUM_THREADS=" + ToString(global_threads) +
 		" READS=extended"
 		" READS_EC=\"{" + correctedFragReads + "}\"" 
+		" JUMP_READS=jump_reads_filt_cpd"
 		" ERR_RATE=0.0 "
 		" LOWER=True "
 		" WRITE_GAP=True"
@@ -1603,6 +1650,43 @@ int main( int argc, char *argv[] )
 		
 		"Estimating the copy number of unibases (and the corresponding "
 		"unipaths), based on how many k-mers pile on each unibase." );   
+
+  if (NEW_BIG_MAP)
+  {
+
+// MakeDepend: dependency LongReadsToUnipaths
+      make.AddRule( FilesIn( run_dir, "extended.long.{raw_longs,read_paths,read_graph,read_aligns}" ),
+		    FilesIn( run_dir, "extended.unibases.kN",
+                             "frag_reads_edit.{fastb,qualb,pairs}",
+                             "filled_reads.fastb",
+			     "long_reads_orig.fastb"),
+
+		    "LongReadsToUnipaths " + pdrk
+		    + ARG(NUM_THREADS, global_threads)
+                    + ARG(KOUT, CLR_KOUT)
+		    + " IN_HEAD=extended",
+
+		    "Convert long reads into sequences of unipaths" );
+
+// MakeDepend: dependency LongReadConsensus
+      make.AddRule( FilesIn( run_dir, "extended.long.{unipaths,unipathsdb,unibases,unipath_adjgraph}.k"
+			     + ToString(CLR_KOUT) ),
+
+		    FilesIn( run_dir, 
+                     "extended.long.{raw_longs,read_paths,read_graph,read_aligns}",
+                     "extended.unibases.kN",
+                     "filled_reads.fastb"),
+
+		    "LongReadConsensus " + pdrk
+		    + ARG(NUM_THREADS, global_threads)
+                    + ARG(KBIG, CLR_KOUT)
+                    + ARG(WRITE, True),
+
+		    "Compute consensus for long reads" );
+
+  }
+  else
+  {
 
 // MakeDepend: dependency CorrectLongReads
       make.AddRule( FilesIn( run_dir, "extended.long.right_exts" ),
@@ -1613,7 +1697,6 @@ int main( int argc, char *argv[] )
 		    "CorrectLongReads " + pdrk
 		    + ARG(NUM_THREADS, global_threads)
                     + ARG(KOUT, CLR_KOUT)
-                    + ARG(CLUSTER_OLD, CLR2_CLUSTER_OLD)
                     + ARG(USE_SHORTEST, True)
                     + ARG(NEW_FILTER, True)
                     + ARG(STANDARD_ALIGNS, True)
@@ -1627,7 +1710,7 @@ int main( int argc, char *argv[] )
       make.AddRule( FilesIn( run_dir, "extended.long.{unipaths,unipathsdb,unibases,unipath_adjgraph}.k"
 			     + ToString(CLR_KOUT) ),
 		    FilesIn( run_dir, 
-                         "{extended.long.right_exts,extended.unibases.kN}" ),
+                         "{extended.long.right_exts,extended.unibases.kN{,.predicted_gaps.txt}}" ),
 
 		    "LongReadJoin " + pdrk
 		    + ARG(NUM_THREADS, global_threads)
@@ -1635,6 +1718,7 @@ int main( int argc, char *argv[] )
 		    + " IN_HEAD=extended",
 
 		    "Join corrected long reads" );
+  }
 
 // MakeDepend: dependency ShaveUnipathGraph
       make.AddRule( FilesIn( run_dir, "extended.long.shaved.{unipaths,unipathsdb,unibases,unipath_adjgraph}.k"
@@ -1678,7 +1762,7 @@ int main( int argc, char *argv[] )
 		  
 		  "Compute gaps between unipaths" );
 
-// remove for right now: MakeDepend: dependency BigMap
+// MakeDepend: dependency BigMap
     make.AddRule( FilesIn( sub_dir, "long_direct.{summary,superb{,.mapping},"
 			   "contigs.{efasta,fasta,vecfasta,fastb,mapping},"
 			   "assembly.{efasta,fasta}}" ),
@@ -1686,11 +1770,15 @@ int main( int argc, char *argv[] )
 			   "extended.long.shaved.unibases.k640",
                            "extended.unibases.k" + ToString(K) + ".predicted_gaps.txt",
                            "extended.long.shaved.unibases.k640.predicted_gaps.txt",
-			   "jump_reads_ec.{fastb,pairs}"),
+			   "jump_reads_ec.{fastb,pairs}",
+			   "jump_reads_filt.{fastb,pairs}"),
 		  "BigMap " + pdr +
 		  " NUM_THREADS=" + ToString(global_threads) +
 		  " HEAD1=extended"
-		  " HEAD2=extended.long.shaved",
+                  " VALIDATE=" + ( evalFull ? "True" : "False" )
+		  + " HEAD2=extended.long.shaved"
+                  + ( NEW_BIG_MAP ? " MAX_DEV_DIFF=6 MIN_LINKS_FOR_UNBRIDGEABLE=5"
+                      : "" ),
 		  
 		  "Use BigMap to create genome map" );
 
@@ -1913,8 +2001,7 @@ int main( int argc, char *argv[] )
 		    ".{fastb,pairs,distribs}");
   }
 
-
-// MakeDepend: dependency FlattenHKP
+  // MakeDepend: dependency FlattenHKP
   String FlattenHKP_target = ASSISTED_PATCHING ? "initial_scaffolds0" : "initial_scaffolds";
   make.AddRule( FilesIn( sub_dir, "hyper_plus.FlattenHKP.log", FlattenHKP_target + 
 			       ".{superb,contigs.fasta,assembly.fasta}"),
@@ -1934,14 +2021,28 @@ int main( int argc, char *argv[] )
     String current_scaffolds = FlattenHKP_target;
     String assembly_patches;
     
+    // MakeDepend: dependency MergeContigsOnReference
+    make.AddRule( FilesIn( sub_dir, "merged/merged.{superb,contigs.fasta}" ),
+		  JoinVecs( FilesIn( ref_dir, "genome.{fastb,lookup}" ),
+			    FilesIn( run_dir, "all_reads.unibases.kN" ) ),
+		  "MergeContigsOnReference "
+		  + ARG( K, K )
+		  + ARG( MIN_OVERLAP, ASSISTED_PATCHING_MIN_OVERLAP )
+		  + ARG( CONTIGS, run_dir + "/all_reads.unibases.kN" )
+		  + ARG( REF_HEAD, ref_dir + "/genome" )
+		  + ARG( OUT_DIR, sub_dir + "/merged" ),
+		  
+		  "Pre-merge unibases for ScaffoldContigsOnReference" );
+
     // MakeDepend: dependency ScaffoldContigsOnReference
     make.AddRule( FilesIn( sub_dir, current_scaffolds + ".ref.{superb,contigs.fasta,contigs.fastb}"),
-		  JoinVecs(FilesIn( sub_dir,  current_scaffolds + ".{superb,contigs.fasta}"),
+		  JoinVecs(FilesIn( sub_dir,  "merged/merged.{superb,contigs.fasta}" ),
 			   FilesIn( ref_dir,  "genome.lookup")),
 		  "ScaffoldContigsOnReference "
 		  " HEAD_REF=" + ref_dir + "/genome"
-		  " ASSEMBLY_IN=" + sub_dir + "/" + current_scaffolds +
+		  " ASSEMBLY_IN=" + sub_dir + "/merged/merged"
 		  " ASSEMBLY_OUT=" + sub_dir + "/" + current_scaffolds + ".ref",
+		  
 		  "Use reference for initial contig layout for patching" );
 
     current_scaffolds += ".ref";
@@ -1952,6 +2053,7 @@ int main( int argc, char *argv[] )
 		  "FastaToEfasta "
 		  " IN=" + sub_dir + "/" + current_scaffolds + ".contigs.fasta"
 		  " OUT=" + sub_dir + "/" + current_scaffolds + ".contigs.efasta",
+
 		  "Convert reference-aligned initial contigs to efasta" );
     
     if (PATCH_SCAFFOLDS) {
@@ -2046,15 +2148,15 @@ int main( int argc, char *argv[] )
 
 
 // MakeDepend: dependency AlignPairsToFasta
-  make.AddOutputRule( FilesIn( sub_dir, "scaffold_reads.qltoutlet{,.index}" ),
-		      JoinVecs( FilesIn( sub_dir, "initial_scaffolds.contigs.fasta" ),
-				FilesIn( run_dir, "scaffold_reads.{fastb,pairs}" ) ),
-		      "AlignPairsToFasta " + pdrs + 
-		      " NUM_THREADS=" + ToString( global_threads ) +
-		      " WRUN=recover READS=scaffold_reads ALIGNS=scaffold_reads"
-		      " FASTA=initial_scaffolds.contigs",
-		      
-		      "Align jumping reads to the assembly fasta." );
+  make.AddRule( FilesIn( sub_dir, "scaffold_reads.qltoutlet{,.index}" ),
+                JoinVecs( FilesIn( sub_dir, "initial_scaffolds.contigs.fasta" ),
+                          FilesIn( run_dir, "scaffold_reads.{fastb,pairs}" ) ),
+                "AlignPairsToFasta " + pdrs +
+		" NUM_THREADS=" + ToString( global_threads ) +
+		" WRUN=recover READS=scaffold_reads ALIGNS=scaffold_reads"
+		" FASTA=initial_scaffolds.contigs",
+
+		"Align jumping reads to the assembly fasta." );
 
 // MakeDepend: dependency RemoveHighCNAligns
   make.AddRule( FilesIn( sub_dir, "scaffold_reads_filtered.qltoutlet.index" ),
@@ -2121,13 +2223,16 @@ int main( int argc, char *argv[] )
 		  "Remove small scaffolds (and/or contigs) from assembly" );
     
     current_scaffolds += ".clean";
+  } else {
+    make.AddCpRule( sub_dir + "/" + current_scaffolds + ".contigs.efasta",
+		    sub_dir + "/" + current_scaffolds + ".contigs.fasta");
   }
 
   if (REMODEL) {
 // MakeDepend: dependency RemodelGaps
     make.AddRule( FilesIn( sub_dir, current_scaffolds + ".remodel." +
-			   "{contigs.{efasta,fasta,fastb,vecfasta},"
-			   "superb,assembly.{fasta,efasta},summary}" ),
+			   "{contigs.{efasta,fasta,fastb,vecfasta,mapping},"
+			   "superb{,.mapping},assembly.{fasta,efasta},summary}" ),
 		  JoinVecs( FilesIn( sub_dir, current_scaffolds + "."
 				     "{contigs.efasta,contigs.fastb,superb}" ),
 			    FilesIn( run_dir,
@@ -2211,10 +2316,10 @@ int main( int argc, char *argv[] )
     make.AddRule( FilesIn( sub_dir, current_scaffolds + ".kpatch.edits" ),
 		  JoinVecs( FilesIn( sub_dir, current_scaffolds + "."
 				     "{contigs.{efasta,fastb},superb}" ),
-			    FilesIn( run_dir,  
+			    FilesIn( run_dir, "jump_reads_ec.{fastb,pairs}", 
 				     ( !BIG_MAP ? "all_reads.unibases.k" + KS
-                                 : CLR_uni + ".unibases.k" + ToString(CLR_KOUT)
-                                      ) ) ),
+				       : CLR_uni + ".unibases.k" + ToString(CLR_KOUT)
+				       ) ) ),
 		  "KPatch " + pdrs
                   + ARG(K, ( !BIG_MAP ? K : CLR_KOUT ))
                   + ARG(HEAD, ( !BIG_MAP ? "all_reads" : CLR_uni ))
@@ -2421,23 +2526,28 @@ int main( int argc, char *argv[] )
 
 
   if (FIX_LOCAL) {
-// MakeDepend: dependency AlignReads
 
-    make.AddRule( FilesIn( sub_dir, current_scaffolds + ".readlocs" ),
-		  JoinVecs( FilesIn( run_dir, "frag_reads_filt_cpd.{fastb,pairs}",
-				     "jump_reads_filt_cpd.{fastb,pairs}"
-				     /*
-				       ,
-				       "long_jump_reads_filt.{fastb,pairs}" 
-				     */
-				     ),
-			    FilesIn( sub_dir, 
-				     current_scaffolds + ".{contigs.fastb,superb}" ) ),
-		  "AlignReads " + pdrs 
-		  + ARG( NUM_THREADS, global_threads ) 
-		  + ARG( ASSEMBLY, current_scaffolds ),
-		
-		  "Build read locations on the assembly for some of the reads." );
+    // Update alignments if necessary
+    if (current_scaffolds != aligned_scaffolds) {
+// MakeDepend: dependency AlignReads
+      make.AddRule( FilesIn( sub_dir, current_scaffolds + ".readlocs" ),
+		    JoinVecs( FilesIn( run_dir, "frag_reads_filt_cpd.{fastb,pairs}",
+				       "jump_reads_filt_cpd.{fastb,pairs}"
+				       /*
+					 ,
+					 "long_jump_reads_filt.{fastb,pairs}" 
+				       */
+				       ),
+			      FilesIn( sub_dir, 
+				       current_scaffolds + ".{contigs.fastb,superb}" ) ),
+		    "AlignReads " + pdrs 
+		    + ARG( NUM_THREADS, global_threads ) 
+		    + ARG( ASSEMBLY, current_scaffolds ),
+		    
+		    "Build read locations on the assembly for some of the reads." );
+
+      aligned_scaffolds = current_scaffolds;
+    }
 
 // MakeDepend: dependency FixLocal
     make.AddRule( FilesIn( sub_dir, current_scaffolds + ".local." +
@@ -2463,7 +2573,7 @@ int main( int argc, char *argv[] )
 
   }
 
-  if (LONG_READ_POST_PATCH) {
+  if (LONG_READ_POST_PATCH && !BIG_MAP) {
 // MakeDepend: dependency PunchTandemHoles
 // MakeDepend: dependency LongReadPostPatcher
 // MakeDepend: dependency RecoverPunchTandem
@@ -2476,8 +2586,8 @@ int main( int argc, char *argv[] )
 			   "superb,assembly.{fasta,efasta},summary}}" ),
 		  FilesIn( sub_dir, current_scaffolds + "."
 		           "{contigs.efasta,superb}" ),
-		  "PunchTandemHoles " + 
-                  ARG(SCAFFOLDS_IN, sub_dir + "/" + current_scaffolds),
+		  "PunchTandemHoles "
+		  + ARG(SCAFFOLDS_IN, sub_dir + "/" + current_scaffolds),
 
 		  "Punch holes at tandem repeats preparatory to long read "
                   "patching");
@@ -2810,7 +2920,7 @@ int main( int argc, char *argv[] )
       targetList.append(FilesIn(run_dir,"{all_reads.unipaths.kN.{UnipathEval.out,placements}}" ));
       if ( !BIG_MAP )
            targetList.append(FilesIn(sub_dir,"EvalUnipathLinkGraphs.out") );
-      targetList.append( FilesIn( sub_dir, aligned_scaffolds + ".u2c" ) );
+      //      targetList.append( FilesIn( sub_dir, aligned_scaffolds + ".u2c" ) );
     }
   }
 
@@ -2865,17 +2975,17 @@ int main( int argc, char *argv[] )
 
 // MakeDepend: dependency install_scripts
 // MakeDepend: dependency MemMonitor
-    String parseMMCmd = search_path_for_command("ParseMemMonitorOutput.pl");
+    String parseMMCmd = "ParseMemMonitorOutput.pl";
 
-    if (MEMORY_DIAGNOSTICS && parseMMCmd != "") {
+    if (MEMORY_DIAGNOSTICS && IsCommandInPath(parseMMCmd)) {
       cout << endl << Date() << ": Computing runtime statistics." << endl << endl; 
       SystemSucceed( parseMMCmd + " SUBDIR=" + sub_dir);
     }
 
 // MakeDepend: dependency install_scripts
-    String CARCmd = search_path_for_command("CompileAssemblyReport.pl");
+    String CARCmd ="CompileAssemblyReport.pl";
     
-    if (CARCmd != "") {
+    if (IsCommandInPath(CARCmd)) {
       cout << endl << Date() << ": Compiling assembly report." << endl; 
       SystemSucceed( CARCmd + " NH=True SUBDIR=" + sub_dir);
     }

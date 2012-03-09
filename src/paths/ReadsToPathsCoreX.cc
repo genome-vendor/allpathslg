@@ -301,7 +301,7 @@ void mutmer_hits_from_file(vec<MutmerHit> & mhits, const String CHECKPOINT_HEAD)
 
 void base_vec_vec_to_mutmer_hits(const size_t          K, 
                                  BaseVecVec          & bvv, 
-                                 BitVecVec           * chosen,
+                                 VecBitVec           * chosen,
                                  vec<MutmerHit>      * mhits,
                                  const String        & PARCEL_DIR,
                                  const size_t          N_THREADS,
@@ -452,7 +452,7 @@ void base_vec_vec_to_mutmer_hits(const size_t          K,
     
     // 'chosen' was computed as a function of 'sid' (sorted base vectors)
     // now we want 'chosen' as a function of 'id' (unsorted base vectors)
-    BitVecVec chosen_tmp(n_bvs);
+    VecBitVec chosen_tmp(n_bvs);
     BaseVecVec bvv_tmp(n_bvs);
     for (size_t sid = 0; sid < n_bvs; sid++) {  // running over sorted ids
       size_t id = id_sid[sid];
@@ -503,7 +503,7 @@ void base_vec_vec_to_mutmer_hits(const size_t          K,
 
 void mutmer_hits_to_paths(const size_t           K, 
                           const BaseVecVec     & bvv, 
-                          const BitVecVec      & chosen,
+                          const VecBitVec      & chosen,
                           const vec<MutmerHit> & mhits, 
                           vecKmerPath          * paths,
                           // please leave the default for VERBOSE at 'true'. 
@@ -523,7 +523,7 @@ void mutmer_hits_to_paths(const size_t           K,
 
   if (VERBOSE) cout << Tag("MH2P") << "Finding palindromes." << endl;
 
-  BitVecVec chosen_palindrome;
+  VecBitVec chosen_palindrome;
   Mimic(bvv, chosen_palindrome);
   for (size_t id = 0; id < n_bvs; id++) {
     const size_t nb = bvv[id].size();
@@ -722,7 +722,7 @@ void ReadsToPathsCoreX(const size_t     K,
  
     if (VERBOSE) cout << Tag("RTPCX") << "Calling base_vec_vec_to_mutmer_hits()." << endl;
     vec<MutmerHit> mhits;
-    BitVecVec chosen;
+    VecBitVec chosen;
     base_vec_vec_to_mutmer_hits(K, bvv, & chosen, & mhits, 
                                 PARCEL_DIR, N_THREADS, CHECKPOINT_HEAD, VERBOSE);
     

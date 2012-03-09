@@ -210,7 +210,7 @@ void genome_analysis_report(const KmerSpectrum & kspec,
   const size_t GR      = (failed) ? 0 : kspec.genome_size_repetitive();
   const float coverage = (failed) ? 0 : kspec.coverage();
 
-  cout << Tag() << "----------------- Kmer Spectrum Analysis -----------------" << endl;
+  cout << Tag() << "------------------- Kmer Spectrum Analysis -------------------" << endl;
   cout << Tag() << "Genome size estimate        = " 
        << setw(14) << ToStringAddCommas(G) << " bases" << endl;
   cout << Tag() << "Genome size estimate CN = 1 = " 
@@ -254,14 +254,14 @@ void genome_analysis_report(const KmerSpectrum & kspec,
 	 << setw(14) << ("1/" + ToString(d_SNPs)) << endl;
 
     const float p = failed ? 0.0 : 1.0 / d_SNPs;
-    const float p_close = 1.0 - pow(1.0 - p, kspec.K());
+    const float p_close = 1.0 - pow(1.0 - p, static_cast<int>(kspec.K()));
     cout << Tag() << "SNPs closer than K         >= " 
          << setw(14) << setprecision(0) << 100 * p_close * (2 - p_close) << " %" << endl;
   }
   else {
     cout << Tag() << "SNP rate not computed (PLOIDY = " << PLOIDY << ")." << endl;
   } 
-  cout << Tag() << "----------------------------------------------------------" << endl;
+  cout << Tag() << "--------------------------------------------------------------" << endl;
 
 }
 

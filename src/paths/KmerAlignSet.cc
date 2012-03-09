@@ -11,10 +11,12 @@
 #include "Equiv.h"
 #include "STLExtensions.h"
 #include "math/Functions.h"
+#include "math/HoInterval.h"
 #include "paths/KmerAlignSet.h"
 #include "paths/LongReadTools.h"
 
-void ClusterAlignsNew( const KmerAlignSet& in, KmerAlignSet& out, const Bool clean )
+void ClusterAlignsNew( const KmerAlignSet& in, KmerAlignSet& out, const Bool clean,
+     const int min_spread )
 {    for ( int i = 0; i < in.NAligns( ); i++ )
      {    int u = in.U(i);
           vec< pair<int,int> > rpos_upos;
@@ -27,7 +29,6 @@ void ClusterAlignsNew( const KmerAlignSet& in, KmerAlignSet& out, const Bool cle
           const int udist_mult = 5;
           const int max_dist = 1000;
           const int delta_r_max = 350;
-          const int min_spread = 10;
           for ( int l1 = 0; l1 < n; l1++ )
           {    int rpos1 = rpos_upos[l1].first, upos1 = rpos_upos[l1].second;
                for ( int l2 = l1 + 1; l2 < n; l2++ )
@@ -151,34 +152,66 @@ void KillInferiorClusters( KmerAlignSet& x )
           if ( double( x.X( )[i1].second.size( ) )
                < min_ratio_to_kill * double( x.X( )[i2].second.size( ) ) )
           {    continue;    }
+          /*
+          cout << "killing " << x.X( )[i2].first
+               << "." << x.X( )[i2].second.front( ).first
+               << "-" << x.X( )[i2].second.back( ).first
+               << "[" << x.X( )[i2].second.size( ) << "] using "
+               << x.X( )[i1].first
+               << "." << x.X( )[i1].second.front( ).first
+               << "-" << x.X( )[i1].second.back( ).first
+               << "[" << x.X( )[i1].second.size( ) << "]\n";
+          */
           to_remove[i2] = True;    }
      EraseIf( x.XMutable( ), to_remove );    }
 
-void KillInferiorClustersNew( KmerAlignSet& x, const vecbasevector& unibases )
-{    vec<Bool> to_remove( x.NAligns( ), False );
-     const double min_ratio_to_kill = 5.0;
-     for ( int i1 = 0; i1 < x.NAligns( ); i1++ )
-     for ( int i2 = 0; i2 < x.NAligns( ); i2++ )
-     {    
-          // We require that the interval on the read encompassed by the first
-          // alignment encompasses that of the second.
+void KillInferiorClustersNew( KmerAlignSet& x, const vecbasevector& unibases,
+     const double min_ratio_to_kill )
+{    int N = x.NAligns( );
+     vec<Bool> to_remove( N, False );
+     vec<ho_interval> read_range(N);
+     int top = 0;
+     for ( int i = 0; i < N; i++ )
+     {    read_range[i] = ho_interval( x.X( )[i].second.front( ).first,
+               x.X( )[i].second.back( ).first );
+          top = Max( top, read_range[i].Stop( ) );    }
 
-          if ( x.X( )[i1].second.front( ).first > x.X(i2).second.front( ).first )
-               continue;    
-          if ( x.X( )[i1].second.back( ).first < x.X(i2).second.back( ).first )
-               continue;
+     // For efficiency, create an index so that we can find all the alignments
+     // overlapping a given window.
 
-          int low = 0, high = x.X(i1).second.size( );
-          while ( low < x.X(i1).second.isize( )
-               && x.X(i1).second[low].first < x.X(i2).second.front( ).first )
-          {    low++;    }
-          while ( high > 0
-               && x.X(i1).second[high-1].first > x.X(i2).second.back( ).first )
-          {    high--;    }
-          if ( double( high - low )
-               < min_ratio_to_kill * double( x.X(i2).second.size( ) ) )
-          {    continue;    }
-          to_remove[i2] = True;    }
+     const int window = 10;
+     vec< vec<int> > own( top/window + 1 );
+     for ( int i = 0; i < N; i++ )
+     {    for ( int j = 0; j < own.isize( ); j++ )
+          {    if ( Meets( ho_interval( j*window, (j+1)*window ), read_range[i] ) )
+                    own[j].push_back(i);    }    }
+
+     // Go through the alignments.
+
+     for ( int i2 = 0; i2 < N; i2++ )
+     {    int start = read_range[i2].Start( );
+          int j = start/window;
+          for ( int l = 0; l < own[j].isize( ); l++ )
+          {    int i1 = own[j][l];
+          
+               // We require that the interval on the read encompassed by the first
+               // alignment encompasses that of the second.
+     
+               if ( read_range[i1].Start( ) > read_range[i2].Start( ) ) continue;
+               if ( read_range[i1].Stop( ) < read_range[i2].Stop( ) ) continue;
+
+               int low = 0, high = x.X(i1).second.size( );
+               while ( low < x.X(i1).second.isize( )
+                    && x.X(i1).second[low].first < x.X(i2).second.front( ).first )
+               {    low++;    }
+               while ( high > 0
+                    && x.X(i1).second[high-1].first > x.X(i2).second.back( ).first )
+               {    high--;    }
+               if ( double( high - low )
+                    < min_ratio_to_kill * double( x.X(i2).second.size( ) ) )
+               {    continue;    }
+               to_remove[i2] = True;
+               break;    }    }
 
      // If two alignments are inconsistent, and one is twice as big
      // as the other, delete the smaller one.

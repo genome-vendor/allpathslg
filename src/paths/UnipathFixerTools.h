@@ -29,15 +29,14 @@ struct PCottageJoinData
     vecqvec quals;
     vec< std::pair<int,int> > pairs;
 
-    size_t writeBinary( BinaryWriter& writer ) const
-    { size_t result = writer.write(sep);
-      result += writer.write(dev);
-      result += writer.write(L);
-      result += writer.write(R);
-      result += writer.write(reads);
-      result += writer.write(quals);
-      result += writer.write(pairs);
-      return result; }
+    void writeBinary( BinaryWriter& writer ) const
+    { writer.write(sep);
+      writer.write(dev);
+      writer.write(L);
+      writer.write(R);
+      writer.write(reads);
+      writer.write(quals);
+      writer.write(pairs); }
 
     void readBinary( BinaryReader& reader )
     { reader.read(&sep);
@@ -49,7 +48,7 @@ struct PCottageJoinData
       reader.read(&pairs); }
 
     static size_t externalSizeof() { return 0; }
-    static char HEADER[8];
+    static size_t const HEADER = 0x415441444E494F4A; // "JOINDATA"
 };
 SELF_SERIALIZABLE(PCottageJoinData);
 
@@ -81,12 +80,11 @@ struct PCottageResults
     String report; // it would be nice to break out the "perfect" indication
                    // so that we didn't have to do any string parsing
 
-    size_t writeBinary( BinaryWriter& writer ) const
-    { size_t result = writer.write(itemNumber);
-      result += writer.write(reads);
-      result += writer.write(startStop);
-      result += writer.write(report);
-      return result; }
+    void writeBinary( BinaryWriter& writer ) const
+    { writer.write(itemNumber);
+      writer.write(reads);
+      writer.write(startStop);
+      writer.write(report); }
 
     void readBinary( BinaryReader& reader )
     { reader.read(&itemNumber);
@@ -109,14 +107,14 @@ class segalign {
 
      Bool fw;          // is read forward on unibase?
      uint64_t rid;     // read identifier
-     int rpos;         // start position on read
      uint64_t u;       // unibase id;
+     int rpos;         // start position on read
      int upos;         // start position on unibase
 
      segalign( ) { }
 
      segalign( const Bool fw, const uint64_t rid, const int rpos, const uint u, 
-          const int upos ) : fw(fw), rid(rid), rpos(rpos), u(u), upos(upos) { }
+          const int upos ) : fw(fw), rid(rid), u(u), rpos(rpos), upos(upos) { }
 
      // For sorting by u first, then upos.
 
@@ -133,6 +131,7 @@ class segalign {
           return False;    }
 
 };
+TRIVIALLY_SERIALIZABLE(segalign);
 
 // An opair is an oriented pair.  The first read is always "forward".
 

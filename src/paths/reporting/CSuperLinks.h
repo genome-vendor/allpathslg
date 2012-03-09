@@ -12,7 +12,7 @@
 #include "Intvector.h"
 #include "PairsManager.h"
 #include "Superb.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "math/Functions.h"
 #include "paths/Alignlet.h"
 #include "paths/reporting/COffset.h"

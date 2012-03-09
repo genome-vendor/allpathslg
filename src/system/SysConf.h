@@ -23,10 +23,6 @@ size_t pageSize();
 /// Number of bytes of memory on this machine.
 size_t physicalMemory();
 
-/// Number of bytes of memory on this machine that are not currently in use
-/// by user processes.
-size_t availablePhysicalMemory();
-
 /// The number of CPUs available.
 size_t processorsOnline();
 

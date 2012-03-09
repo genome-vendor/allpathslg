@@ -22,8 +22,6 @@
 #endif
 
 #include "feudal/ChunkDumper.h"
-#include "feudal/SmallVecDefs.h"
-#include "feudal/OuterVecDefs.h"
 #include "feudal/VirtualMasterVec.h"
 #include "kmers/ReadPather.h"
 #include "system/SpinLockedData.h"
@@ -884,7 +882,7 @@ void PathCollection<K>::create( String const& fastb, bool validate,
     {
         if ( !nKmersEst )
             // assume 50x coverage
-            nKmersEst = 4*MasterVec<bvec>::MastervecFileRawCount(fastb)/50;
+            nKmersEst = 4*vecbvec::MastervecFileRawCount(fastb)/50;
         std::cout << Date() << " Allocating kmer dictionary of size "
                     << nKmersEst << '.' << std::endl;
         pDict = new KmerDict<K>(nKmersEst);

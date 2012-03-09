@@ -10,6 +10,7 @@
 
 #include "CoreTools.h"
 #include "Equiv.h"
+#include "feudal/BinaryStream.h"
 #include "feudal/IncrementalWriter.h"
 #include "graph/DigraphTemplate.h"
 #include "paths/HyperBasevector.h"
@@ -85,9 +86,7 @@ vec<basevector> Convert( const vec<KmerPath>& in, const KmerBaseBroker& kbb )
      return out;    }
 
 HyperBasevector::HyperBasevector( const String& filename )
-{    int fd = OpenForRead(filename);
-     BinaryRead( fd, *this );
-     close(fd);    }
+{    BinaryReader::readFile( filename, this ); }
 
 HyperBasevector::HyperBasevector( const HyperKmerPath& h, const KmerBaseBroker& kbb )
      : digraphE<basevector>( h.From( ), h.To( ), Convert( h.Edges( ), kbb ),
@@ -105,29 +104,16 @@ void HyperBasevector::Initialize( const HyperKmerPath& h, const KmerBaseBroker& 
      TestValid();
 }
 
-void BinaryWrite( int fd, const HyperBasevector& h )
-{    WriteBytes( fd, &h.K_, sizeof(int) );
-     BinaryWrite( fd, (const digraphE<basevector>&) h );    }
-
-void BinaryRead( int fd, HyperBasevector& h )
-{    ReadBytes( fd, &h.K_, sizeof(int) );
-     BinaryRead( fd, (digraphE<basevector>&) h );    }
-
-size_t HyperBasevector::writeBinary( BinaryWriter& writer ) const
+void HyperBasevector::writeBinary( BinaryWriter& writer ) const
 {
-    size_t len = writer.write(K_);
-    return len+writer.write(static_cast<digraphE<basevector> const&>(*this));
+    writer.write(K_);
+    writer.write(static_cast<digraphE<basevector> const&>(*this));
 }
 
 void HyperBasevector::readBinary( BinaryReader& reader )
 {
     reader.read(&K_);
     reader.read(static_cast<digraphE<basevector>*>(this));
-}
-
-size_t HyperBasevector::externalSizeof()
-{
-    return 0;
 }
 
 // Check that the edge adjacencies in this HyperBasevector make sense.

@@ -74,7 +74,7 @@ public:
     { cv.clear(); cv.resize(stop-start);
       std::transform(begin(start),begin(stop),cv.begin(),GeneralizedBase::bits2Char); }
 
-    void asBasevector( basevector &bv ) const;
+    void asBasevector( basevector &bv, bool allow_x = false ) const;
     void getAmbBases( bitvector &bitv ) const;
 
     void assignChars( char const* begin, char const* end );

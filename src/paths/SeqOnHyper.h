@@ -21,6 +21,7 @@
 #include "CommonSemanticTypes.h"
 #include "paths/HyperBasevector.h"
 #include "paths/HyperKmerPath.h"
+#include "feudal/BinaryStream.h"
 
 struct partial_perfect_align {
   longlong read_id;
@@ -79,6 +80,7 @@ class PartialSeqOnHyper {
      int len_;
 
 };  // class PartialSeqOnHyper
+TRIVIALLY_SERIALIZABLE(PartialSeqOnHyper);
 
 class SeqOnHyper {
 
@@ -145,12 +147,9 @@ class SeqOnHyper {
        return out;
      }
 
-     friend void BinaryWrite( int fd, const SeqOnHyper& s );
-     friend void BinaryRead( int fd, SeqOnHyper& s );
-     friend void BinaryWrite( int fd, const vec<SeqOnHyper>& s )
-     {    BinaryWriteComplex( fd, s );    }
-     friend void BinaryRead( int fd, vec<SeqOnHyper>& s )
-     {    BinaryReadComplex( fd, s );    }
+     void writeBinary( BinaryWriter& writer ) const;
+     void readBinary( BinaryReader& reader );
+     static size_t externalSizeof() { return 0; }
 
      private:
 
@@ -158,6 +157,7 @@ class SeqOnHyper {
      longlong id1_;
      vec<PartialSeqOnHyper> parts_;
 };  // class SeqOnHyper
+SELF_SERIALIZABLE(SeqOnHyper);
 
 /**
    Class: CompressedSeqOnHyper

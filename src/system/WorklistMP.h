@@ -74,7 +74,9 @@ public:
     class Client
     {
     public:
-        Client() : mRdr(3,"<worklist socket>"), mWrtr("<worklist socket>",3) {}
+        Client() : mRdr(3,"<worklist socket>"), mWrtr(3,"<worklist socket>") {}
+
+        ~Client() { ::close(3); }
 
         // Call these three methods in this order, and repeat until it's time
         // to quit.
@@ -113,19 +115,19 @@ private:
     { int status;
       while ( waitpid(subProc.getPID(),&status,0) == -1 )
         if ( errno != EINTR ) SubProcess::fail("Call to waitpid failed");
-        if ( !WIFEXITED(status) || WEXITSTATUS(status) )
-        { if ( WIFEXITED(status) )
-            std::cout << "Sub-process #" << subProc.getPID()
-                        << " exited with exit status: "
-                        << WEXITSTATUS(status) << std::endl;
-          else if ( WIFSIGNALED(status) )
-            std::cout << "Sub-process #" << subProc.getPID()
-                        << " exited due to caught signal: "
-                        << WTERMSIG(status) << std::endl;
-          else
-            std::cout << "Sub-process #" << subProc.getPID()
-                        << " exited for unknown reasons."
-                        << std::endl; } }
+      if ( !WIFEXITED(status) || WEXITSTATUS(status) )
+      { if ( WIFEXITED(status) )
+          std::cout << "Sub-process #" << subProc.getPID()
+                      << " exited with exit status: "
+                      << WEXITSTATUS(status) << std::endl;
+        else if ( WIFSIGNALED(status) )
+          std::cout << "Sub-process #" << subProc.getPID()
+                      << " exited due to caught signal: "
+                      << WTERMSIG(status) << std::endl;
+        else
+          std::cout << "Sub-process #" << subProc.getPID()
+                      << " exited for unknown reasons."
+                      << std::endl; } }
 
     std::list<SubProcess> mSubProcs;
 };
@@ -174,10 +176,9 @@ bool WorklistMP<ItemMsg,ResultMsg>::doWork( Itr itr, Itr const& end,
         {
             if ( pitr->isIdle() && itr != end )
             {
-                BinaryWriter bw("<worklist socket>",pitr->getFD());
+                BinaryWriter bw(pitr->getFD(),"<worklist socket>");
                 bw.write(*itr);
                 ++itr;
-                bw.flush();
                 pitr->setIdle(false);
             }
             if ( !pitr->isIdle() )

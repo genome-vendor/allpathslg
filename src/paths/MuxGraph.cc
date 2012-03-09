@@ -1,7 +1,7 @@
 // Copyright (c) 2005 Broad Institute/Massachusetts Institute of Technology
 
 #include "paths/MuxGraph.h"
-
+#include "feudal/BinaryStream.h"
 #include "STLExtensions.h"
 
 #include <set>
@@ -118,8 +118,8 @@ MuxGraph::SetMuxesOf( const OrientedKmerPathId& pathId, const vec<Mux>& newMuxes
 void
 MuxGraph::Write( const String& filename ) const
 {
-  BinaryWrite2( filename + ".single", m_singleEdgeNodes );
-  BinaryWrite2( filename + ".multi", m_multiEdgeNodes );
+  BinaryWriter::writeFile( filename + ".single", m_singleEdgeNodes );
+  BinaryWriter::writeFile( filename + ".multi", m_multiEdgeNodes );
 }
 
 
@@ -130,8 +130,8 @@ MuxGraph::Read( const String& filename )
   m_singleEdgeNodes.clear();
   m_multiEdgeNodes.clear();
 
-  BinaryRead2( filename + ".single", m_singleEdgeNodes );
-  BinaryRead2( filename + ".multi", m_multiEdgeNodes );
+  BinaryReader::readFile( filename + ".single", &m_singleEdgeNodes );
+  BinaryReader::readFile( filename + ".multi", &m_multiEdgeNodes );
 }
 
 bool

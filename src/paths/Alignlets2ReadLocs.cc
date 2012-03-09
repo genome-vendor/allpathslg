@@ -7,8 +7,9 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "PairsManager.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "paths/Alignlet.h"
 #include "paths/Alignlets2ReadLocs.h"
 #include "paths/ReadLoc.h"
@@ -106,10 +107,10 @@ void LoadReadLocs( const String &pairs_file,
 
   out << Date( ) << ": LoadReadLocs - loading aligns" << endl;
   vec<alignlet> aligns;
-  BinaryRead3( aligns_file, aligns );
+  BinaryReader::readFile( aligns_file, &aligns );
   
   vec<int> index;
-  BinaryRead3( index_file, index );
+  BinaryReader::readFile( index_file, &index );
   
   // Convert (logging within).
   Alignlets2ReadLocs( pairs, aligns, index, locs, log );

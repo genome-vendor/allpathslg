@@ -345,7 +345,7 @@ public:
 
 template<class QVV_t>
 void apply_corrections(const BaseVecVec & bases_new, 
-                       const BitVecVec  & base_locked, 
+                       const VecBitVec  & base_locked,
                        BaseVecVec       * bases_p, 
                        QVV_t            * quals_p,
                        EF_Stats         * ef_stats_p)
@@ -431,7 +431,7 @@ void find_errors_parallel(const EF_Params  & efp,
     BaseVecVec bases_new = *bases_p;
       
     if (VERBOSITY > 0) cout << Tag() << "Mimicking 'bases' into 'base_locked'." << endl;
-    BitVecVec base_locked;
+    VecBitVec base_locked;
     Mimic(*bases_p, base_locked);
 
     // ---- PARALLEL PROCESSING

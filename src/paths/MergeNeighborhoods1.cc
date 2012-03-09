@@ -135,7 +135,7 @@ int main( int argc, char *argv[] )
   bases.WriteAll( sub_dir + "/reads.fastb" );
   spaths.WriteAll( sub_dir + "/reads.paths" + kK );
   spaths_rc.WriteAll( sub_dir + "/reads.paths_rc" + kK );
-  BinaryWrite2( sub_dir + "/reads.pathsdb" + kK, spathsdb );
+  BinaryWriter::writeFile( sub_dir + "/reads.pathsdb" + kK, spathsdb );
 
   // Write Unipaths
   bases.WriteRange( sub_dir + "/reads.unibases" + kK, n_bases, bases.size() );
@@ -163,6 +163,6 @@ int main( int argc, char *argv[] )
           local_HKPs.push_back(h);
       }
   }
-  BinaryOverwrite( sub_dir + "/nhood.hypers", local_HKPs );
+  BinaryWriter::writeFile( sub_dir + "/nhood.hypers", local_HKPs );
   cout << Date( ) << ": done!" << endl;
 }

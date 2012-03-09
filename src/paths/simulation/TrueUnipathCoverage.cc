@@ -21,11 +21,11 @@
 #include "CommonSemanticTypes.h"
 #include "feudal/MasterVec.h"
 #include "feudal/SerfVec.h"
-#include "feudal/OuterVecDefs.h"
-#include "feudal/SmallVecDefs.h"
 #include "paths/KmerPath.h"
 
-typedef MasterVec< SerfVec< pair<copy_num_t,prob_t> > > VecPairVec;
+typedef std::pair<copy_num_t,prob_t> CNProb;
+typedef SerfVec<CNProb> CNProbVec;
+typedef MasterVec<CNProbVec> VecCNProbVec;
 
 int main( int argc, char *argv[] )
 {
@@ -52,7 +52,7 @@ int main( int argc, char *argv[] )
   int nuni = unipaths.size();
 
   // The thing we're going to generate:
-  VecPairVec pdf(nuni);
+  VecCNProbVec pdf(nuni);
 
   vec<unipath_interval_id_t> hits;
   for( int i=0; i<nuni; i++ ) {
@@ -67,3 +67,8 @@ int main( int argc, char *argv[] )
   pdf.WriteAll( run_dir + "/"+READS+".unipaths.true_count.k" 
 		+ ToString(K) );    
 }
+
+#include "feudal/SmallVecDefs.h"
+#include "feudal/OuterVecDefs.h"
+template class SmallVec<CNProb,MempoolAllocator<CNProb> >;
+template class OuterVec<CNProbVec>;

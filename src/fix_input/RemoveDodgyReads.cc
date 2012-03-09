@@ -50,6 +50,7 @@
 #include "PairsManager.h"
 #include "Qualvector.h"
 #include "util/ReadTracker.h"
+//#include "feudal/BinaryStream.h"
 
 
 
@@ -534,7 +535,7 @@ int main(int argc, char *argv[])
   // Write output files.
   if (true) {
     cout << Tag() << "Writing output files" << endl;
-    // BinaryWrite3(IN_HEAD + ".is_dodgy", dodgy); // this file is never used; it's for reference only
+    // BinaryWriter::writeFile(IN_HEAD + ".is_dodgy", dodgy); // this file is never used; it's for reference only
     bases.WriteAll(OUT_HEAD + ".fastb");
     quals.WriteAll(OUT_HEAD + ".qualb");
     pairs.Write(OUT_HEAD + ".pairs");

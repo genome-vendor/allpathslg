@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                   SOFTWARE COPYRIGHT NOTICE AGREEMENT                     //
-//       This software and its documentation are copyright (2011) by the     //
+//       This software and its documentation are copyright (2012) by the     //
 //   Broad Institute.  All rights are reserved.  This software is supplied   //
 //   without any warranty or guaranteed support whatsoever. The Broad        //
 //   Institute is not responsible for its use, misuse, or functionality.     //
@@ -262,8 +262,41 @@ void RemoveWeakLinks( const vecbasevector& unibases, const vec<int>& to_rc,
 void RemoveWeakLinks2( const int K2, const vecbasevector& unibases2,
      const vec<int>& to_rc2, const vec<double>& raw2, digraphE<linklet>& G2I, 
      const vec< vec< pair<int,int> > >& nexts2x, const int max_link_ratio, 
-     const int dev_mult, const Bool DELETE_VERBOSE )
+     const int dev_mult, const Bool DELETE_VERBOSE, const double max_dev_diff )
 {
+     // Let n be the maximum number of links from any unibase to unibase u.
+     // Let d be a constant (taken to be 10).  Let x1,...,xn be the unibases that
+     // link to u with at least n/d links.  Let y links to u with less than n/d
+     // links.  Then if y does not link to any of the xi, delete the link from y
+     // to u.  Repeat in the other direction.
+
+     vec<int> to_delete0;
+     const double links_div = 10.0;
+     for ( int u = 0; u < (int) unibases2.size( ); u++ )
+     {    vec<int> nlinks( G2I.To(u).size( ) );
+          for ( int j = 0; j < G2I.To(u).isize( ); j++ )
+               nlinks[j] = G2I.EdgeObjectByIndexTo( u, j ).nlinks;
+          int max_links = ( nlinks.empty( ) ? 0 : Max(nlinks) );
+          for ( int j = 0; j < G2I.To(u).isize( ); j++ )
+          {    if ( nlinks[j] >= double(max_links)/links_div ) continue;
+               int y = G2I.To(u)[j];
+               Bool indirect = False;
+               for ( int k = 0; k < G2I.To(u).isize( ); k++ )
+               {    if ( nlinks[k] < double(max_links)/links_div ) continue;
+                    int x = G2I.To(u)[k];
+                    if ( Member( G2I.From(y), x ) ) indirect = True;    }
+               if (indirect) continue;
+               to_delete0.push_back( G2I.EdgeObjectIndexByIndexTo( u, j ) );
+               int ru = to_rc2[u], ry = to_rc2[y];
+               for ( int l = 0; l < G2I.From(ru).isize( ); l++ )
+               {    if ( G2I.From(ru)[l] == ry )
+                    {    to_delete0.push_back( G2I.EdgeObjectIndexByIndexFrom( 
+                              ru, l ) );    }    }    }    }
+     UniqueSort(to_delete0);
+     G2I.DeleteEdges(to_delete0);
+
+     // Some other test (I've forgotten what it is).
+
      int nuni2 = unibases2.size( );
      vec<Bool> not_one2( nuni2, False );
      for ( int u1 = 0; u1 < nuni2; u1++ )
@@ -367,7 +400,7 @@ void RemoveWeakLinks2( const int K2, const vecbasevector& unibases2,
                int bad;
                vec<int> use;
                GetWalks( u1, u2, l.sep, l.dev, unibases2, K2, to_rc2, 
-                    nexts2x, use, walks1, bad );
+                    nexts2x, use, walks1, bad, max_dev_diff );
                if ( walks1.nonempty( ) ) supported[j] = True;    }
           if ( Sum(supported) == 0 ) continue;
           for ( int j = 0; j < G2I.From(u1).isize( ); j++ )
@@ -466,7 +499,11 @@ void Advance(
      // outputs:
      vec<int>& unexts )
 {
-     // Clean links.
+     // Clean links.  Suppose that when we look out from unibase u, we see two
+     // unibases v1 and v2 (and possibly others).  Suppose that there are at least
+     // 10 times as many links to v1 as to v2.  Suppose that there is a link from
+     // v1 to v2.  Suppose that the distances imply that v1 and v2 have to overlap.
+     // Then delete the link from u to v2.
 
      unexts.clear( );
      const int xdev_mult = 3;
@@ -491,6 +528,9 @@ void Advance(
                     continue;     }
           out << "(cleaning link from " << u << " to " << G.From(u)[m2] << ")\n";
           to_ignore[m2] = True;    }
+
+     // Now do the actual cleaning.
+
      vec<int> linksx;
      vec<linklet> linksy;
      for ( int m = 0; m < G.From(u).isize( ); m++ )
@@ -542,8 +582,10 @@ void Advance(
                     break;    }    }    }
      if ( !fail )
      {    
-          // Identify and exclude links that probably go to unipaths of 
-          // higher copy number.
+          // Identify and exclude links that probably go to unipaths of higher copy
+          // number.  Also avoid cases where we link to both a unipath and its 
+          // reverse complement, as there is likely a heterozygous inversion there, 
+          // and we would prefer to link around it.
 
           const double max_cn_ratio = 1.5;
           double max_cn_ratio_to_use = max_cn_ratio;
@@ -554,8 +596,24 @@ void Advance(
                if ( raw2[u] > 0 && raw2[v] > 0 
                     && raw2[v]/raw2[u] > max_cn_ratio_to_use )
                {    exclude[m] = True;    }    }
+          for ( int m1 = 0; m1 < linksx.isize( ); m1++ )
+          for ( int m2 = m1+1; m2 < linksx.isize( ); m2++ )
+          {    int v1 = linksx[m1], v2 = linksx[m2];
+               if ( v2 == to_rc2[v1] )
+               {    exclude[m1] = exclude[m2] = True;    }    }
           if ( Sum(exclude) == linksx.isize( ) )
-          {    max_cn_ratio_to_use *= max_cn_ratio;
+          {    
+               // Prevent infinite looping.  I'm not sure this is done correctly.
+                    
+               double M = 0;
+               for ( int m = 0; m < linksx.isize( ); m++ )
+               {    int v = linksx[m];
+                    if ( raw2[u] > 0 && raw2[v] ) M = Max( M, raw2[v]/raw2[u] );    }
+               if ( M <= max_cn_ratio_to_use ) goto delete_weakest;
+
+               // Up the ratio.
+
+               max_cn_ratio_to_use *= max_cn_ratio;
                goto ratio_test;    }
           int maxlinks = 0;
           for ( int m = 0; m < linksy.isize( ); m++ )
@@ -571,6 +629,7 @@ void Advance(
 
      // Delete the least supported link and try again.
 
+     delete_weakest:
      int min_links = 1000000000, max_links = 0;
      for ( int i = 0; i < linksy.isize( ); i++ )
      {    min_links = Min( min_links, linksy[i].nlinks );

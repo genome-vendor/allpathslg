@@ -21,6 +21,7 @@
 #include "Basevector.h"
 #include "MainTools.h"
 #include "ParseSet.h"
+#include "feudal/BinaryStream.h"
 #include "graph/Digraph.h"
 #include "graphics/Whiteboard.h"
 #include "paths/KmerBaseBroker.h"
@@ -175,7 +176,7 @@ int main( int argc, char *argv[] )
           else FatalErr( "No genome.paths file found!" );
           String genome_dbfile = "/genome.pathsdb_big.k" + ToString(K);
           if ( IsRegularFile( run_dir + genome_dbfile ) )
-               BinaryRead2( run_dir + genome_dbfile, genome_db );
+               BinaryReader::readFile( run_dir + genome_dbfile, &genome_db );
           else 
           {    genome_db.reserve( genome_paths.sumSizes() );
                for ( size_t i = 0; i < genome_paths.size( ); i++ )
@@ -207,7 +208,7 @@ int main( int argc, char *argv[] )
      vec<genome_placement> locs;
      vec<int> actual_copy_number(paths.size(), 0);
      if( LOAD_PLACEMENTS_FROM.nonempty() ) {
-       BinaryRead2( LOAD_PLACEMENTS_FROM, locs );
+       BinaryReader::readFile( LOAD_PLACEMENTS_FROM, &locs );
        for( int i=0; i < locs.isize(); i++ )
 	 actual_copy_number[ locs[i].GetReadId() ] = locs[i].GetCopyNumber();
      }
@@ -256,7 +257,7 @@ int main( int argc, char *argv[] )
 	 locs[i].SetCopyNumber( actual_copy_number[ locs[i].GetReadId( ) ] );
 
        if( SAVE_PLACEMENTS_TO.nonempty() ) {
-	 BinaryWrite2( SAVE_PLACEMENTS_TO, locs );
+	 BinaryWriter::writeFile( SAVE_PLACEMENTS_TO, locs );
        }
      }
 

@@ -21,7 +21,7 @@
 #include <iomanip> /* for setprecision */
 #include <sstream>
 
-typedef FeudalString<char, std::char_traits<char> > String;
+typedef FeudalString<char> String;
 
 // ToString type conversion suite
 inline String ToString(int x)
@@ -82,12 +82,6 @@ bool cmp_numeric(const String& s1, const String& s2);
 // according to the order A, B, ..., Z, AA, AB, ..., etc.
 String BaseAlpha(unsigned int n);
 unsigned int UnBaseAlpha(const String& s);
-
-// Feudal File Access
-void BinaryRead(int fd, String& s);
-void BinaryWrite(int fd, const String& s);
-void BinaryReadContent(int fd, String& s);
-void BinaryWriteContent(int fd, const String& s);
 
 // Evaluate a mathematical expression
 inline String Evaluate(const String& expr, const bool /* verbose */ = 0)

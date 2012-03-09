@@ -17,6 +17,8 @@
 #include "MainTools.h"
 #include "Basevector.h"
 #include "Qualvector.h"
+#include "system/ProcBuf.h"
+#include <fstream>
 
 
 static inline 
@@ -31,56 +33,56 @@ struct FastqEntry
   QualVec qualities;
 };
 
-bool NextFastqEntry(FILE *fastq, 
-                    FastqEntry &entry, 
-                    vec<size_t> * p_n_amb,
-                    const char phred_offset) 
+class Swizzler
 {
-  size_t size = 1024;
-  char *cseqheader  = reinterpret_cast<char *>(malloc(size*sizeof(char)));
-  char *cseq        = reinterpret_cast<char *>(malloc(size*sizeof(char)));
-  char *cqualheader = reinterpret_cast<char *>(malloc(size*sizeof(char)));
-  char *cqual       = reinterpret_cast<char *>(malloc(size*sizeof(char)));
+public:
+    Swizzler( char offset ) : mOffset(offset), mMin('\x7f'), mMax('\x80') {}
 
-  bool state = 0;
+    char operator()( char score )
+    { if ( score < mMin ) mMin = score;
+      if ( score > mMax ) mMax = score;
+      return score > mOffset ? score-mOffset : 0; }
 
-  int headersize = getline(&cseqheader, &size, fastq);
-  if (headersize > 0) {
-    getline(&cseq, &size, fastq);
-    getline(&cqualheader, &size, fastq);
-    getline(&cqual, &size, fastq);
+    char getMin() const { return mMin; }
+    char getMax() const { return mMax; }
 
-    String sseq(cseq);
-    String squal(cqual);
-        
-    // trim last entry
-    sseq.resize(sseq.size() - 1);
-    squal.resize(squal.size() - 1);
+private:
+    char mOffset;
+    char mMin;
+    char mMax;
+};
 
-    // ---- count number of ambiguous bases
-    for (String::iterator it = sseq.begin();
-         it != sseq.end(); it++) 
-      (*p_n_amb)[GeneralizedBase::fromChar(*it).getAmbiguityCount() - 1]++;
+bool NextFastqEntry( std::istream& is, FastqEntry &entry,
+                            vec<size_t> * p_n_amb, const char phred_offset )
+{
+    bool result = false;
+    std::string seqheader;
+    std::string seq;
+    std::string qualheader;
+    std::string qual;
+    if ( std::getline(is,seqheader) && seqheader.size() )
+    {
+        std::getline(is,seq);
+        std::getline(is,qualheader);
+        std::getline(is,qual);
 
-    entry.sequence.SetFromStringWithNs(sseq);
+        // ---- count number of ambiguous bases
+        typedef std::string::iterator Itr;
+        for ( Itr itr(seq.begin()), end(seq.end()); itr != end; ++itr )
+            (*p_n_amb)[GeneralizedBase::fromChar(*itr).getAmbiguityCount()-1]++;
 
-    entry.qualities.resize(squal.size());
-    for (unsigned int qualindex = 0; qualindex < squal.size(); qualindex++) {
-      const char phred = squal[qualindex];
-      entry.qualities[qualindex] = (phred > phred_offset) ? phred - phred_offset : 0;
-      if (phred < entry.phred_min) entry.phred_min = phred;
-      if (phred > entry.phred_max) entry.phred_max = phred;
+        entry.sequence = bvec(seq.begin(),seq.end(),GenCharToRandomBaseMapper());
+
+        entry.qualities.clear().reserve(qual.size());
+        Swizzler swiz(phred_offset);
+        for ( Itr itr(qual.begin()), end(qual.end()); itr != end; ++itr )
+            entry.qualities.push_back(swiz(*itr));
+        entry.phred_min = swiz.getMin();
+        entry.phred_max = swiz.getMax();
+        result = true;
     }
 
-    state = 1;
-  }
-
-  free(cseqheader);
-  free(cseq);
-  free(cqualheader);
-  free(cqual);
-
-  return state;
+    return result;
 }
 
 
@@ -118,9 +120,15 @@ int main(int argc, char **argv)
   CommandArgument_Bool_OrDefault(WRITE_QUALB, true);
   EndCommandArguments;
 
-  String cmd = FASTQ.Contains(".gz") ? "zcat " + FASTQ : "cat " + FASTQ;
-
-  FILE *fastq = popen(cmd.c_str(), "r");
+  procbuf* pProcBuf = 0;
+  istream* pIS = 0;
+  if ( !FASTQ.EndsWith(".gz") )
+      pIS = new std::ifstream(FASTQ.c_str());
+  else
+  {
+      pProcBuf = new procbuf(("zcat "+FASTQ).c_str(),std::ios_base::in);
+      pIS = new std::istream(pProcBuf);
+  }
 
   // phred score can be encoded as score + 33 (default) or score + 64
   const int phred_offset = (PHRED_64 ? 64 : 33);
@@ -146,7 +154,7 @@ int main(int argc, char **argv)
   vec<size_t> n_amb(4,0);
   unsigned n_warns = 0;
   const unsigned n_warns_display = 10;
-  while (NextFastqEntry(fastq, e, &n_amb, phred_offset)) {
+  while (NextFastqEntry(*pIS, e, &n_amb, phred_offset)) {
     if (e.sequence.size() > READ_SIZE_THRESHOLD) {
 
       const unsigned nb = e.sequence.size();
@@ -189,7 +197,8 @@ int main(int argc, char **argv)
   if (WRITE_FASTB) {  seqs.WriteAll(OUT_HEAD + FASTB_SUFFIX); }
   if (WRITE_QUALB) { quals.WriteAll(OUT_HEAD + QUALB_SUFFIX); }
 
-  pclose(fastq);
+  delete pIS;
+  delete pProcBuf;
 
   cout << Tag() << setw(14) << n_reads_in << "  reads in fastq file." << endl;
   cout << Tag() << setw(14) << n_reads_out << "  reads in fastb/qualb files." << endl;
@@ -213,8 +222,8 @@ int main(int argc, char **argv)
   cout << Tag() << setw(14) << q_min << "  lowest quality score." << endl;
   cout << Tag() << setw(14) << q_max << "  highest quality score." << endl;
 
-  if (q_min < -5 || q_max > 41) {
-    cout << Tag() << "!!!! QUALITY SCORES ARE NOT IN [-5:41] WITH SPECIFIED 'PHRED_64="
+  if (q_min < -5 || q_max > 61) {
+    cout << Tag() << "!!!! QUALITY SCORES ARE NOT IN [-5:61] WITH SPECIFIED 'PHRED_64="
          << (PHRED_64 ? "True" : "False") << "'." 
          << endl;
     
@@ -224,7 +233,7 @@ int main(int argc, char **argv)
     cout << Tag() << "!!!! Set 'PHRED_64=" << (PHRED_64 ? "False" : "True") 
          << "' to get quality scores in [" << q_min_alt << "," << q_max_alt << "]";
     
-    if ((q_min_alt >= -5 || q_max_alt <= 41)) cout << " which is correct." << endl;
+    if ((q_min_alt >= -5 || q_max_alt <= 61)) cout << " which is correct." << endl;
     else                                      cout << " which is not correct either." << endl;
 
 

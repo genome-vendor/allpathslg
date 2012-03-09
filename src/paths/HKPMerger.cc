@@ -14,6 +14,7 @@
  * \brief
  */
 #include "paths/HKPMerger.h"
+#include "feudal/BinaryStream.h"
 #include "paths/InternalMerge.h"
 #include "pairwise_aligners/PerfectAlignerLG.h"
 #include "system/Assert.h"
@@ -114,7 +115,7 @@ HyperKmerPath HKPMerger::localMerge( int max_group_size,
     {
         HyperKmerPath hkp = fMerger.checkpoint();
         HKPCleanup(hkp);
-        BinaryOverwrite(mCheckpointFile,hkp);
+        BinaryWriter::writeFile(mCheckpointFile,hkp);
     }
 
     return fMerger.getPath();

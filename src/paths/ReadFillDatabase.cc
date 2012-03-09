@@ -1,6 +1,7 @@
 // Copyright (c) 2005 Broad Institute/Massachusetts Institute of Technology
 
 #include "paths/ReadFillDatabase.h"
+#include "feudal/BinaryStream.h"
 
 #include <functional>
 
@@ -35,8 +36,8 @@ void ReadFillDatabase::FillsFromFile( const String& filename ) {
     right_trim_file = dirname + "/reads.paths.right_trim." + k48;
   }
   
-  BinaryRead2( left_trim_file, left_trim );
-  BinaryRead2( right_trim_file, right_trim );
+  BinaryReader::readFile( left_trim_file, &left_trim );
+  BinaryReader::readFile( right_trim_file, &right_trim );
 }
 
 

@@ -386,6 +386,38 @@ void SortSyncDispatch( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, F comparator 
   PermuteVec(y, perm);
 }
 
+template<class S, class T, class U, class V, class M, typename F, typename IDX > 
+void SortSyncDispatch( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, vec<M>& m, F comparator ) {
+  ForceAssertEq( v.size( ), w.size( ) );
+  ForceAssertEq( v.size( ), x.size( ) );
+  ForceAssertEq( v.size( ), y.size( ) );
+  ForceAssertEq( v.size( ), m.size( ) );
+  vec<IDX> perm;
+  WhatPermutation<vec<S>,F, IDX>(v, perm, comparator);
+  PermuteVec(v, perm);
+  PermuteVec(w, perm);
+  PermuteVec(x, perm);
+  PermuteVec(y, perm);
+  PermuteVec(m, perm);
+}
+
+template<class S, class T, class U, class V, class M, class N, typename F, typename IDX > 
+void SortSyncDispatch( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, vec<M>& m, vec<N>& n, F comparator ) {
+  ForceAssertEq( v.size( ), w.size( ) );
+  ForceAssertEq( v.size( ), x.size( ) );
+  ForceAssertEq( v.size( ), y.size( ) );
+  ForceAssertEq( v.size( ), m.size( ) );
+  ForceAssertEq( v.size( ), n.size( ) );
+  vec<IDX> perm;
+  WhatPermutation<vec<S>,F, IDX>(v, perm, comparator);
+  PermuteVec(v, perm);
+  PermuteVec(w, perm);
+  PermuteVec(x, perm);
+  PermuteVec(y, perm);
+  PermuteVec(m, perm);
+  PermuteVec(n, perm);
+}
+
 template<class S, class T, class U, class V, typename F > 
 void SortSync( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, F comparator ) {
   if (v.size() <= numeric_limits<unsigned int>::max())
@@ -394,14 +426,45 @@ void SortSync( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, F comparator ) {
     SortSyncDispatch<S,T,U,V,F,typename vec<S>::size_type>(v, w, x, y, comparator);
 }
 
+template<class S, class T, class U, class V, class M, typename F > 
+void SortSync( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, vec<M>& m, F comparator ) {
+  if (v.size() <= numeric_limits<unsigned int>::max())
+    SortSyncDispatch<S,T,U,V,M,F,unsigned int>(v, w, x, y, m, comparator);
+  else
+    SortSyncDispatch<S,T,U,V,M,F,typename vec<S>::size_type>(v, w, x, y, m, comparator);
+}
+
+template<class S, class T, class U, class V, class M, class N, typename F > 
+void SortSync( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, vec<M>& m, vec<N>& n, F comparator ) {
+  if (v.size() <= numeric_limits<unsigned int>::max())
+    SortSyncDispatch<S,T,U,V,M,N,F,unsigned int>(v, w, x, y, m, n, comparator);
+  else
+    SortSyncDispatch<S,T,U,V,M,N,F,typename vec<S>::size_type>(v, w, x, y, m, n, comparator);
+}
+
 template<class S, class T, class U, class V> 
 void SortSync( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y ) {
   SortSync( v, w, x, y, less<S>() );
 }
 
+template<class S, class T, class U, class V, class M> 
+void SortSync( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, vec<M>& m ) {
+  SortSync( v, w, x, y, m, less<S>() );
+}
+
 template<class S, class T, class U, class V> 
 void ReverseSortSync( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y ) {
   SortSync( v, w, x, y, greater<S>() );    
+}
+
+template<class S, class T, class U, class V, class M> 
+void ReverseSortSync( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, vec<M>& m ) {
+  SortSync( v, w, x, y, m, greater<S>() );    
+}
+
+template<class S, class T, class U, class V, class M, class N> 
+void ReverseSortSync( vec<S>& v, vec<T>& w, vec<U>& x, vec<V>& y, vec<M>& m, vec<N>& n ) {
+  SortSync( v, w, x, y, m, n, greater<S>() );    
 }
 
 /////////////////////////////////////////////////////////////////////////////

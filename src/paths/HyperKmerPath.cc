@@ -12,6 +12,7 @@
 #include "Equiv.h"
 #include "PrintAlignment.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "feudal/IncrementalWriter.h"
 #include "graph/DigraphTemplate.h"
 #include "math/Functions.h"
@@ -48,8 +49,6 @@ template void digraphE<KmerPath>::DeleteEdgesAtVertex(int);
 template void digraphE<KmerPath>::RemoveDuplicateEdges();
 template void digraphE<KmerPath>::RemoveDeadEdgeObjects();
 template void digraphE<KmerPath>::PopBubbles( const vec<int>& bubble_vs );
-template void BinaryWrite(int, const digraphE<KmerPath>&);
-template void BinaryRead(int, digraphE<KmerPath>&);
 template Bool digraphE<KmerPath>::IsComplete( const vec<int>& vertices,
      const vec<int>& edges ) const;
 template void digraphE<KmerPath>::DualComponentRelation(
@@ -160,14 +159,6 @@ void HyperKmerPath::SetToDisjointUnionOf( const vec<HyperKmerPath>& v )
           vcount += h.N( );
           ecount += h.EdgeObjectCount( );    }    }
 
-
-void BinaryWrite( int fd, const HyperKmerPath& h )
-{    WriteBytes( fd, &h.K_, sizeof(int) );
-     BinaryWrite( fd, (const digraphE<KmerPath>&) h );    }
-
-void BinaryRead( int fd, HyperKmerPath& h )
-{    ReadBytes( fd, &h.K_, sizeof(int) );
-     BinaryRead( fd, (digraphE<KmerPath>&) h );    }
 
 void HyperKmerPath::ReverseComponent( int x )
 {    equiv_rel e( N( ) );
@@ -477,9 +468,7 @@ void HyperKmerPath::CompressEdgeObjects( )
 
 
 HyperKmerPath::HyperKmerPath( const String& filename )
-{    int fd = OpenForRead(filename);
-     BinaryRead( fd, *this );
-     close(fd);    }
+{    BinaryReader::readFile( filename, this );   }
 
 void HyperKmerPath::RemoveSmallComponents( int min_kmers )
 {    vec< vec<int> > comps;
@@ -997,3 +986,15 @@ void HyperKmerPath::DeleteReverseComplementComponents( )
                     rc_to_delete.push_back( components[p][j] );    }    }
      Sort(rc_to_delete);
      DeleteEdges(rc_to_delete);    }
+
+void HyperKmerPath::writeBinary( BinaryWriter& writer ) const
+{
+    writer.write(K_);
+    writer.write(static_cast<digraphE<KmerPath> const&> (*this));
+}
+
+void HyperKmerPath::readBinary( BinaryReader& reader )
+{
+    reader.read(&K_);
+    reader.read(static_cast<digraphE<KmerPath>*> (this));
+}

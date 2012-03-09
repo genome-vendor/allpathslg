@@ -19,16 +19,16 @@
 #include "feudal/MasterVec.h"
 #include "feudal/SerfVec.h"
 
-typedef SerfVec<char> charvector;
-typedef MasterVec< charvector > veccharvector;
+typedef SerfVec<char> CharVec;
+typedef MasterVec< CharVec > VecCharVec;
 
-typedef SerfVec<unsigned char> ucharvector;
-typedef MasterVec< ucharvector > vecucharvector;
+typedef SerfVec<unsigned char> UCharVec;
+typedef MasterVec< UCharVec > VecUCharVec;
 
-typedef ucharvector Boolvector;
-typedef vecucharvector vecBoolvector;
+typedef UCharVec Boolvector;
+typedef VecUCharVec vecBoolvector;
 
 // Remove newlines from in and save the result in out.
-void StripNewlines( const charvector &in, charvector &out );
+void StripNewlines( const CharVec &in, CharVec &out );
 
 #endif /* CHARVECTOR_H_ */

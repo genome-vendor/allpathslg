@@ -11,6 +11,7 @@
 
 #include "Basevector.h"
 #include "CoreTools.h"
+#include "feudal/BinaryStreamTraits.h"
 #include "graph/Digraph.h"
 #include "math/Functions.h"
 
@@ -46,6 +47,7 @@ class ulink_with_uids {
      int nlinks;
 
 };
+TRIVIALLY_SERIALIZABLE(ulink_with_uids);
 
 class ulink {
 

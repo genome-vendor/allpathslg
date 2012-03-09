@@ -61,6 +61,7 @@ bool allow_filled = false;
 #include "MainTools.h"
 #include "PairsManager.h"
 #include "Qualvector.h"
+#include "feudal/BinaryStream.h"
 #include "graph/Digraph.h"
 #include "graph/DigraphTemplate.h"
 #include "math/HoInterval.h"
@@ -1181,6 +1182,6 @@ int main( int argc, char *argv[] )
      paths.WriteAll( run_dir + "/" + UNIBASES_OUT + ".paths.k" + KS );
      pathsrc.WriteAll( run_dir + "/" + UNIBASES_OUT + ".paths_rc.k" + KS );
      unipaths.WriteAll( run_dir + "/" + UNIBASES_OUT + ".unipaths.k" + KS );
-     BinaryWrite3( run_dir + "/" + UNIBASES_OUT + ".pathsdb.k" + KS, pathsdb );
-     BinaryWrite3( run_dir + "/" + UNIBASES_OUT + ".unipathsdb.k" + KS,
+     BinaryWriter::writeFile( run_dir + "/" + UNIBASES_OUT + ".pathsdb.k" + KS, pathsdb );
+     BinaryWriter::writeFile( run_dir + "/" + UNIBASES_OUT + ".unipathsdb.k" + KS,
           unipathsdb );    }

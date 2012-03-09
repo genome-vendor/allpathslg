@@ -19,8 +19,9 @@
 #include "MainTools.h"
 #include "PrintAlignment.h"
 #include "Qualvector.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "efasta/EfastaTools.h"
+#include "feudal/BinaryStream.h"
 #include "feudal/QualNibbleVec.h"
 #include "math/Functions.h"
 #include "paths/AssemblyEdit.h"
@@ -302,7 +303,7 @@ int main(int argc, char *argv[])
      {
 
       vec<size_t> JRPS_START;
-      BinaryRead3(ch_head + "JRPS_START", JRPS_START);
+      BinaryReader::readFile(ch_head + "JRPS_START", &JRPS_START);
   
       // Load the reads.
   
@@ -351,8 +352,8 @@ int main(int argc, char *argv[])
 	 // Get the read alignments for this contig.
 	 if (SHOW) 
 	   rout << Date( ) << ": fetching jump reads for this contig" << endl;
-	 BinaryReadRange3(ch_head + "JRALIGNS_PSORT", 
-	     JRPS_START[tig], JRPS_START[tig+1], JRALIGNS_this);
+	 JRALIGNS_this.ReadRange(ch_head + "JRALIGNS_PSORT",
+	                         JRPS_START[tig], JRPS_START[tig+1]);
        }
        if (SHOW) rout << Date( ) << ": End fetching jump reads " << endl;
        FastaVec& contig = contigs[0];

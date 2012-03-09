@@ -93,7 +93,7 @@ class FastaFilestream {
 
 
 typedef 
-FastaFilestream<veccharvector,charvector,FastaNullConverter,FastaNullVerifier>
+FastaFilestream<VecCharVec,CharVec,FastaNullConverter,FastaNullVerifier>
 FastaRawFilestream;
 
 typedef

@@ -17,6 +17,7 @@
 #include "pairwise_aligners/SmithWatBandedA.h"
 #include "paths/ReadLoc.h"
 #include "polymorphism/DumbCall.h"
+#include "system/file/FileWriter.h"
 
 vec< vec<int> > read_loc::lib_sep_, read_loc::lib_dev_;
 
@@ -78,25 +79,25 @@ String read_locs_packed_header = "This file represents a vector of read_locs\n";
 
 void WriteReadLocs( const String& HEAD, const int32_t ntigs, 
      const vec<read_loc>& locs )
-{    int fd = OpenForWrite( HEAD + ".readlocs" );
-     WriteBytes( fd, &read_locs_packed_header[0], read_locs_packed_header.size( ) );
+{    FileWriter fw(HEAD + ".readlocs");
+     fw.write( &read_locs_packed_header[0], read_locs_packed_header.size( ) );
      size_t locs_size = locs.size( );
-     WriteBytes( fd, &locs_size, sizeof(locs_size) );
+     fw.write( &locs_size, sizeof(locs_size) );
      size_t bucket = 100000;
      vec<PackedStuff> locs_packed(bucket);
      for ( size_t i = 0; i < locs_size; i += bucket )
      {    size_t j;
           for ( j = 0; j < Min( bucket, locs_size - i ); j++ )
                locs_packed[j] = locs[i+j].PackWithoutContigId( );
-          WriteBytes( fd, &locs_packed[0], sizeof(PackedStuff) * j );    }
+          fw.write( &locs_packed[0], sizeof(PackedStuff) * j );    }
      vec<int64_t> index( ntigs + 1 );
      uint64_t pos = 0;
      for ( int64_t u = 0; u <= (int64_t) ntigs; u++ )
      {    while( pos < locs.size( ) && locs[pos].ContigId( ) < u ) ++pos;
           index[u] = pos;    }
-     WriteBytes( fd, &ntigs, sizeof(ntigs) );
-     WriteBytes( fd, &index[0], (ntigs+1) * sizeof(int64_t) );
-     Close(fd);    }
+     fw.write( &ntigs, sizeof(ntigs) );
+     fw.write( &index[0], (ntigs+1) * sizeof(int64_t) );
+     fw.close();    }
 
 read_locs_on_disk::read_locs_on_disk( const String& HEAD, const String& run_dir )
 : fr_((HEAD + ".readlocs").c_str())
@@ -128,14 +129,14 @@ void read_locs_on_disk::WriteContig(const String& file,  const int tig, const ve
 {    ForceAssertGe( tig, 0 );
      ForceAssertLt( tig, index_.isize( ) );
      ForceAssertEq( locs.size(),  size_t(index_[tig+1] - index_[tig]) );
-     int fd = OpenForWrite(file );
-     lseek( fd, read_locs_packed_header.size( ) + sizeof(locs_size_)
-          + sizeof(PackedStuff) * index_[tig], SEEK_SET );
+     FileWriter fw(file);
+     fw.seek( read_locs_packed_header.size( ) + sizeof(locs_size_)
+             + sizeof(PackedStuff) * index_[tig] );
      vec<PackedStuff> locs_packed( locs.size( ) );
      for ( size_t i = 0; i < locs.size(); i++)
 	  locs_packed[i] = locs[i].PackWithoutContigId( );
-     WriteBytes( fd, &locs_packed[0], sizeof(PackedStuff) * locs.size() );
-     Close(fd);    }
+     fw.write( &locs_packed[0], sizeof(PackedStuff) * locs.size() );
+     fw.close();    }
 
 void read_locs_on_disk::LoadOne( const int64_t id, read_loc& rl )
 {    ForceAssertGe( id, 0 );

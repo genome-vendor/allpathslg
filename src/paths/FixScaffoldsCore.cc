@@ -13,7 +13,7 @@
 #include "PairsManager.h"
 #include "ParseSet.h"
 #include "Superb.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "lookup/LookAlign.h"
 #include "math/HoInterval.h"
 #include "math/NStatsTools.h"
@@ -125,11 +125,15 @@ void FixScaffoldsCore( const vec<int> &trace_ids,
      
      // Load.
      
-     int ntigs = 0;
-     for (int ii=0; ii<scaffolds.isize( ); ii++)
-       for (int jj=0; jj<scaffolds[ii].Ntigs( ); jj++)
-	 ntigs = Max( ntigs, scaffolds[ii].Tig( jj ) );
-     ntigs++;
+     // !!!! BE AWARE that ntigs calculated maybe smaller than the number of contigs, 
+     // because in some cases the scaffolds do not include all contigs. To be safe,
+     // let's include every contigs here.
+     int ntigs = contigs.size();
+     //int ntigs = 0;
+     //for (int ii=0; ii<scaffolds.isize( ); ii++)
+     //  for (int jj=0; jj<scaffolds[ii].Ntigs( ); jj++)
+     //    ntigs = Max( ntigs, scaffolds[ii].Tig( jj ) );
+     //ntigs++;
 
      vec<int> tig_sizes( ntigs, 0 );
      for (int ii=0; ii<scaffolds.isize( ); ii++)

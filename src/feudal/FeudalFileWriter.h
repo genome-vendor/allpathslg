@@ -23,6 +23,7 @@
 #include "feudal/FeudalControlBlock.h"
 #include "feudal/BinaryStream.h"
 #include <cstddef>
+#include <string>
 #include <vector>
 
 /**
@@ -50,17 +51,17 @@ public:
 
     ~FeudalFileWriter();
 
-    char const* getFilename() const
+    std::string const& getFilename() const
     { return mWriter.getFilename(); }
 
     /// number of elements written so far
-    unsigned long getNElements() const { return mOffsets.size(); }
+    unsigned long getNElements() const { return mOffsets.size()-1; }
 
     /// Get the writer for variable-length data.
     BinaryWriter& getWriter() { return mWriter; }
 
     /// Tell us that you've added variable-length data for an element.
-    void addElement( size_t varLen, void const* fixedLenData );
+    void addElement( void const* fixedLenData );
 
     /// Flush everything to make a finished feudal file, but leave it open for
     /// further writing.  It's necessary for just a couple of pieces of code
@@ -73,12 +74,11 @@ private:
     FeudalFileWriter( FeudalFileWriter const& ); // unimplemented -- no copying
     FeudalFileWriter& operator=( FeudalFileWriter const& ); // unimplemented -- no copying
 
-    void finish();
+    void finish( size_t pos );
 
     BinaryWriter mWriter;
     std::vector<offset_type> mOffsets;
     std::vector<char> mFixedLenData;
-    offset_type mNextOffset;
     size_type mVecSize;
     size_type mEltSize;
     size_type mFixedLenDataLen;

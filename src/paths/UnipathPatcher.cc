@@ -6,9 +6,10 @@
 //   Institute is not responsible for its use, misuse, or functionality.     //
 ///////////////////////////////////////////////////////////////////////////////
 
-// UnipathPatcher.  Place reads on the unipaths then attempt to close gaps.
+const char *DOC =
+  "Place reads on the unipaths then attempt to close gaps.";
+
 // This shares code with UnipathFixer.   Compare with CloseUnipathGaps.
-//
 // Don't feed this EcoP15I reads without changing the code appropriately.
 //
 // Note that this code does not generate bona fide unipaths as output unless
@@ -33,8 +34,9 @@
 #include "ParallelVecUtilities.h"
 #include "ParseSet.h"
 #include "Qualvector.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "graph/Digraph.h"
 #include "graph/DigraphTemplate.h"
 #include "lookup/LookAlign.h"
@@ -86,6 +88,7 @@ int main( int argc, char *argv[] )
      RunTime( );
 
      BeginCommandArguments;
+     CommandDoc(DOC);
      CommandArgument_String(PRE);
      CommandArgument_String(DATA);
      CommandArgument_String(RUN);
@@ -100,6 +103,8 @@ int main( int argc, char *argv[] )
      CommandArgument_Bool_OrDefault(PRINT_ALIGNMENTS, False);
      CommandArgument_Bool_OrDefault(PRINT_SEGMENTS, False);
      CommandArgument_Bool_OrDefault(SHOW_ALL, False);
+     CommandArgument_Bool_OrDefault_Doc(WRITE_ALL, True,
+       "Write new unpaths, unibases, etc..., otherwise just write unibases");
      CommandArgument_Int_OrDefault(MAX_PLACEMENTS, 50);
      CommandArgument_Bool_OrDefault(WRITE, True);
      CommandArgument_String_OrDefault_Doc(LOG, "",
@@ -222,16 +227,16 @@ int main( int argc, char *argv[] )
      String ALIGNS_file = run_dir + "/" + PATCHDIR + "/UnipathPatcher.ALIGNS";
      String JALIGNS_file = run_dir + "/" + PATCHDIR + "/UnipathPatcher.JALIGNS";
      if ( CHECKPOINT && IsRegularFile(ALIGNS_file) && IsRegularFile(JALIGNS_file) )
-     {    BinaryRead3( ALIGNS_file, ALIGNS );
-          BinaryRead3( JALIGNS_file, JALIGNS );    }
+     {    BinaryReader::readFile( ALIGNS_file, &ALIGNS );
+          BinaryReader::readFile( JALIGNS_file, &JALIGNS );    }
      else
      {    double align_clock = WallClockTime( );
           AlignReadsToUnipaths( run_dir, JUMP_READS, FRAG_READS, FRAG_READS_EDIT, 
                True, MAX_PLACEMENTS, unifile, ALIGNS, JALIGNS, CHECKPOINT_HEAD );
           cout << Date( ) << ": " << TimeSince(align_clock)
                << " used aligning reads to unipaths" << endl;
-          BinaryWrite3( ALIGNS_file, ALIGNS );
-          BinaryWrite3( JALIGNS_file, JALIGNS );
+          BinaryWriter::writeFile( ALIGNS_file, ALIGNS );
+          BinaryWriter::writeFile( JALIGNS_file, JALIGNS );
           if (PRINT_ALIGNMENTS)
           {    for ( size_t i = 0; i < ALIGNS.size( ); i++ )
                {    cout << "fragment read " << ALIGNS[i].first << " --> "
@@ -261,10 +266,11 @@ int main( int argc, char *argv[] )
      cout << Date( ) << ": computing unibase involution" << endl;
      vec<int> to_rc;
      String TORC_file = run_dir + "/" + PATCHDIR + "/UnipathPatcher.TORC";
-     if ( CHECKPOINT && IsRegularFile(TORC_file) ) BinaryRead3( TORC_file, to_rc );
+     if ( CHECKPOINT && IsRegularFile(TORC_file) )
+         BinaryReader::readFile( TORC_file, &to_rc );
      else
      {    UnibaseInvolution( unibases, to_rc, K );
-          if (CHECKPOINT) BinaryWrite3( TORC_file, to_rc );    }
+          if (CHECKPOINT) BinaryWriter::writeFile( TORC_file, to_rc );    }
 
      // Directly convert alignments into segments, then get rid of alignments.
 
@@ -273,9 +279,9 @@ int main( int argc, char *argv[] )
      String SEGS_file = run_dir + "/" + PATCHDIR + "/UnipathPatcher.SEGS";
      String JSEGS_file = run_dir + "/" + PATCHDIR + "/UnipathPatcher.JSEGS";
      if ( CHECKPOINT && IsRegularFile(SEGS_file) ) 
-     {    BinaryRead3( SEGS_file, SEGS );
+     {    BinaryReader::readFile( SEGS_file, &SEGS );
           Destroy(ALIGNS);
-          BinaryRead3( JSEGS_file, JSEGS );
+          BinaryReader::readFile( JSEGS_file, &JSEGS );
           Destroy(JALIGNS);    }
      else
      {    SEGS.resize( ALIGNS.size( ) ), JSEGS.resize( JALIGNS.size( ) );
@@ -289,8 +295,8 @@ int main( int argc, char *argv[] )
                     JALIGNS[i].third );    }
           Destroy(JALIGNS);
           ParallelSort(JSEGS);
-          BinaryWrite3( SEGS_file, SEGS );
-          BinaryWrite3( JSEGS_file, JSEGS );    }
+          BinaryWriter::writeFile( SEGS_file, SEGS );
+          BinaryWriter::writeFile( JSEGS_file, JSEGS );    }
 
      // Index the aligned segments.
 
@@ -315,7 +321,8 @@ int main( int argc, char *argv[] )
           << "ploidy = " << PLOIDY << endl;
      vec<int> CN;
      String CN_file = run_dir + "/" + PATCHDIR + "/UnipathPatcher.CN";
-     if ( CHECKPOINT && IsRegularFile(CN_file) ) BinaryRead3( CN_file, CN );
+     if ( CHECKPOINT && IsRegularFile(CN_file) )
+         BinaryReader::readFile( CN_file, &CN );
      else
      {    
           // Quick and dirty calculation.
@@ -355,7 +362,7 @@ int main( int argc, char *argv[] )
                FRAG_READS, SEGS, S_START, CN );
           */
 
-          if (CHECKPOINT) BinaryWrite3( CN_file, CN );    }
+          if (CHECKPOINT) BinaryWriter::writeFile( CN_file, CN );    }
 
      // Heuristics.
 
@@ -821,14 +828,19 @@ int main( int argc, char *argv[] )
      
                // Write new files.
 
-               cout << Date( ) << ": writing new files" << endl;
+               cout << Date( ) << ": writing unibases" << endl;
                unibases.WriteAll( run_dir + "/" + OUT_HEAD + ".unibases.k" + KS );
-               paths.WriteAll( run_dir + "/" + OUT_HEAD + ".paths.k" + KS );
-               pathsrc.WriteAll( run_dir + "/" + OUT_HEAD + ".paths_rc.k" + KS );
-               unipaths.WriteAll( run_dir + "/" + OUT_HEAD + ".unipaths.k" + KS );
-               BinaryWrite3( run_dir + "/" + OUT_HEAD + ".pathsdb.k" + KS, pathsdb );
-               BinaryWrite3( run_dir + "/" + OUT_HEAD + ".unipathsdb.k" + KS, 
-                    unipathsdb );    }    }
+	       if (WRITE_ALL) {
+		 cout << Date( ) << ": writing paths and unipaths" << endl;
+		 paths.WriteAll( run_dir + "/" + OUT_HEAD + ".paths.k" + KS );
+		 pathsrc.WriteAll( run_dir + "/" + OUT_HEAD + ".paths_rc.k" + KS );
+		 unipaths.WriteAll( run_dir + "/" + OUT_HEAD + ".unipaths.k" + KS );
+		 BinaryWriter::writeFile( run_dir + "/" + OUT_HEAD + ".pathsdb.k" + KS, pathsdb );
+		 BinaryWriter::writeFile( run_dir + "/" + OUT_HEAD + ".unipathsdb.k" + KS,
+                    unipathsdb ); 
+	       }
+	  }
+     }
 
      // Finish up.
 

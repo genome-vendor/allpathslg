@@ -10,7 +10,7 @@
 #define READ_LOCATION_LG
 
 #include "CommonSemanticTypes.h" // ORIENT_FW, ORIENT_RC
-#include "VecTemplate.h" // BINARY2_DEF
+#include "feudal/BinaryStreamTraits.h"
 
 /* ReadLocationLG
  *
@@ -96,6 +96,7 @@ private:
   int start_;
   
 };
+TRIVIALLY_SERIALIZABLE(ReadLocationLG);
 
 inline Bool cmp_contig_read( const ReadLocationLG& r1, 
 			     const ReadLocationLG& r2 )
@@ -126,12 +127,5 @@ inline bool contig_read_start_eq(const ReadLocationLG & r1,
   if (r1.Start()  != r2.Start())  return false;
   return true;
 }
-
-  
-
-// Instantiate templatized I/O functions for use with vec<ReadLocationLG>
-// (chiefly BinaryRead2 and BinaryWrite2.)
-BINARY2_DEF( ReadLocationLG );
-
 
 #endif

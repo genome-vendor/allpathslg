@@ -12,6 +12,7 @@
 #include "PackAlign.h"
 #include "STLExtensions.h"
 #include "VecAlignmentPlus.h"
+#include "system/file/FileWriter.h"
 
 
 
@@ -393,20 +394,15 @@ void vec_alignment_plus::Load( const String &alignments_file )
 //
 // =================================================================================
 
-int rai_fd(-1);
-
 void BuildAlignsIndexFin( int n_reads, const vec<int>& aligns_to,
      vec<int>& aligns_to_index, const String& run_dir )
 {    for ( int i = 1; i <= n_reads; i++ )
           if ( aligns_to_index[i] < 0 ) aligns_to_index[i] = aligns_to_index[i-1];
-     int fd = Open( run_dir + "/aligns.index", O_WRONLY | O_CREAT );
-     WriteBytes( fd, &aligns_to_index[0], (n_reads + 1) * sizeof(int) );
-     WriteBytes( fd, &aligns_to[0],
-          (longlong) aligns_to.size( ) * (longlong) sizeof(int) );
-     close(fd);
-     if ( rai_fd >= 0 )
-     {    close(rai_fd);
-          rai_fd = -1;    }    }
+     FileWriter fw( run_dir + "/aligns.index" );
+     fw.write( &aligns_to_index[0], (n_reads + 1) * sizeof(int) );
+     fw.write( &aligns_to[0],
+                 (longlong) aligns_to.size( ) * (longlong) sizeof(int) );
+     fw.close();   }
 
 void BuildAlignsIndex( const String& run_dir, const vec_alignment_plus& all_aligns,
      int n_reads )

@@ -62,8 +62,7 @@ public:
       _p_kspec(0),
       _kspec_tmp(_K),
       _lock()
-  {
-  }
+  {}
 
   // interface function needed by naif_kmerize()
   size_t K() const { return _K; }
@@ -137,6 +136,11 @@ private:
 
   const Validator * _p_validator;
   
+  bool _is_valid_kf(const size_t kf) const 
+  {
+    return (kf > 0 && (!_p_validator || (*_p_validator)(kf)));
+  }
+
   
 public:
   typedef KmerBVLoc<KMER_t>       rec_type;
@@ -153,7 +157,7 @@ public:
       _lock(),
       _p_validator(p_validator) 
   {
-    ForceAssert(K % 2 == 1);
+    //ForceAssert(K % 2 == 1);
   }
 
   // copy constructor for temporary kernels
@@ -186,8 +190,8 @@ public:
       if (parcels.in_one_parcel(kmer)) {
         kmer.set_ibv(ibv);
         kmer.set_ib(kmer_cur.index_start());
-        kmer.set_fw(kmer_cur.is_canonical_fw());
-        kmer.set_palindrome(kmer_cur.is_palindrome());
+        if (kmer_cur.is_palindrome())  kmer.set_palindrome(true);
+        else                           kmer.set_fw(kmer_cur.is_canonical_fw());
         parcels.add(kmer);
       }
       kmer_cur.next();          
@@ -200,92 +204,150 @@ public:
                  const size_t i0k,
                  const size_t i1k)
   {
-    // palidromes are not implemented right yet.
-    
+    const bool is_palindrome = krecs[i0k].is_palindrome();
+
     // compute frequencies for various kmers around central (k-2)mer
+
     vec<vec<size_t> > kf_pre_suf(4, vec<size_t>(4, 0));
     vec<vec<size_t> > kf_suf_suf(4, vec<size_t>(4, 0));
     vec<vec<size_t> > kf_pre_pre(4, vec<size_t>(4, 0));
 
     for (size_t ik = i0k; ik < i1k; ik++) {
-      const rec_type & krec    = krecs[ik];
-      const BaseVec  & bv      = _bvv[krec.ibv()];
-      const unsigned   nb      = bv.size();
-      const unsigned   ib_kmer = krec.ib();
+      const rec_type & krec     = krecs[ik];
+      const BaseVec  & bv       = _bvv[krec.ibv()];
+      const unsigned   nb       = bv.size();
+      const unsigned   ib0_kmer = krec.ib();
+      const unsigned   ib1_kmer = ib0_kmer + _Ks;
 
-      if (krec.is_fw() || krec.is_palindrome()) {         // kmer has FW orientation in read
-
-        if (ib_kmer >= 2) {
-          const unsigned pre1 = bv[ib_kmer - 1];
-          const unsigned pre2 = bv[ib_kmer - 2];
-          kf_pre_pre[pre2][pre1]++;
-        }
-        if (ib_kmer >= 1 && ib_kmer + _Ks < nb) {
-          const unsigned pre1 = bv[ib_kmer - 1];
-          const unsigned suf1 = bv[ib_kmer + _Ks];
-          kf_pre_suf[pre1][suf1]++;
-        }
-        if (ib_kmer + _Ks + 1 < nb) {
-          const unsigned suf1 = bv[ib_kmer + _Ks];
-          const unsigned suf2 = bv[ib_kmer + _Ks + 1];
-          kf_suf_suf[suf1][suf2]++;
-        }
+      if (krec.is_fw()) {         // kmer has FW orientation in read
+        
+        ForceAssert(!is_palindrome); // make sure it's not a palindrome
+	
+	const bool good_pre2 = (ib0_kmer     >= 2);
+	const bool good_pre1 = (ib0_kmer     >= 1);
+	const bool good_suf1 = (ib1_kmer     < nb);
+	const bool good_suf2 = (ib1_kmer + 1 < nb);
+	
+	const unsigned pre2 = good_pre2 ? bv[ib0_kmer - 2] : 0;
+	const unsigned pre1 = good_pre1 ? bv[ib0_kmer - 1] : 0;
+	const unsigned suf1 = good_suf1 ? bv[ib1_kmer    ] : 0;
+	const unsigned suf2 = good_suf2 ? bv[ib1_kmer + 1] : 0;
+	
+	if (good_pre2)              kf_pre_pre[pre2][pre1]++;
+	if (good_pre1 && good_suf1) kf_pre_suf[pre1][suf1]++;
+	if (good_suf2)              kf_suf_suf[suf1][suf2]++;
       }         
 
-      if (krec.is_rc() || krec.is_palindrome()) {         // kmer has RC orientation in read
+      if (krec.is_rc()) {         // kmer has RC orientation in read
+        
+        ForceAssert(!is_palindrome); // make sure it's not a palindrome
 
-        if (ib_kmer >= 2) {
-          const unsigned suf1 = 3u ^ bv[ib_kmer - 1];
-          const unsigned suf2 = 3u ^ bv[ib_kmer - 2];
-          kf_suf_suf[suf1][suf2]++;
-        }
-        if (ib_kmer >= 1 && ib_kmer + _Ks < nb) {
-          const unsigned suf1 = 3u ^ bv[ib_kmer - 1];
-          const unsigned pre1 = 3u ^ bv[ib_kmer + _Ks];
-          kf_pre_suf[pre1][suf1]++;
-        }
-        if (ib_kmer + _Ks + 1 < nb) {
-          const unsigned pre1 = 3u ^ bv[ib_kmer + _Ks];
-          const unsigned pre2 = 3u ^ bv[ib_kmer + _Ks + 1];
-          kf_pre_pre[pre2][pre1]++;
-        }
+	const bool good_suf2 = (ib0_kmer     >= 2);
+	const bool good_suf1 = (ib0_kmer     >= 1);
+	const bool good_pre1 = (ib1_kmer     < nb);
+	const bool good_pre2 = (ib1_kmer + 1 < nb);
+	
+	const unsigned suf2 = good_suf2 ? (3u ^ bv[ib0_kmer - 2]) : 0;
+	const unsigned suf1 = good_suf1 ? (3u ^ bv[ib0_kmer - 1]) : 0;
+	const unsigned pre1 = good_pre1 ? (3u ^ bv[ib1_kmer    ]) : 0;
+	const unsigned pre2 = good_pre2 ? (3u ^ bv[ib1_kmer + 1]) : 0;
+	
+	if (good_pre2)              kf_pre_pre[pre2][pre1]++;
+	if (good_pre1 && good_suf1) kf_pre_suf[pre1][suf1]++;
+	if (good_suf2)              kf_suf_suf[suf1][suf2]++;
       }         
 
+      if (is_palindrome) {         // kmer is a palindrome
+
+	const bool good_pre2 = (ib0_kmer     >= 2);
+	const bool good_pre1 = (ib0_kmer     >= 1);
+	const bool good_suf1 = (ib1_kmer     < nb);
+	const bool good_suf2 = (ib1_kmer + 1 < nb);
+	
+	const unsigned pre2_fw = good_pre2 ? bv[ib0_kmer - 2] : 0;
+	const unsigned pre1_fw = good_pre1 ? bv[ib0_kmer - 1] : 0;
+	const unsigned suf1_fw = good_suf1 ? bv[ib1_kmer    ] : 0;
+	const unsigned suf2_fw = good_suf2 ? bv[ib1_kmer + 1] : 0;
+
+	const unsigned pre2_rc = 3u ^ suf2_fw;
+	const unsigned pre1_rc = 3u ^ suf1_fw;
+	const unsigned suf1_rc = 3u ^ pre1_fw;
+	const unsigned suf2_rc = 3u ^ pre2_fw;
+
+	if (good_pre1 && good_suf1) {
+	  // pick canonical K-mer
+	  if (pre1_fw < pre1_rc) kf_pre_suf[pre1_fw][suf1_fw]++;
+	  else                   kf_pre_suf[pre1_rc][suf1_rc]++;
+	}
+
+	if (good_pre2) {
+          kf_pre_pre[pre2_fw][pre1_fw]++;
+	  kf_suf_suf[suf1_rc][suf2_rc]++;
+        }
+
+	if (good_suf2) {
+          kf_suf_suf[suf1_fw][suf2_fw]++;
+	  kf_pre_pre[pre2_rc][pre1_rc]++;
+        }
+      }         
+      
     }
-
+    
+    
     // summarize kmer frequencies based on number of affixes
-
-    for (unsigned pre = 0; pre < 4; pre++) {
-      for (unsigned suf = 0; suf < 4; suf++) {
-
-        const size_t kf = kf_pre_suf[pre][suf];
-
-        if (!_p_validator || (*_p_validator)(kf)) {
+    
+    const KMER_t kmer0(krecs[i0k]);
+    
+    
+    for (unsigned pre1 = 0; pre1 < 4; pre1++) {
+      for (unsigned suf1 = 0; suf1 < 4; suf1++) {
           
-          unsigned n_pre = 0;
-          for (unsigned pre2 = 0; pre2 < 4; pre2++)
-            if (!_p_validator || (*_p_validator)(kf_pre_pre[pre2][pre]))
-              n_pre++;
+	const size_t kf = kf_pre_suf[pre1][suf1];
+        
+	if (_is_valid_kf(kf)) {
 
-          unsigned n_suf = 0;
-          for (unsigned suf2 = 0; suf2 < 4; suf2++)
-            if (!_p_validator || (*_p_validator)(kf_suf_suf[suf][suf2]))
-              n_suf++;
-          
-          // pick kmer spectrum corresponding to n_pre and n_suf
-          // (invariant under n_pre <-> n_suf)
-          KmerSpectrum & kspec_tmp = _kspecs_tmp(n_pre, n_suf);
+	  unsigned n_pre = 0;
+	  {
+	    KmerFWRC<KMER_t> kmerFRpre(kmer0); // keeps both FW and RC
+            kmerFRpre.add_left(pre1);    // add prefix
+	    kmerFRpre.add_left(0u);      // add base to be edited
 
-          if (kspec_tmp.size() <= kf) kspec_tmp.resize(kf + 1, 0);
-          kspec_tmp[kf]++;
+	    for (unsigned pre2 = 0; pre2 < 4; pre2++) {
+	      kmerFRpre.set(0, pre2);
+	      const bool is_pal = kmerFRpre.is_palindrome();
+	      const size_t & kfpp = kf_pre_pre[pre2][pre1];
+	      if (_is_valid_kf(is_pal ? kfpp/2 : kfpp))
+                n_pre++;
+            }
+          }
 
-        }
+	  unsigned n_suf = 0;
+          {
+	    KmerFWRC<KMER_t> kmerFRsuf(kmer0); // keeps both FW and RC
+	    kmerFRsuf.add_right(suf1);    // add suffix
+	    kmerFRsuf.add_right(0u);      // add base to be edited
+	    
+	    for (unsigned suf2 = 0; suf2 < 4; suf2++) {
+	      kmerFRsuf.set(_K - 1, suf2);
+	      const bool is_pal = kmerFRsuf.is_palindrome();
+	      const size_t & kfss = kf_suf_suf[suf1][suf2];
+	      if (_is_valid_kf(is_pal ? kfss/2 : kfss))
+                n_suf++;
+            }
+          }
 
+	  // pick kmer spectrum corresponding to n_pre and n_suf
+	  // (invariant under n_pre <-> n_suf)
+	  KmerSpectrum & kspec_tmp = _kspecs_tmp(n_pre, n_suf);
+	  
+	  if (kspec_tmp.size() <= kf) kspec_tmp.resize(kf + 1, 0);
+	  kspec_tmp[kf]++;
+	  
+	}
+	
       }
     }
-
-
-
+  
   }
   
 
@@ -300,17 +362,17 @@ public:
       for (unsigned n_suf = n_pre; n_suf <= 4; n_suf++) {
     
         KmerSpectrum & kspec = (*_p_kspecs)(n_pre, n_suf);
-          const KmerSpectrum & kspec_tmp = kernel_tmp._kspecs_tmp(n_pre, n_suf);
-          const size_t nkf = kspec_tmp.size();
-
-          if (kspec.size() < nkf) 
-            kspec.resize(nkf, 0);
-    
-          for (size_t kf = 0; kf != nkf; kf++)
-            kspec[kf] += kspec_tmp[kf];
+	const KmerSpectrum & kspec_tmp = kernel_tmp._kspecs_tmp(n_pre, n_suf);
+	const size_t nkf = kspec_tmp.size();
+	
+	if (kspec.size() < nkf) 
+	  kspec.resize(nkf, 0);
+	
+	for (size_t kf = 0; kf != nkf; kf++)
+	  kspec[kf] += kspec_tmp[kf];
       }
     }
-
+    
   }
 
 };

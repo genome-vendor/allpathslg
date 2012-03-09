@@ -36,8 +36,9 @@
 #include "MainTools.h"
 #include "PairsManager.h"
 #include "ParallelVecUtilities.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
+#include "feudal/BinaryStream.h"
 #include "math/Functions.h"
 #include "paths/PdfEntry.h"
 #include "paths/UnibaseUtils.h"
@@ -203,9 +204,9 @@ int main( int argc, char** argv ) {
      {    if (WRITE)
           {    cn_pdfs.WriteAll( (run_dir + "/" + READS + "." + UNIPATHS 
 	             + ".predicted_count.k" + ToString(K)).c_str() );
-               BinaryWrite3( run_dir + "/" + READS + "." + UNIPATHS + ".kmer_hits.k" 
+               BinaryWriter::writeFile( run_dir + "/" + READS + "." + UNIPATHS + ".kmer_hits.k"
 	 	     + ToString(K), n_kmer_hits );
-               BinaryWrite3( run_dir + "/" + READS + "." + UNIPATHS + ".cn_raw.k" 
+               BinaryWriter::writeFile( run_dir + "/" + READS + "." + UNIPATHS + ".cn_raw.k"
 	 	     + ToString(K), CN_raw );    }
           cout << Date( ) << ": UnibaseCopyNumber3 Done!" << endl;
           return 0;    }
@@ -282,6 +283,7 @@ int main( int argc, char** argv ) {
      vec<double> cn_from(nuni, 0), cn_to(nuni, 0);
 
      cout << Date( ) << ": loading jumps" << endl;
+     Mkdir777( run_dir + "/tmp" );
      String temp_file = run_dir + "/tmp/"+ READS + ".temp_jumps.fastb";
      {    vecbasevector jreads( jreads_file );
 	  for ( size_t i = 0; i < jreads.size( ); i++ )
@@ -521,9 +523,9 @@ int main( int argc, char** argv ) {
      if (WRITE)
      {    cn_pdfs.WriteAll( (run_dir + "/" + READS + "." + UNIPATHS 
                + ".predicted_count.k" + ToString(K)).c_str() );
-          BinaryWrite3( run_dir + "/" + READS + "." + UNIPATHS + ".kmer_hits.k" 
+          BinaryWriter::writeFile( run_dir + "/" + READS + "." + UNIPATHS + ".kmer_hits.k"
 	       + ToString(K), n_kmer_hits );
-          BinaryWrite3( run_dir + "/" + READS + "." + UNIPATHS + ".cn_raw.k" 
+          BinaryWriter::writeFile( run_dir + "/" + READS + "." + UNIPATHS + ".cn_raw.k"
                + ToString(K), CN_raw );    }
      cout << Date( ) << ": UnibaseCopyNumber3 Done!" << endl;
      return 0;    }

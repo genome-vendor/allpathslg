@@ -286,25 +286,32 @@ template<class T> void matrix<T>::PrettyPrint( ostream& o ) const
           rows.push_back(row);    }
      PrintTabular( o, rows, 2 );    }
 
-#define MATRIX_DEF(T)                                                           \
-     template matrix<T>::matrix( int r, int c );                                \
-     template matrix<T>::matrix( int r, int c, const T& t );                    \
-     template void matrix<T>::Resize( int r, int c );                           \
-     template double matrix<T>::Cofactor(int i, int j);                         \
-     template void matrix<T>::Invert(void);                                     \
-     template void matrix<T>::Transpose( );                                     \
-     template T matrix<T>::Det( );                                              \
-     template void matrix<T>::Inverse(matrix<T>& inverse);                                     \
-     template Bool matrix<T>::lu_decompose(Permutation& P);                     \
-     template void matrix<T>::solve_from_lu(                                    \
-          const Permutation& P, const vec<T>& b, vec<T>& x );                   \
-     template void matrix<T>::PrettyPrint( ostream& ) const;                    \
-     template void Solve( const matrix<T>& A, const vec<T>& b, vec<T>& x );     \
-     template void mul( const matrix<T>& A, const vec<T>& x, vec<T>& Ax );      \
-     template void mul( const matrix<T>& A, const matrix<T>& B, matrix<T>& C ); \
-     template void mulsub( const matrix<T>& A, const vec<T>& x,                 \
-          const vec<T>& b, vec<T>& Ax_minus_b );                                \
-     template void SolveLeastSquares(                                           \
-          const matrix<T>& A, const vec<T>& b, vec<T>& x );                     \
-     template void BestQuadratic( const vec<T>& x, const vec<T>& y,             \
-          T& a, T& b, T& c );
+template<class T> void matrix<T>::solve_from_lu( const Permutation& P,
+                                                        const T* b, T* x )
+{    matrix<T>& lu = *this;
+     int i, j, n = Nrows( );
+     T dot;
+     for ( i = 0; i < n; i++ )
+     {    dot = 0;
+          T* v = &lu[i][0];
+          for ( j = 0; j < i; j++ )
+             dot += v[j] * x[j];
+          x[i] = b[P[i]-1] - dot;    }
+     for ( i = n-1; i >= 0; i-- )
+     {    dot = 0;
+          T* v = &lu[i][0];
+          for ( j = i+1; j < n; j++ )
+             dot += v[j] * x[j];
+          x[i] = (x[i] - dot) / v[i];    }    }
+
+#define MATRIX_DEF(T)                                                         \
+     template class matrix<T>;                                                \
+     template void Solve( const matrix<T>& A, const vec<T>& b, vec<T>& x );   \
+     template void mul( const matrix<T>& A, const vec<T>& x, vec<T>& Ax );    \
+     template void mul( const matrix<T>& A, const matrix<T>& B, matrix<T>& C );\
+     template void mulsub( const matrix<T>& A, const vec<T>& x,               \
+          const vec<T>& b, vec<T>& Ax_minus_b );                              \
+     template void SolveLeastSquares(                                         \
+          const matrix<T>& A, const vec<T>& b, vec<T>& x );                   \
+     template void BestQuadratic( const vec<T>& x, const vec<T>& y,           \
+          T& a, T& b, T& c )

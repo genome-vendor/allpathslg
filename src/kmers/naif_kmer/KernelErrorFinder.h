@@ -212,7 +212,7 @@ class ErrorFinder
   const BaseVecVec       & _bases;
   const QVV_t            & _quals;
   BaseVecVec             & _bases_new;
-  BitVecVec              & _bases_locked;
+  VecBitVec              & _bases_locked;
 
   const size_t             _nb_max;  // the largest base vec size 
   const size_t             _n_cols;  // n_cols = K + 2 (nb_max - K)
@@ -233,7 +233,7 @@ public:
               const BaseVecVec       & bases,
               const QVV_t            & quals,
               BaseVecVec             * p_bases_new,
-              BitVecVec              * p_bases_locked,
+              VecBitVec              * p_bases_locked,
               const size_t             n_threads) 
     : _n_threads(n_threads),
       _n_blocks(2 * n_threads),

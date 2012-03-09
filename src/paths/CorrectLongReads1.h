@@ -20,20 +20,24 @@ void Phase1(
      // inputs:
 
      const int NUM_THREADS, const vecbasevector& unibases, const vec<int>& to_rc,
-     const vec< vec<int> >& nexts, const int K, const int L,
+     const vec< vec<int> >& nexts, 
+     const vec< vec<int> >& nexts_count, 
+     const int K, const int L,
      const vec< vec< pair<int,int> > >& Ulocs, const vecbasevector& longreads,
      const vec<int>& reads_to_use, const heuristics& heur, 
 
      // algorithms:
 
-     const Bool USE_SHORTEST, const Bool CLUSTER_OLD,
-     const Bool CLUSTER_ALIGNS_NEW_CLEAN,
+     const Bool USE_SHORTEST, const Bool CLUSTER_ALIGNS_NEW_CLEAN,
+     const Bool BEST_ONLY,
 
      // control:
 
      const Bool PATCHES_ONLY, const int MIN_PATCH1, const int MIN_PATCH2,
-     const Bool TEST_READ_GAP, const Bool STANDARD_ALIGNS, const Bool FILTER,
-     const Bool CLEAN_GRAPH,
+     const Bool STANDARD_ALIGNS, const Bool FILTER0, const Bool FILTER, 
+     const Bool FILTER2, const Bool CLEAN_GRAPH, const Bool CYCLIC_BAIL,
+     const Bool KILL_INFERIOR_CLUSTERS_NEW, const Bool SCREEN_NEXTS, 
+     const int MIN_SPREAD1,
 
      // logging:
 
@@ -44,9 +48,9 @@ void Phase1(
 
      // outputs:
 
-     vec<uniseq>& UNISEQ, vec< vec<int> >& UNISEQ_ID, vec<Bool>& COMPUTED, 
-     vecbasevector& all, vec<GapPatcher>& patchers, vec< digraphE<int> >& Galt_all,
-     vec< vec<int> >& Galt_U,
+     vec<uniseq>& UNISEQ, vec< vec<int> >& UNISEQ_ID, vec< vec< vec<int> > >& BESTS,
+     vec<Bool>& COMPUTED, vecbasevector& all, vec<GapPatcher>& patchers, 
+     vec< digraphVE<int,int> >& Hall,
      vec< vec< pair< int, vec< pair<int,int> > > > >& ALIGNS_ALL );
 
 #endif

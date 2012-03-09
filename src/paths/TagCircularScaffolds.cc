@@ -11,7 +11,7 @@
 
 #include "PairsManager.h"
 #include "Superb.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
 #include "math/Functions.h"
 #include "paths/IdentifyCircularScaffolds.h"

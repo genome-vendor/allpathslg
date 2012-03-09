@@ -57,13 +57,6 @@ size_t physicalMemory()
     return gPhysPages*pageSize();
 }
 
-size_t availablePhysicalMemory()
-{
-  long result = sysconf(_SC_AVPHYS_PAGES);
-  if ( result == -1 ) sysconfErr("_SC_AVPHYS_PAGES");
-  return result * pageSize();
-}
-
 size_t processorsOnline()
 {
     if ( !gProcsOnline )

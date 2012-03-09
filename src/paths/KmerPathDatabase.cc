@@ -1,7 +1,7 @@
 // Copyright (c) 2004 Broad Institute/Massachusetts Institute of Technology
 
 #include "paths/KmerPathDatabase.h"
-
+#include "feudal/BinaryStream.h"
 #include <map>
 
 // Methods of class KmerPathDatabaseTemplate.
@@ -313,7 +313,7 @@ void KmerPathDatabaseTemplate<TAG>::GetHighFrequencyKmers( vec<kmer_id_t>& hiFre
 template <class TAG>
 void KmerPathDatabaseTemplate<TAG>::Write( const String& filename ) const
 {
-  BinaryWrite2( filename, *mp_taggedRpints );
+  BinaryWriter::writeFile( filename, *mp_taggedRpints );
 }
 
 template <class TAG>
@@ -324,7 +324,7 @@ void KmerPathDatabaseTemplate<TAG>::Read( const String& filename )
 
   vec<TAG>* p_taggedRpints = new vec<TAG>();
 
-  BinaryRead2( filename, *p_taggedRpints );
+  BinaryReader::readFile( filename, p_taggedRpints );
 
   mp_taggedRpints = p_taggedRpints;
   m_ownRpints = true;

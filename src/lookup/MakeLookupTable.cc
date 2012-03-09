@@ -196,7 +196,6 @@ int main( int argc, char *argv[] )
   // Set up to create .lookup file.
 
   Remove( OUT_HEAD + ".lookup" );
-  int fd = Open( OUT_HEAD + ".lookup", O_WRONLY | O_CREAT );
 
   // Count number of bases, possibly slightly overcounting.
   // NOTE: this is the total count for all contigs found in
@@ -244,7 +243,7 @@ int main( int argc, char *argv[] )
 
   // Set up lookup table.
 
-  lookup_table look(fd);
+  lookup_table look(OUT_HEAD + ".lookup",false);
   look.SetK(K);
   look.SetChunkParams( CHUNK_SIZE, CHUNK_OVERLAP );
 

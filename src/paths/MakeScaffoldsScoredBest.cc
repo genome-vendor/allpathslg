@@ -9,7 +9,7 @@
 
 #include "PairsManager.h"
 #include "Superb.h"
-#include "VecTemplate.h"
+#include "Vec.h"
 #include "VecUtilities.h"
 #include "math/Functions.h"
 #include "paths/Alignlet.h"
@@ -243,36 +243,6 @@ void MakeScaffoldsScoredBest( const PairsManager &pairs,
     }
     if ( bundles.isize( ) < 1 ) out << "no bundles found\n";
   }
-  
-  
-#ifdef SKIP_THIS // SANTEMP
-  String out_base = "/wga/scr2/sante/output/temp";
-
-  String graph_file = out_base + ".graph";
-  int fd = OpenForWrite( graph_file );
-  BinaryWrite( fd, graph );
-  
-  String supers_file = out_base + ".superb";
-  WriteSuperbs( supers_file, supers );
-  
-  String supers_txt_file = out_base + ".superb.txt";
-  String theCommand = "ShowSupersBrief SUPERBS=" + supers_file;
-  String theLog = " >& " + supers_txt_file;
-  SystemSucceed( theCommand + theLog );
-
-  String links_file = out_base + ".links";
-  ofstream lout( links_file.c_str( ) );
-  for (int ii=0; ii<bundles.isize( ); ii++) {
-    int idv = to_left[ bids[ii] ];
-    int idw = to_right[ bids[ii] ];
-    const CLinkBundle *pbundle = bundles[ii];
-    lout << ii << "\t";
-    PrintInfo( lout, idv, idw, *pbundle, supers );
-  }
-  lout.close( );
-
-  ForceAssert( 1 == 0 );
-#endif // SANTEMP
   
   
   // Build a parallel graph with E=int (needed for AllPathsLengthRange).
