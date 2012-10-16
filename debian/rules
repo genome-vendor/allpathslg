@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+
+PKG=$(shell dh_listpackages)
+VERSION=42991
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	dh_auto_install
+	mkdir -p ./debian/$(PKG)/usr/lib
+	mv ./debian/$(PKG)/usr/bin ./debian/$(PKG)/usr/lib/$(PKG)
+	mv ./debian/$(PKG)/usr/share/doc/allpathslg ./debian/$(PKG)/usr/share/doc/$(PKG)
+	mkdir -p ./debian/$(PKG)/usr/bin/
+	for FILE in genome-wrappers/*; do \
+	  cat $$FILE | sed 's/VERSION/$(VERSION)/g' >  ./debian/$(PKG)/usr/bin/`basename $$FILE`-$(VERSION); \
+	done
