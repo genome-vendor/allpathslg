@@ -1,11 +1,11 @@
-Source: allpathslg-42991
+Source: allpathslg-43241-patch
 Section: science
 Priority: optional
 Build-Depends: debhelper (>= 7)
 Maintainer: The Genome Institute <gmt@genome.wustl.edu>
 Homepage: http://www.broadinstitute.org/software/allpaths-lg/blog/
 
-Package: allpathslg-42991
+Package: allpathslg-43241-patch
 Architecture: amd64
 Depends: graphviz
 Description: ALLPATHS-LG is a de bruijn graph assembler for large genomes. 

@@ -17,7 +17,7 @@
 
 EXECUTABLES="PrepareAllPathsInputs.pl RunAllPathsLG"
 MANPAGES=""
-EXE_VERSION_SUFFIX=42991
+EXE_VERSION_SUFFIX=43241-patch
 
 set -e
 
