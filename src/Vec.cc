@@ -278,3 +278,4 @@ template const vec<int>& digraphE<vec<int> >::EdgeObject(int) const;
 template void digraphE<vec<int> >::PrettyDOT(std::basic_ostream<char, std::char_traits<char> >&, vec<double> const&, digraphE<vec<int> >::edge_label_info, unsigned char, unsigned char, vec<int> const*, vec<FeudalString<char, std::char_traits<char> > > const*, vec<int> const*, vec<unsigned char> const*) const;
 template void digraphE<vec<int> >::ToLeft(vec<int>&) const;
 template void digraphE<vec<int> >::ToRight(vec<int>&) const;
+template void digraphE<vec<int> >::DeleteEdges(vec<int> const&, vec<int> const&);

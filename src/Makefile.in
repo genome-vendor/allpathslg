@@ -130,10 +130,11 @@ am_libAllPathsLG_a_OBJECTS = ErrNo.$(OBJEXT) Mutmer.$(OBJEXT) \
 	Solid.$(OBJEXT) FeudalFileWriter.$(OBJEXT) Jumpster.$(OBJEXT) \
 	TrimsFile.$(OBJEXT) PerfectLookup.$(OBJEXT) \
 	AddSuperReads.$(OBJEXT) UnipathNhoodLG.$(OBJEXT) \
-	PseudoUnipatherLib.$(OBJEXT) Digraph.$(OBJEXT) Equiv.$(OBJEXT) \
-	FirstLookup.$(OBJEXT) IndexedAlignmentPlusVector.$(OBJEXT) \
-	CLinkBundle.$(OBJEXT) PerfectCount.$(OBJEXT) \
-	SupersHandler.$(OBJEXT) LookAlign.$(OBJEXT) CSublink.$(OBJEXT) \
+	PseudoUnipatherLib.$(OBJEXT) Array.$(OBJEXT) Digraph.$(OBJEXT) \
+	Equiv.$(OBJEXT) FirstLookup.$(OBJEXT) \
+	IndexedAlignmentPlusVector.$(OBJEXT) CLinkBundle.$(OBJEXT) \
+	PerfectCount.$(OBJEXT) SupersHandler.$(OBJEXT) \
+	LookAlign.$(OBJEXT) CSublink.$(OBJEXT) \
 	PatcherCottageCore.$(OBJEXT) ProcBuf.$(OBJEXT) \
 	FindCells.$(OBJEXT) Eps.$(OBJEXT) Quality.$(OBJEXT) \
 	FileWriter.$(OBJEXT) LookupTabBuilder.$(OBJEXT) \
@@ -1639,28 +1640,29 @@ libAllPathsLG_a_SOURCES = CommonSemanticTypes.h feudal/FieldVecDefs.h \
 	feudal/FeudalString.h lookup/LookAlign.h paths/Alignlet.h \
 	Equiv.h paths/MuxSearchResult.h paths/UnibaseCopyNumber2Core.h \
 	paths/SaveScaffoldGraph.h random/Bernoulli.h InsertEnds.h \
-	graph/Digraph.cc system/Exit.h Equiv.cc lookup/FirstLookup.cc \
-	efasta/AmbiguityScore.h system/file/TempFile.h \
-	feudal/SerfVec.h IndexedAlignmentPlusVector.cc \
-	paths/reporting/CLinkBundle.cc lookup/PerfectCount.cc \
-	FetchReads.h sort_kmers/SortKmersB.h system/ThreadsafeIO.h \
-	ContigEvent.h SupersHandler.cc paths/ScaffoldGraphIntegrity.h \
-	paths/HyperBasevector.h paths/reporting/CBundle.h \
-	AnAssemblyClass.h PrintAlignment.h lookup/LookAlign.cc \
-	paths/CorrectPatch.h paths/CSublink.cc paths/ImproperMerge.h \
-	paths/PatcherCottageCore.cc kmers/KmerShape.h system/ID.h \
-	system/ProcBuf.cc graph/FindCells.cc \
-	paths/CorrectLongReadsTools2.h graphics/Eps.cc Quality.cc \
-	paths/RunAllPathsCommon.h math/Arith.h system/RunTime.h \
-	system/file/FileWriter.cc paths/UnipathFixerTools.h \
-	math/NStatsTools.h lookup/LookupTabBuilder.cc \
-	pairwise_aligners/MatchList.h ShortVector.h Bitvector.h \
-	math/Functions.h paths/RemodelGapTools.h reporting/PerfStat.h \
-	paths/CAltFasta.h paths/AlignHyperKmerPath.h \
-	paths/AssemblyCleanupTools.h feudal/Generic.h \
-	pairwise_aligners/SmithWatAffine.h LocsHandlerLG.h \
-	paths/BigMapDot.cc Misc.cc random/RNGen.h paths/MuxGraph.h \
-	feudal/FeudalTools.cc paths/UnibaseCopyNumber3Core.cc \
+	math/Array.cc graph/Digraph.cc system/Exit.h Equiv.cc \
+	lookup/FirstLookup.cc efasta/AmbiguityScore.h \
+	system/file/TempFile.h feudal/SerfVec.h \
+	IndexedAlignmentPlusVector.cc paths/reporting/CLinkBundle.cc \
+	lookup/PerfectCount.cc FetchReads.h sort_kmers/SortKmersB.h \
+	system/ThreadsafeIO.h ContigEvent.h SupersHandler.cc \
+	paths/ScaffoldGraphIntegrity.h paths/HyperBasevector.h \
+	paths/reporting/CBundle.h AnAssemblyClass.h PrintAlignment.h \
+	lookup/LookAlign.cc paths/CorrectPatch.h paths/CSublink.cc \
+	paths/ImproperMerge.h paths/PatcherCottageCore.cc \
+	kmers/KmerShape.h system/ID.h system/ProcBuf.cc \
+	graph/FindCells.cc paths/CorrectLongReadsTools2.h \
+	graphics/Eps.cc Quality.cc paths/RunAllPathsCommon.h \
+	math/Arith.h system/RunTime.h system/file/FileWriter.cc \
+	paths/UnipathFixerTools.h math/NStatsTools.h \
+	lookup/LookupTabBuilder.cc pairwise_aligners/MatchList.h \
+	ShortVector.h Bitvector.h math/Functions.h \
+	paths/RemodelGapTools.h reporting/PerfStat.h paths/CAltFasta.h \
+	paths/AlignHyperKmerPath.h paths/AssemblyCleanupTools.h \
+	feudal/Generic.h pairwise_aligners/SmithWatAffine.h \
+	LocsHandlerLG.h paths/BigMapDot.cc Misc.cc random/RNGen.h \
+	paths/MuxGraph.h feudal/FeudalTools.cc \
+	paths/UnibaseCopyNumber3Core.cc \
 	pairwise_aligners/AlignTwoBasevectors.cc \
 	paths/UnipathSeqBuilder.cc system/file/FileReader.h \
 	paths/RemoveDuplicateAligns.cc Loader.h paths/LongReadTools.cc \
@@ -2655,6 +2657,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ApplyAssemblyEdits.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ApplyGapPatches.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Arith.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Array.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/AssemblyAccuracy.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/AssemblyCleanupTools.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/AssemblyCoverage.Po@am__quote@
@@ -3340,6 +3343,20 @@ PseudoUnipatherLib.obj: paths/PseudoUnipatherLib.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='paths/PseudoUnipatherLib.cc' object='PseudoUnipatherLib.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o PseudoUnipatherLib.obj `if test -f 'paths/PseudoUnipatherLib.cc'; then $(CYGPATH_W) 'paths/PseudoUnipatherLib.cc'; else $(CYGPATH_W) '$(srcdir)/paths/PseudoUnipatherLib.cc'; fi`
+
+Array.o: math/Array.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT Array.o -MD -MP -MF $(DEPDIR)/Array.Tpo -c -o Array.o `test -f 'math/Array.cc' || echo '$(srcdir)/'`math/Array.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/Array.Tpo $(DEPDIR)/Array.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='math/Array.cc' object='Array.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o Array.o `test -f 'math/Array.cc' || echo '$(srcdir)/'`math/Array.cc
+
+Array.obj: math/Array.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT Array.obj -MD -MP -MF $(DEPDIR)/Array.Tpo -c -o Array.obj `if test -f 'math/Array.cc'; then $(CYGPATH_W) 'math/Array.cc'; else $(CYGPATH_W) '$(srcdir)/math/Array.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/Array.Tpo $(DEPDIR)/Array.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='math/Array.cc' object='Array.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o Array.obj `if test -f 'math/Array.cc'; then $(CYGPATH_W) 'math/Array.cc'; else $(CYGPATH_W) '$(srcdir)/math/Array.cc'; fi`
 
 Digraph.o: graph/Digraph.cc
 @am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT Digraph.o -MD -MP -MF $(DEPDIR)/Digraph.Tpo -c -o Digraph.o `test -f 'graph/Digraph.cc' || echo '$(srcdir)/'`graph/Digraph.cc

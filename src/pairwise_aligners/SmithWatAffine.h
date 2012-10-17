@@ -33,4 +33,14 @@ unsigned int SmithWatAffine( const basevector& S, const basevector& T,
                              const int gap_open_penalty = 12,
                              const int gap_extend_penalty = 1 );
 
+
+unsigned int SmithWatAffineParallel( 
+                             const basevector& S, const basevector& T, 
+			     alignment& a,
+			     bool penalize_left_gap = true, 
+			     bool penalize_right_gap = true,
+                             const int mismatch_penalty = 3,
+                             const int gap_open_penalty = 12,
+                             const int gap_extend_penalty = 1 
+                             );
 #endif

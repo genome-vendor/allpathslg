@@ -654,6 +654,59 @@ template<class E> class digraphE : public digraph {
      vec<int> EdgesConnectedTo( const vec<int>& v ) const;
 
      // ============================================================================
+     // ================= DELETE OR ADD VERTICES OR EDGES ==========================
+     // ============================================================================
+
+     // Add vertices.
+
+     void AddVertices( int nadd );
+
+     // Add an edge from v to w.  Indices of edges from v to any x<=w are untouched,
+     //  while ones from v to x>w are incremented by 1; likewise for w's edges.
+
+     void AddEdge( const int v, const int w, const E& e );
+
+     // Delete an edge.  Indices of edges < j are untouched, while those > j 
+     // decrease by 1.  In particular, adding an edge and then deleting it is
+     // guaranteed to leave the indices of other edges unchanged.
+
+     void DeleteEdgeTo( int w, int j );
+     void DeleteEdgeFrom( int v, int j );
+
+     // Delete edges entering or exiting a vertex.  Takes argument js, which should
+     // be unique-sorted.
+
+     void DeleteEdgesTo( int w, const vec<int>& js );
+     void DeleteEdgesFrom( int v, const vec<int>& js );
+
+     // Two functions to delete a bunch of edges.  For both functions, the input
+     // list does not have to be sorted, and may contain duplicates.  The first
+     // Delete function is O(N), where N is the number of vertices in the graph.
+     // The second Delete function is O(to_delete).
+
+     void DeleteEdges( const vec<int>& to_delete );
+     void DeleteEdges( const vec<int>& to_delete, const vec<int>& to_left );
+
+     // Remove all edges entering or exiting a given vertex.
+
+     void DeleteEdgesAtVertex( int v );
+
+     // If two edges have the same stop and start, and are same as E-objects,
+     // delete one.  This does not actually delete the objects.
+
+     void RemoveDuplicateEdges( );
+
+     // Eliminate unused edge objects.
+
+     void RemoveDeadEdgeObjects( );
+
+     // Remove vertices having no edges coming in or going out, or only specified
+     // vertices having this same property.
+
+     void RemoveEdgelessVertices( );
+     void RemoveEdgelessVertices( const vec<int>& to_remove );
+
+     // ============================================================================
      // ======================== END ABOVE SECTION =================================
      // ============================================================================
 
@@ -719,30 +772,6 @@ template<class E> class digraphE : public digraph {
      // Compare DistancesToEnd.
 
      void ShortestPath( const int start, const int stop, vec<int>& path ) const;
-
-     // Add vertices.
-
-     void AddVertices( int nadd );
-
-     // Add an edge from v to w.  Indices of edges from v to any x<=w are untouched,
-     //  while ones from v to x>w are incremented by 1; likewise for w's edges.
-
-     void AddEdge( const int v, const int w, const E& e );
-
-     // Delete an edge.  Indices of edges <j are untouched, while those >j decrease 
-     // by 1.  In particular, adding an edge and then deleting it is guaranteed to 
-     // leave the indices of other edges unchanged.
-
-     void DeleteEdgeTo( int w, int j );
-     void DeleteEdgeFrom( int v, int j );
-
-     // Two functions to delete a bunch of edges.  For both functions, the input
-     // list does not have to be sorted, and may contain duplicates.  The first
-     // Delete function is O(N), where N is the number of vertices in the graph.
-     // The second Delete function is O(to_delete).
-
-     void DeleteEdges( const vec<int>& to_delete );
-     void DeleteEdges( const vec<int>& to_delete, const vec<int>& to_left );
      
      // SplayVertex.  Replace a given vertex v by To(v).size( ) + From(v).size( )
      // vertices and move the edges entering and exiting v to these vertices.
@@ -779,15 +808,6 @@ template<class E> class digraphE : public digraph {
 
      Bool IsComplete( const vec<int>& vertices, const vec<int>& edges ) const;
 
-     // Remove all edges entering or exiting a given vertex.
-
-     void DeleteEdgesAtVertex( int v );
-
-     // If two edges have the same stop and start, and are same as E-objects,
-     // delete one.  This does not actually delete the objects.
-
-     void RemoveDuplicateEdges( );
-
      // Determine which edge objects are used.
 
      void Used( vec<Bool>& used ) const;
@@ -795,16 +815,6 @@ template<class E> class digraphE : public digraph {
      // Return count of number of used edge objects.
 
      int UsedCount( ) const;
-
-     // Eliminate unused edge objects.
-
-     void RemoveDeadEdgeObjects( );
-
-     // Remove vertices having no edges coming in or going out, or only specified
-     // vertices having this same property.
-
-     void RemoveEdgelessVertices( );
-     void RemoveEdgelessVertices( const vec<int>& to_remove );
 
      // Reverse the graph or the connected component containing a given vertex of 
      // it.  The current version does nothing to the edge objects.
@@ -900,7 +910,6 @@ template<class E> class digraphE : public digraph {
 
      void PopBubbles( const vec<int> & bubble_vs );
 
-
      // PopHyperBubbles.
      // Input is a set of vertices v.  Each v must be located at the opening of
      // a bubble, with two or more edges that lead to the same successor w:
@@ -914,7 +923,6 @@ template<class E> class digraphE : public digraph {
      // a call to RemoveUnneededVertices.
 
      void PopHyperBubbles( const vec<int> & bubble_vs );
-
 
      // Append(D): append another digraph, forming the disjoint union.  The
      // new vertices from D are numbered after the existing vertices.

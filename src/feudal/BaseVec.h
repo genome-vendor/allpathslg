@@ -454,6 +454,19 @@ inline BaseVec Cat(const BaseVec& b1, const BaseVec& b2, const BaseVec& b3)
     return join;
 }
 
+/// Compute the concatenation of four basevectors
+inline BaseVec Cat(const BaseVec& b1, const BaseVec& b2, 
+     const BaseVec& b3, const BaseVec& b4)
+{
+    BaseVec join;
+    join.reserve(b1.size()+b2.size()+b3.size());
+    join = b1;
+    join.append(b2.begin(),b2.end());
+    join.append(b3.begin(),b3.end());
+    join.append(b4.begin(),b4.end());
+    return join;
+}
+
 /// Compute the concatenation of two or three basevectors, trimming K-1 bases off
 /// the intersections (assuming that they overlap by that amount, which is not
 /// checked).

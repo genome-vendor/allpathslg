@@ -13,7 +13,6 @@
 #include "ReadLocationLG.h"
 #include "TaskTimer.h"
 #include "graph/Digraph.h"
-#include "graph/DigraphTemplate.h"
 #include "math/Functions.h"
 #include "paths/KmerPath.h"
 #include "paths/UnipathNhoodLG.h"

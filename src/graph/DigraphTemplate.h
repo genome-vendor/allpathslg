@@ -1469,20 +1469,28 @@ Bool digraphE<E>::EdgePaths( const int v, const int w, vec< vec<int> >& paths,
      return True;    }
 
 template<class E> void digraphE<E>::DeleteEdgeTo( int w, int j )
-     {    int v = to_[w][j];
-          int i = InputToOutputFrom( w, j );
-          to_[w].erase( to_[w].begin( ) + j );
-          to_edge_obj_[w].erase( to_edge_obj_[w].begin( ) + j );
-          from_[v].erase( from_[v].begin( ) + i );
-          from_edge_obj_[v].erase( from_edge_obj_[v].begin( ) + i );    }
+{    int v = to_[w][j];
+     int i = InputToOutputFrom( w, j );
+     to_[w].erase( to_[w].begin( ) + j );
+     to_edge_obj_[w].erase( to_edge_obj_[w].begin( ) + j );
+     from_[v].erase( from_[v].begin( ) + i );
+     from_edge_obj_[v].erase( from_edge_obj_[v].begin( ) + i );    }
 
 template<class E> void digraphE<E>::DeleteEdgeFrom( int v, int j )
-     {    int w = from_[v][j];
-          int i = InputFromOutputTo( v, j );
-          from_[v].erase( from_[v].begin( ) + j );
-          from_edge_obj_[v].erase( from_edge_obj_[v].begin( ) + j );
-          to_[w].erase( to_[w].begin( ) + i );
-          to_edge_obj_[w].erase( to_edge_obj_[w].begin( ) + i );    }
+{    int w = from_[v][j];
+     int i = InputFromOutputTo( v, j );
+     from_[v].erase( from_[v].begin( ) + j );
+     from_edge_obj_[v].erase( from_edge_obj_[v].begin( ) + j );
+     to_[w].erase( to_[w].begin( ) + i );
+     to_edge_obj_[w].erase( to_edge_obj_[w].begin( ) + i );    }
+
+template<class E> void digraphE<E>::DeleteEdgesTo( int w, const vec<int>& js )
+{    for ( int l = js.isize( ) - 1; l >= 0; l-- )
+          DeleteEdgeTo( w, js[l] );    }
+
+template<class E> void digraphE<E>::DeleteEdgesFrom( int v, const vec<int>& js )
+{    for ( int l = js.isize( ) - 1; l >= 0; l-- )
+          DeleteEdgeFrom( v, js[l] );    }
 
 template<class E> 
 vec<int> digraphE<E>::EdgesBetween( const int v, const int w ) const

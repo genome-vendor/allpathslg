@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
   CommandArgument_String_Doc(HEAD_IN, "Need HEAD_IN.{fastb,qualb}");
   CommandArgument_String_Doc(HEAD_OUT, "Create HEAD_OUT.fastq");
   CommandArgument_Bool_Doc(PAIRED, "Whether the reads in the fastb/qualb are paired (interleaved).");
-  CommandArgument_UnsignedInt_Doc(PHRED_OFFSET, "Either 33 or 64");
+  CommandArgument_UnsignedInt_Valid_Doc(PHRED_OFFSET, "{33,64}", "Phred enconding to use (33 or 64)");
   CommandArgument_String_OrDefault_Doc(NAMING_PREFIX, HEAD_IN, "Read name prefix to read ID");
   CommandArgument_String_OrDefault_Doc(NAMING_SUFFIX, "", "Read name suffix to read ID");
   CommandArgument_Bool_OrDefault_Doc(PICARD_NAMING_SCHEME, False, "If true, "
@@ -69,8 +69,6 @@ int main(int argc, char *argv[])
   EndCommandArguments;
 
   // Load the data.
-
-  ForceAssert(PHRED_OFFSET == 33 || PHRED_OFFSET == 64);
 
   VBaseVecVec vbvv((HEAD_IN + ".fastb").c_str());
   VBaseVecVec::const_iterator it_bv = vbvv.begin();
